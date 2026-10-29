@@ -44,11 +44,6 @@ export function filterCount(f: FilterSettings) {
   );
 }
 
-/** True if anything (sort and radius included) differs from the defaults, i.e. Reset would change something. */
-export function isFiltered(f: FilterSettings) {
-  return filterCount(f) > 0 || f.sort !== FILTER_DEFAULTS.sort || f.radiusKm !== FILTER_DEFAULTS.radiusKm;
-}
-
 export const isStale = (age: number | null) => age != null && age > STALE_DAYS;
 
 /** Brands of the stations selling `fuel` today, most stations first, then by name. */

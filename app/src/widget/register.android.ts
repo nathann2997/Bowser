@@ -13,9 +13,6 @@ import { prepareLocation } from './location';
 import { modelFor } from './model';
 import { renderWidgetFor } from './widgets';
 
-/** The ⟳ button's click action before 0.6.0 (see the WIDGET_CLICK branch) */
-const STALE_LOCATE_ACTION = 'LOCATE';
-
 export const widgetTaskHandler: WidgetTaskHandler = async ({ widgetInfo, widgetAction, clickAction, clickActionData, renderWidget }) => {
   const id = widgetInfo.widgetId;
   if (widgetAction === 'WIDGET_DELETED') {
@@ -30,8 +27,7 @@ export const widgetTaskHandler: WidgetTaskHandler = async ({ widgetInfo, widgetA
   if (widgetAction === 'WIDGET_CLICK') {
     // OPEN_URI taps (stations, the rest of the widget) open the app natively and never get here. The mode row sends
     // MODE { mode }; the fuel chip sends FUEL { fuel } (the next fuel in the cycle). Save the choice for this widget
-    // and redraw from the cache so the switch is quick; fetch only when nothing is cached. LOCATE comes from the ⟳
-    // button removed in 0.6.0, still on a widget drawn by 0.5.0: a plain redraw (no location read), which removes it.
+    // and redraw from the cache so the switch is quick; fetch only when nothing is cached.
     // Anything else is ignored.
     const mode = clickAction === MODE_ACTION ? parseMode(clickActionData?.mode) : null;
     const fuel = clickAction === FUEL_ACTION ? parseFuel(clickActionData?.fuel) : null;
@@ -42,8 +38,6 @@ export const widgetTaskHandler: WidgetTaskHandler = async ({ widgetInfo, widgetA
     } else if (fuel) {
       tapped.fuel = fuel;
       saving = saveFuel(id, fuel);
-      locate = { skip: true };
-    } else if (clickAction === STALE_LOCATE_ACTION) {
       locate = { skip: true };
     } else return;
     fetch = false;

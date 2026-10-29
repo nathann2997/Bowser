@@ -12,10 +12,8 @@ import {
   type WidgetPrefs, type WidgetSnapshot,
 } from './logic';
 
-// v2: station prices carry the 7-day forecast: WPrice index 4, taken from stations.json StationPrice index 5. A v1
-// cache from today would hide forecasts until tomorrow, so v1 is only read as a fallback (below), never written.
+// v2: station prices carry the 7-day forecast: WPrice index 4, taken from stations.json StationPrice index 5
 export const CACHE_KEY = 'widget.cache.v2';
-export const OLD_CACHE_KEY = 'widget.cache.v1';
 const SCHEMA = 1;
 const TIMEOUT_MS = 15_000;
 
@@ -38,11 +36,8 @@ function readSnapshot(key: string): WidgetSnapshot | null {
   }
 }
 
-/** The cached snapshot; before the first v2 write (just after the OTA), the v1 one, so an offline widget still shows
- *  yesterday's data. v1 prices are 4-item tuples with no forecast, which render as "no forecast". */
-export const readCache = (): WidgetSnapshot | null => readSnapshot(CACHE_KEY) ?? readSnapshot(OLD_CACHE_KEY);
-
-let oldCacheGone = false;
+/** The cached snapshot, so an offline widget still shows the last data. */
+export const readCache = (): WidgetSnapshot | null => readSnapshot(CACHE_KEY);
 
 /** Async write: the stations part is ~900 entries, so keep it off the UI thread. */
 async function writeCache(s: WidgetSnapshot) {
@@ -50,11 +45,6 @@ async function writeCache(s: WidgetSnapshot) {
     const raw = JSON.stringify(s);
     await Storage.setItem(CACHE_KEY, raw);
     parsed.set(CACHE_KEY, { raw, v: s });
-    if (!oldCacheGone) {
-      await Storage.removeItem(OLD_CACHE_KEY);   // the pre-forecast cache, if any (once per run)
-      parsed.delete(OLD_CACHE_KEY);
-      oldCacheGone = true;
-    }
   } catch {
     // the widget still renders this time; the next refresh tries again
   }

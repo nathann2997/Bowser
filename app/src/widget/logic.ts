@@ -367,9 +367,6 @@ export const MEDIUM_FIXED = { compact: 80, regular: 122, caption: 18 } as const;
 /** One list item: 4+4 padding around (13 sp name 18 + 11 sp advice 15 = 33 | 14 sp price 19 + 11 sp forecast 15 = 34)
  *  = 42 -> 44 two-line (2 dp headroom for OEM fonts); 4+4 around a 19 dp line = 27 -> 28 one-line (compact). */
 export const LIST_ROW_H = { two: 44, one: 28 } as const;
-/** Never draw a list shorter than one full row of its layout (a ListWidget under ~1 dp throws natively and blanks the
- *  widget; under a row it's just a sliver). */
-export const MIN_LIST_H = LIST_ROW_H;
 /** Below this the medium widget uses the compact header and one-line rows: regular needs 122 + one 44 dp row. */
 export const MEDIUM_COMPACT_BELOW = MEDIUM_FIXED.regular + LIST_ROW_H.two;   // 166
 

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { buildWidgetTree } from 'react-native-android-widget/src/api/build-widget-tree';
 import type { WidgetTaskHandlerProps } from 'react-native-android-widget';
 
-import { CACHE_KEY, OLD_CACHE_KEY, readCache } from '../../widget/data';
+import { CACHE_KEY, readCache } from '../../widget/data';
 import { compactForecast, compactStations, type WidgetSnapshot } from '../../widget/logic';
 import { widgetTaskHandler } from '../../widget/register.android';
 import { MEDIUM, SMALL } from '../../widget/widgets';
@@ -212,24 +212,6 @@ describe('widget task handler', () => {
     mockStore.set(`widget.fuel.${ID}`, 'P98');
     render = await run({ widgetAction: 'WIDGET_UPDATE' });
     expect(chip(render.mock.calls[0][0]).label).toBe('P98');
-  });
-
-  it('falls back to the v1 cache (4-item prices, no forecast) when v2 is missing, e.g. offline right after the OTA', async () => {
-    mockStore.delete(CACHE_KEY);
-    const v1 = {
-      ...SNAP,
-      stations: { ...SNAP.stations!, stations: SNAP.stations!.stations.map((s) => ({ ...s, p: { U91: s.p.U91!.slice(0, 4) } })) },
-    };
-    mockStore.set(OLD_CACHE_KEY, JSON.stringify(v1));
-    expect(readCache()?.stations?.stations).toHaveLength(2);
-    const render = await run({ widgetAction: 'WIDGET_UPDATE' });
-    const texts = walk(buildWidgetTree((render.mock.calls[0][0] as { light: never }).light) as Node).map((n) => n.props?.text);
-    expect(texts).not.toContain('Open Bowser');
-    expect(texts).toContain('225.0');          // yesterday's station price still shows
-    expect(texts.some((x) => String(x).startsWith('→'))).toBe(false);   // without a forecast
-    // v2 wins once it exists
-    mockStore.set(CACHE_KEY, JSON.stringify({ ...SNAP, fetchedAt: 42 }));
-    expect(readCache()?.fetchedAt).toBe(42);
   });
 
   it('a periodic update draws the saved mode, defaulting to Pinned when a pin sells the fuel', async () => {

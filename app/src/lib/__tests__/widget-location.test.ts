@@ -143,11 +143,10 @@ describe('widget handler location', () => {
     expect(rowIds(drawn(render.mock.calls[0][0]))).toEqual(['b1', 'b2']);
   });
 
-  it('a LOCATE tap from a widget still drawn by 0.5.0 (its ⟳) redraws without the button: no location read, no fetch', async () => {
+  it('an unknown tap (e.g. LOCATE from the ⟳ removed in 0.6.0) is ignored: no draw, no location read, no fetch', async () => {
     mockLoc.last = pos(BONDI);
     const render = await run({ widgetAction: 'WIDGET_CLICK', clickAction: 'LOCATE', clickActionData: {} });
-    expect(render).toHaveBeenCalledTimes(1);
-    expect(hasLocate(drawn(render.mock.calls[0][0]))).toBe(false);
+    expect(render).not.toHaveBeenCalled();
     expect(mockLoc.calls.last + mockLoc.calls.current).toBe(0);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });

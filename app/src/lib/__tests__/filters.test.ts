@@ -2,7 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 
 import { mapUrls } from '../directions';
 import { plainWarnings, widgetLocationCopy } from '../copy';
-import { applyFilters, brandCounts, brandOptions, FILTER_DEFAULTS, filterCount, isFiltered, pinnedRows, type FilterSettings } from '../filters';
+import { applyFilters, brandCounts, brandOptions, FILTER_DEFAULTS, filterCount, pinnedRows, type FilterSettings } from '../filters';
 import { areaName, nearestSuburb, rankStations } from '../geo';
 import { DEFAULTS, normalize } from '../settings';
 import type { AdviceCode, Station, StationPrice, Suburb } from '../types';
@@ -38,8 +38,6 @@ describe('filters', () => {
   it('counts active filters but not sort or radius', () => {
     expect(filterCount(FILTER_DEFAULTS)).toBe(0);
     expect(filterCount(f({ sort: 'distance', radiusKm: 20 }))).toBe(0);
-    expect(isFiltered(f({ sort: 'distance' }))).toBe(true);
-    expect(isFiltered(FILTER_DEFAULTS)).toBe(false);
     expect(filterCount(f({ brands: ['BP', 'Shell'], advice: ['now'], maxPrice: 200, members: false, showStale: true, pinnedOnly: true }))).toBe(6);
   });
 
