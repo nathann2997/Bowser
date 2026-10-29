@@ -1,6 +1,6 @@
 # Daily Sydney fuel forecast, fully headless. Never writes to main:
 #   code   <- main (sydney/pipeline)
-#   state  <- `data` branch (store/ + archive/), seeded from main's sydney/store and sydney/archive on first run
+#   state  <- `data` branch (store/ + archive/), the only copy of the data
 #   output -> GitHub Pages: /api/v1/{meta,forecast,stations,history}.json and the dashboard at /
 #             + /api/v1/station/{id}.json, one per station (station_api.py; omitted with a meta warning if it fails)
 name: daily-forecast
@@ -68,14 +68,10 @@ jobs:
           mkdir state && cd state
           git init -q
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
-          if git ls-remote --exit-code --heads origin data >/dev/null; then
-            git fetch -q --depth 1 origin data
-            git checkout -q -b data FETCH_HEAD
-          else
-            echo "No data branch yet: seeding from main"
-            git checkout -q --orphan data
-            cp -r ../src/sydney/store ../src/sydney/archive .
-          fi
+          # The data branch holds the only copy of the history (a ruleset blocks deleting it); without it, stop
+          git ls-remote --exit-code --heads origin data >/dev/null || { echo "::error::data branch missing or unreachable: restore it from a clone or a backup"; exit 1; }
+          git fetch -q --depth 1 origin data
+          git checkout -q -b data FETCH_HEAD
           rm -rf pipeline && cp -r ../src/sydney/pipeline pipeline   # code always comes from main
           echo "sha=$(git rev-parse -q --verify HEAD || echo none)" >> "$GITHUB_OUTPUT"   # the save job checks it's unchanged
 
@@ -133,14 +129,7 @@ jobs:
       TZ: Australia/Sydney
     steps:
       - name: Check out the data branch
-        run: |
-          if git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" data >/dev/null; then
-            git clone -q --depth 1 --branch data "https://github.com/${GITHUB_REPOSITORY}.git" state
-          else
-            git init -q state && git -C state checkout -q --orphan data
-            git -C state remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
-            printf 'pipeline/\ninbox/\nout/\n__pycache__/\nstore/stations_today.json\n' > state/.gitignore
-          fi
+        run: git clone -q --depth 1 --branch data "https://github.com/${GITHUB_REPOSITORY}.git" state   # the build checked it exists
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4
         with:

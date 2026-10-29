@@ -6,7 +6,7 @@ Product owner: Nathan. PM: Claude. **Shipped in 0.3.0; kept for the reasoning be
 - The name is **Bowser**. It has no subtitle and no tagline anywhere: not in the launcher label, the splash, the headers or the store copy.
 - User-visible surfaces change: the launcher name (`app.json` `name`), the icon, adaptive icon and monochrome icon, the splash, the favicon, the in-app wordmark, the More/About copy, the widget, `app/README.md` and `docs/TESTING.md`.
 - **Technical identifiers stay** (deliberately): Android package `com.nathann2997.fuelforecast`, iOS bundle id, Expo slug `fuel-forecast`, the EAS project, URL scheme `fuelforecast`, the GitHub repo and the API URL `…/FuelForecast/api/v1`. Changing these would orphan the installed tester APKs, break OTA updates and move the API. Users never see them.
-- The web dashboard (`sydney/pipeline/template.html`, "Sydney Pump Outlook") is owned by the Claude scheduled task. It stays untouched in this release.
+- The web dashboard (`sydney/pipeline/template.html`, "Sydney Pump Outlook") stays untouched in this release.
 - The new launcher name and icon need a new APK. OTA updates can't change them. Native code for the widget forces a new build anyway, so `version` moves to **0.3.0** (the runtime policy is `appVersion`, so 0.1.0 installs won't receive 0.3.0 OTA bundles that need the widget's native code).
 
 ## 2. Features
@@ -58,7 +58,7 @@ Product owner: Nathan. PM: Claude. **Shipped in 0.3.0; kept for the reasoning be
   - `hist`: end-of-day price per fuel per day for the last 400 days (null = unknown). It is built from the NSW monthly price-change history (`store/events`), forward-filled between changes, then overlaid with the daily station snapshots (`archive/`) for days the monthly files don't cover yet.
   - `profile`: from `store/station_profile.json` (`typ`, `lag`, `part`, `n`).
   - `fc`: the station forecast per fuel. It is derived from the Sydney forecast path for that fuel and anchored at this station's current price, shifted by the station's lag (the same shift `advise()` in `build.py` uses) and damped by its participation. The ranges come from the Sydney lo/hi. `adv` matches `stations.json`, and `rise` is the date the advice is based on.
-- These are generated in `export_api.py` (the app path). Do not change `build.py`'s behaviour, the Claude task, or `main`'s `store/`.
+- These are generated in `export_api.py` (the app path). Do not change `build.py`'s behaviour.
 
 ## 4. Who does what (file ownership, so parallel work doesn't collide)
 | Workstream | Owner | Owns |

@@ -1,7 +1,6 @@
 // Text and derived numbers for the screens, ported from the dashboard (sydney/pipeline/template.html)
 // so the app says exactly what the web page says. Keep the two in step, except where the app's 2026-10-23 design review
-// deliberately differs (no "Best for you", "1 day" tile labels, quiet advice chips: docs/DESIGN.md); the dashboard is
-// shared with the Claude task and was left as it is.
+// deliberately differs (no "Best for you", "1 day" tile labels, quiet advice chips: docs/DESIGN.md).
 import { daysBetween, fmt, fuelName, nice } from './format';
 import { toneOf, type Tone } from './outlook';
 import type { AdviceCode, Ctx, Forecast, Fuel, History, LiveRow, Stats, VerdictCls } from './types';

@@ -51,7 +51,7 @@ Every build follows the same steps: design, then build, then checks (`tsc`, `exp
 - **Surfaces:** a Today card "Saved with Bowser $23.40 · 5 fills" (only when there are fills), and More → "Your fills and savings".
 
 ## C — Track record ("Was Bowser right?")
-- **Pipeline (app path only: `export_api.py`; `build.py`, the Claude task and `main`'s store are untouched):**
+- **Pipeline (`export_api.py` only; `build.py` is untouched):**
   - **Live calls:** every successful run records the day's verdict per fuel in `store/calls.csv` (`date, fuel, cls, head, now, d3, d7, p_jump7`) on the `data` branch. Only the **first** call of each Sydney day is kept: it's the morning call most people act on, and it can't be revised with hindsight. Nothing is recorded with `--allow-stale`.
   - **Replay:** the same `verdict()` rule is applied to the walk-forward backtest predictions (`backtest_preds.parquet` with the production model's 3- and 7-day predictions, plus `backtest_cls.parquet` for the jump chance), which gives "what Bowser would have said" from 2021 to the end of the backtest.
   - **Scoring** (one rule for both, from `store/daily.csv` medians): move = the average median over the next 7 days − the median on the call day (at least 5 of the 7 days needed, else pending).

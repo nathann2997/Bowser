@@ -3,7 +3,7 @@
 Working notes so a fresh session can resume. Update before ending a session (or at ~70% context). The full history of every change, with commits, run ids and OTA update groups, is in `CHANGELOG.md`; this file only keeps what's current and what's still open.
 
 ## Where things stand (2026-10-29)
-- **Pipeline:** GitHub Actions (`.github/workflows/daily.yml`, 5 runs a day) is the only pipeline. State lives on the `data` branch and the output on GitHub Pages: the dashboard at https://nathann2997.github.io/FuelForecast/ and the API under `/api/v1/`. The claude.ai scheduled task is disabled (2026-10-28), so `main`'s `sydney/store` stopped at 27 Oct. `data-health.yml` watches the API (`docs/DATA_HEALTH.md`).
+- **Pipeline:** GitHub Actions (`.github/workflows/daily.yml`, 5 runs a day) runs everything. State lives only on the `data` branch, and the output on GitHub Pages: the dashboard at https://nathann2997.github.io/FuelForecast/ and the API under `/api/v1/`. `data-health.yml` watches the API (`docs/DATA_HEALTH.md`).
 - **App:** Bowser **0.8.0** (runtime 0.8.0) on Android: the Stations map plus everything before it. Preview APK: EAS build 69dad55d, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/69dad55d-48de-4f95-90db-ade6fb1bbbf1. JS changes reach it as OTA updates on the `preview` channel. `app_release.json` points at 0.8.0, so older installs show the "new version" notice.
 - **iOS:** compiles (simulator build 46497e9c) but isn't distributed; see the open item below.
 
@@ -67,11 +67,11 @@ Newest first. Each item has its CHANGELOG entry of the same name for details.
 ## Key facts
 - Node 22 is at `~/.local/node/bin` (on PATH via `~/.zshrc`). App checks: `cd app && npx tsc --noEmit && npx expo lint && npx jest`. Pipeline tests: `python3 -m unittest sydney/pipeline/test_health.py`.
 - Browser preview: `npx expo export --platform web`, serve it with an SPA fallback, and screenshot it with headless Chrome at ≥500 px wide.
-- To check a pipeline change: run the pipeline on a copy of the `data` branch, and compare `export_api.py --allow-stale` output before and after, ignoring `generated_at`. The 2026-10-29 cleanup in the CHANGELOG shows how.
+- To check a pipeline change: run the pipeline on a copy of the `data` branch, and compare `export_api.py --allow-stale` output before and after, ignoring `generated_at` (recipe in `sydney/README.md`, "Local runs").
 - API base: `https://nathann2997.github.io/FuelForecast/api/v1/`; the file schema is in `sydney/README.md`.
 - `stations.json` per-fuel tuple: `[price, days since update, advice code, advice label, reason, 7-day forecast price]` (the last is left off on a day the station files failed). Advice codes: now, by, ok, wait, hi, any, chk.
 - The verdict rule is in `template.html` (`verdict()`) and mirrored in `export_api.py`; change both together. The rise date is `market()` in `build.py`, ported to `app/src/lib/outlook.ts`.
-- Workflow state lives on the `data` branch, never on `main`. Don't merge `data` into `main`.
+- The data (`store/`, `archive/`) lives only on the `data` branch; `main` holds code and docs. Don't merge `data` into `main`. To run the pipeline locally, see `sydney/README.md`.
 - OTA updates: `--environment preview --upload-source-maps`. Each runtime's update-notice OTA is built from the `ota/<runtime>-update-notice` branches; 0.1.0 APKs have no expo-updates and can't be reached.
 - **Release step:** after each native build, update `sydney/pipeline/app_release.json` (version, build URL, notes), push, then run `gh workflow run daily.yml`.
 - Secrets never go in git: `sydney/pipeline/credentials.py`, `sydney/pipeline/pull_nsw.js` and `fuel-api-credentials.md` are gitignored.
@@ -94,4 +94,3 @@ Newest first. Each item has its CHANGELOG entry of the same name for details.
 - **Data licences** (`DATA-LICENSE.md`): the repo and API are public, so everything in them counts as published. NSW FuelCheck is CC BY-SA 3.0 AU and is attributed. **Open:**
   - AIP's TGP (© AIP, all rights reserved) is still republished: `tgp.csv`, `history.json` `tgp`, and the wholesale figures on Today and Trends. The owner was advised to email aip@aip.com.au.
   - Brent and AUD/USD come from the EIA and the RBA, but both cite commercial vendors (Refinitiv, WM/Reuters), and the raw series sit in the public `data` branch.
-  - `main`'s `sydney/store/fred.csv` still holds old FRED values.

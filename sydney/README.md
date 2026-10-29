@@ -11,8 +11,6 @@ Daily forecast of Sydney pump prices (U91, E10, Premium 95, Premium 98, diesel; 
 
 Needs repo secrets `NSW_API_KEY` / `NSW_API_SECRET` and Pages set to deploy from GitHub Actions.
 
-Until 2026-10-28 a claude.ai scheduled task ("Sydney pump price refresh", trig_01SMwjzj84uqLfyaspwsXFic, now disabled) ran the same steps each morning through Chrome. It wrote to `main`'s `store/` and published `out/` as an artifact. Its Chrome pull scripts were removed in the 2026-10-29 cleanup; restore them from commit 29d91a4 if the task is ever switched back on. `main`'s `store/` and `archive/` stop at 27 Oct. They're the seed for a fresh `data` branch and for local runs.
-
 API (`https://nathann2997.github.io/FuelForecast/api/v1/`), static JSON regenerated daily:
 | File | What |
 |---|---|
@@ -26,19 +24,33 @@ API (`https://nathann2997.github.io/FuelForecast/api/v1/`), static JSON regenera
 The site also serves `s/?id=<station code>&f=<fuel>`, the share page behind the app's Share button (`pipeline/share.html`, published by `export_api.py` with a hash-pinned CSP). It reads `stations.json` and `forecast.json` from this API and shows the station's pump prices and advice to friends without the app.
 
 ## Local runs and credentials
-Install the hash-locked dependencies with `pip install -r sydney/requirements.txt` (Python 3.11, as in Actions). In Actions, `fetch.py` reads env `NSW_API_KEY` / `NSW_API_SECRET`. For a local run, copy `pipeline/credentials.example.py` to `pipeline/credentials.py` (gitignored) and fill in your keys.
+The data lives only on the `data` branch, and `main` has code only. To run the pipeline on your machine, do what Actions does: check out the data, copy the code in, and run the same three steps. Run these from the repo root, with Python 3.11 as in Actions.
+```sh
+pip install -r sydney/requirements.txt              # hash-locked
+git fetch origin data && git worktree add --detach ../fuel-data origin/data
+rsync -a --delete sydney/pipeline/ ../fuel-data/pipeline/   # repeat after each code change
+D="$PWD/../fuel-data"
+python3 "$D/pipeline/fetch.py" "$D" "$D/inbox"      # needs NSW keys (below)
+bash "$D/pipeline/run_daily.sh" "$D" "$D/inbox"
+python3 "$D/pipeline/export_api.py" "$D" "$D/out/site" --allow-stale
+```
+The worktree is detached on purpose. Never commit or push from it: Actions owns the `data` branch, and its save job refuses to save if the branch moved during a run.
+
+For NSW keys, Actions sets env `NSW_API_KEY` / `NSW_API_SECRET`. Locally, copy `pipeline/credentials.example.py` to `pipeline/credentials.py` (gitignored) and fill it in, or export the same env vars. To check a change without calling NSW, skip `fetch.py`: put the newest `archive/nsw_snapshot_*.json.gz`, unzipped, in `inbox/`, and copy `store/fred.csv` there as `brent_audusd_eia_rba.csv`. Then compare `out/site` before and after your change.
 
 ## Layout
+`pipeline/` is on `main`; everything else is on the `data` branch.
+
 | Path | What |
 |---|---|
 | `pipeline/` | all code (`test_health.py` holds the tests) |
 | `store/daily.csv` | Sydney daily price summary per fuel, Jan 2019 onward (history + daily snapshots) |
 | `store/events/` | Sydney price-change records from the NSW monthly files |
-| `store/tgp.csv`, `store/fred.csv` | wholesale TGP (AIP), Brent and AUD/USD (EIA and RBA on the `data` branch; FRED in `main`'s older copy) |
+| `store/tgp.csv`, `store/fred.csv` | wholesale TGP (AIP), Brent and AUD/USD (EIA and RBA; the file keeps FRED's name and column ids) |
 | `store/backtest*` | walk-forward backtest results |
 | `store/forecast.json`, `store/stations_today.json` | today's forecast and station prices |
 | `archive/` | daily station-level Sydney snapshots (gzipped JSON) |
-| `out/` | local build output (`build.py`'s dashboard, `export_api.py`'s site); gitignored |
+| `out/` | build output (`build.py`'s dashboard, `export_api.py`'s site); never committed |
 
 Sydney = postcodes 2000-2234, 2555-2574, 2740-2786. Prices in cents per litre incl. GST.
 Sources: NSW Government FuelCheck (API.NSW, data.nsw.gov.au; CC BY-SA 3.0 AU), Australian Institute of Petroleum (© AIP), Brent crude from the U.S. Energy Information Administration (Refinitiv), AUD/USD from the Reserve Bank of Australia (WM/Reuters). Licence and attribution for the data and the API: [`DATA-LICENSE.md`](../DATA-LICENSE.md). Every API file carries `generated_at` (the app's "Refreshed" time), plus `attribution` and `license_note`.

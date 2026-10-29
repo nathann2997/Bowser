@@ -2,12 +2,27 @@
 
 All notable changes to the FuelForecast pipeline and app. Newest first.
 
+## 2026-10-29 — GitHub Actions only: Claude pipeline removed
+
+Owner: "remove anything to do with claude pipelines, everything will now run automatically through github actions".
+- **`main`'s `sydney/store/` and `sydney/archive/` removed** (124 MB in the working tree; git history keeps them):
+  - They were the Claude task's copy of the data and stopped at 27 Oct.
+  - The `data` branch is now the only copy; a ruleset blocks deleting it.
+  - Both folders are gitignored, so a local run can't add them back.
+- **`daily.yml`:**
+  - The build fails with a clear error if the `data` branch is missing, instead of seeding it from `main`.
+  - The save job's "create the branch" path is gone, since the build now checks the branch exists.
+  - Every run so far used the existing branch, so a normal run behaves the same.
+- **Local runs** (`sydney/README.md`): check out the `data` branch as a detached worktree, copy `pipeline/` in, and run the three steps. Checked end to end on today's data.
+- **Docs:** the remaining Claude-task notes are removed from `sydney/README.md`, `DATA-LICENSE.md`, `docs/HANDOFF.md`, `docs/DESIGN.md`, both release plans and a `copy.ts` comment. Older CHANGELOG entries stay as history.
+- **Not removed:** the claude.ai routine itself (disabled since 2026-10-28). Deleting it can't be undone and is done in claude.ai, so it's left to the owner.
+
 ## 2026-10-29 — Cleanup: dead code from the Claude task, stale docs
 
 A principal-engineer review of the whole repo, to make it easier to understand and build on. Nothing users see changes.
 - **Removed (nothing ran it):**
   - `model/`: the first research scripts and CSVs, superseded by `sydney/pipeline/model.py`. They read sandbox paths that don't exist here.
-  - The Claude task's Chrome pulls: `pull_nsw.example.js`, `pull_history.js`, `find_aip.js` and `pull_fred.js`. `fetch.py` does all four. Restore them from 29d91a4 if the task is ever switched back on.
+  - The Claude task's Chrome pulls: `pull_nsw.example.js`, `pull_history.js`, `find_aip.js` and `pull_fred.js`. `fetch.py` does all four. They're in git history (29d91a4).
   - The tracked `sydney/out/sydney-pump-outlook.html`, the Claude artifact's copy. `out/` is now gitignored, since it's local build output.
 - **Pipeline simplified** (same output):
   - `update.py` reads only the EIA/RBA file; the FRED Chrome-download branch is gone.
@@ -36,7 +51,6 @@ A principal-engineer review of the whole repo, to make it easier to understand a
   - Two runs of the old code also matched each other.
   - `test_health.py` passes (24). App typecheck, lint and jest pass (409).
 - **Left as they were, on purpose:**
-  - `main`'s `sydney/store` and `archive` (the seed for a new `data` branch and for local runs).
   - The FRED names `store/fred.csv` and `ctx.fred_last`, which are part of the API that installed apps read.
   - `expo-font`, which no code imports but which expo-doctor may expect.
   - Duplicated helpers that could change JSON if merged (`r1` differs on -0.0).
