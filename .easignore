@@ -2,8 +2,6 @@
 # so the secret and build patterns from .gitignore and app/.gitignore are repeated here.
 # Only app/ is needed to build the mobile app.
 /sydney/
-/model/
-/api-pull/
 /docs/
 /.github/
 /CHANGELOG.md

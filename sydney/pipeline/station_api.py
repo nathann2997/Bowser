@@ -31,7 +31,7 @@ fc    Per fuel the station sells today: the Sydney forecast for that fuel turned
         (at least tomorrow), as an ISO date; null when there is no J, J + s is beyond 14 days, or the station is a steady
         pricer (n >= 5 and part < 0.25, the same test advise() uses).
 """
-import datetime as dt, glob, gzip, json, os, re
+import glob, gzip, json, os, re
 import numpy as np, pandas as pd
 
 from fuels import FUELS

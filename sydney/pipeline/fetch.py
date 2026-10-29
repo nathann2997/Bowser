@@ -1,10 +1,10 @@
-"""Headless replacement for the Chrome pulls (pull_nsw.js, pull_fred.js, find_aip.js, pull_history.js). Brent and
-AUD/USD come from the US EIA and the RBA rather than FRED (see pull_macro).
+"""Pull the day's inputs: NSW live prices, Brent and AUD/USD, AIP terminal gate prices and new NSW monthly history.
+Brent and AUD/USD come from the US EIA and the RBA rather than FRED (see pull_macro).
 
 usage: python fetch.py BASE INBOX
-Writes into INBOX the same files the Chrome pulls download, so run_daily.sh / update.py consume them unchanged:
+Writes into INBOX, for run_daily.sh / update.py:
   nsw_snapshot_YYYYMMDD.json   NSW FuelCheck live prices (Sydney date)          -- required, exits 1 if it fails
-  brent_audusd_eia_rba.csv     Brent (US EIA) + AUD/USD (RBA F11.1), FRED ids  -- optional (replaces the FRED pull)
+  brent_audusd_eia_rba.csv     Brent (US EIA) + AUD/USD (RBA F11.1), FRED ids  -- optional
   AIP_TGP_Data_*.xlsx          AIP terminal gate price workbook                -- optional
   syd_events_YYYYMM.csv        NSW monthly history after ctx.history_last       -- optional
 Credentials: env NSW_API_KEY / NSW_API_SECRET (GitHub Secrets), else pipeline/credentials.py.
@@ -74,7 +74,7 @@ def creds():
     return k, s
 
 
-# ---- NSW FuelCheck live prices (pull_nsw.js)
+# ---- NSW FuelCheck live prices
 def pull_nsw():
     key, secret = creds(); host = "https://api.onegov.nsw.gov.au"
     # No redirects for the NSW calls: they carry the API key, which requests would forward to another host
@@ -91,7 +91,7 @@ def pull_nsw():
     return f"{name} ({len(j['prices'])} prices)"
 
 
-# ---- Brent USD/bbl and AUD/USD, in place of FRED (pull_fred.js), whose terms bar using FRED content to train models.
+# ---- Brent USD/bbl and AUD/USD, in place of FRED, whose terms bar using FRED content to train models.
 # The same series from their publishers: Brent spot from the US EIA (FRED's DCOILBRENTEU is this EIA series; EIA cites
 # Refinitiv, an LSEG business, as its source) and A$1=USD from the RBA's F11.1 table (source WM/Reuters). Neither is
 # relicensed by this repo: see DATA-LICENSE.md. Columns keep FRED's ids
@@ -140,7 +140,7 @@ def pull_macro():
     return f"brent (EIA) to {lb.index[-1].date()} {lb.iloc[-1]:g}; aud (RBA) to {la.index[-1].date()} {la.iloc[-1]:g}"
 
 
-# ---- AIP terminal gate prices (find_aip.js)
+# ---- AIP terminal gate prices
 def pull_aip():
     page = get("https://www.aip.com.au/historical-ulp-and-diesel-tgp-data", headers=UA)
     page.raise_for_status()
@@ -154,7 +154,7 @@ def pull_aip():
     return name
 
 
-# ---- NSW monthly price-change history (pull_history.js)
+# ---- NSW monthly price-change history
 MON = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])}
 
 
@@ -226,7 +226,7 @@ def pull_history():
             if f not in FUELS or not is_syd(pc) or not (50 < pr < 600): continue
             d = pdate(x[iT])
             if d is None: continue
-            key = re.sub(r"\s+", " ", str(a or x[iN]).upper()).replace(",", " ").strip()   # same order as pull_history.js
+            key = re.sub(r"\s+", " ", str(a or x[iN]).upper()).replace(",", " ").strip()   # the address key of syd_stations.csv (comma-free, upper case)
             out.append(f"{key},{f},{d:%Y%m%d},{d:%H%M},{pr:g}")
         name = f"syd_events_{k // 12}{k % 12 + 1:02d}.csv"
         if len(out) < 10000:   # a real Sydney month has ~40-50k rows; don't feed a partial/empty file into the store

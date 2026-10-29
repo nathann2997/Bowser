@@ -1,4 +1,4 @@
-# Daily Sydney fuel forecast, fully headless. Runs alongside the Claude scheduled task without touching main:
+# Daily Sydney fuel forecast, fully headless. Never writes to main:
 #   code   <- main (sydney/pipeline)
 #   state  <- `data` branch (store/ + archive/), seeded from main's sydney/store and sydney/archive on first run
 #   output -> GitHub Pages: /api/v1/{meta,forecast,stations,history}.json and the dashboard at /

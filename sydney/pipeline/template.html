@@ -335,7 +335,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
   </section>
 
   <footer>
-    <div>Sources: NSW Government FuelCheck API (live) and monthly price history on data.nsw.gov.au; Australian Institute of Petroleum terminal gate prices; Brent crude (DCOILBRENTEU) and AUD/USD (DEXUSAL) from FRED, Federal Reserve Bank of St. Louis. Sydney means postcodes 2000 to 2234, 2555 to 2574 and 2740 to 2786. Prices in Australian cents per litre including GST.</div>
+    <div>Sources: NSW Government FuelCheck API (live) and monthly price history on data.nsw.gov.au (© State of NSW, NSW Fair Trading, CC BY-SA 3.0 AU; adapted, with forecasts added); Australian Institute of Petroleum terminal gate prices; Brent crude from the U.S. Energy Information Administration (Refinitiv) and AUD/USD from the Reserve Bank of Australia (WM/Reuters). Sydney means postcodes 2000 to 2234, 2555 to 2574 and 2740 to 2786. Prices in Australian cents per litre including GST.</div>
     <div>Forecasts are estimates for planning, not financial advice.</div>
   </footer>
 </div>
@@ -815,7 +815,7 @@ function renderBTTable(){
 function renderFresh(){
   const age = s => daysBetween(s, CTX.asof);
   const items = [
-    ["Live Sydney prices", CTX.asof, 1], ["Wholesale prices (AIP)", CTX.tgp_last, 5], ["Brent and AUD (FRED)", CTX.fred_last, 10],
+    ["Live Sydney prices", CTX.asof, 1], ["Wholesale prices (AIP)", CTX.tgp_last, 5], ["Oil and exchange rate (EIA, RBA)", CTX.fred_last, 10],
     ["NSW monthly price history", CTX.history_last, 60]];
   $("fresh").innerHTML = items.map(([l,d,ok])=>`<div><span><span class="dot ${age(d)<=ok?"ok":"warn"}"></span>${l}</span><b>${nice(d)}</b></div>`).join("")
     + `<div><span>Days of station prices saved</span><b>${CTX.snapshot_days}</b></div>`;

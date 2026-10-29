@@ -1,6 +1,6 @@
 """Track record for the app: Bowser's daily "fill or wait" calls and how each turned out (api/v1/track.json).
 
-Called by export_api.py (the app path only; the Claude task never runs it). Two sources:
+Called by export_api.py. Two sources:
   live    store/calls.csv: the first call of each Sydney day per fuel, appended (append()) at the end of every successful run and
           kept on the `data` branch with the rest of store/. The first call is the morning one most people act on, and
           keeping it means a call is never revised with hindsight.

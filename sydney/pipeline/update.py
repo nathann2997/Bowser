@@ -3,10 +3,10 @@
 inbox/ may contain (any subset; newest of each is used):
   nsw_snapshot_*.json   raw response of GET /FuelPriceCheck/v1/fuel/prices
   AIP_TGP_Data_*.xlsx   AIP historical TGP workbook
-  fredgraph.csv         FRED CSV for ids DCOILBRENTEU,DEXUSAL (older '#'-block format also accepted)
+  brent_audusd_eia_rba.csv  Brent (EIA) and AUD/USD (RBA), under the FRED column ids (fetch.py pull_macro)
 Writes store/daily.csv (adds/replaces snapshot rows), store/tgp.csv, store/fred.csv, store/stations_today.json
 """
-import glob, io, json, os, re, sys
+import glob, json, os, re, sys
 import numpy as np, pandas as pd
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -92,36 +92,13 @@ if x:
     T.to_csv(f"{STORE}/tgp.csv", index_label="date")
     log.append(f"tgp to {T.index.max().date()}")
 
-# ---- Brent (US EIA) and AUD/USD (RBA): the GitHub pipeline's source (fetch.py pull_macro), in place of FRED. Each file
+# ---- Brent (US EIA) and AUD/USD (RBA) from fetch.py pull_macro, in place of FRED. Each file
 # holds the full history from 2018-06, so it replaces store/fred.csv outright and no FRED values are kept. The file
 # name and the FRED-id column names stay, so model.py is unchanged.
 er = newest("brent_audusd_eia_rba*.csv")
-fr_chrome = newest("fredgraph*.csv") or newest("fred_brent_aud*.csv")
-if er and fr_chrome and os.path.getmtime(fr_chrome) > os.path.getmtime(er): er = None   # a newer Chrome FRED pull wins
 if er:
     Fr = pd.read_csv(er, parse_dates=["date"]).set_index("date")[["DCOILBRENTEU", "DEXUSAL"]].sort_index()
     Fr.to_csv(f"{STORE}/fred.csv", index_label="date")
     log.append(f"brent/aud (EIA/RBA) to {Fr.dropna().index.max().date()}")
-
-# ---- FRED Brent (USD/bbl) and AUD/USD (the Chrome pull, pull_fred.js); skipped when the EIA/RBA file is there
-fr = None if er else fr_chrome
-if fr:
-    txt = open(fr).read()
-    if txt.startswith("#"):
-        blocks = {}
-        for part in txt.split("#")[1:]:
-            name, body = part.split("\n", 1)
-            b = pd.read_csv(io.StringIO(body), na_values=["."]); b.columns = ["date", name.strip()]
-            blocks[name.strip()] = b.assign(date=pd.to_datetime(b.date)).set_index("date")[name.strip()]
-        Fr = pd.concat(blocks, axis=1).sort_index()
-    else:   # fredgraph.csv?id=DCOILBRENTEU,DEXUSAL
-        Fr = pd.read_csv(io.StringIO(txt), na_values=["."]).rename(columns={"observation_date": "date", "DATE": "date"})
-        Fr["date"] = pd.to_datetime(Fr.date); Fr = Fr.set_index("date")[["DCOILBRENTEU", "DEXUSAL"]].sort_index()
-        Fr = Fr[Fr.index >= "2018-06-01"]
-    if os.path.exists(f"{STORE}/fred.csv"):
-        old = pd.read_csv(f"{STORE}/fred.csv", parse_dates=["date"]).set_index("date")
-        Fr = Fr.combine_first(old)
-    Fr.to_csv(f"{STORE}/fred.csv", index_label="date")
-    log.append(f"fred to {Fr.dropna().index.max().date()}")
 
 print("; ".join(log) or "nothing in inbox")

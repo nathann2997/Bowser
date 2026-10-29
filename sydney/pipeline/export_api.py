@@ -11,7 +11,7 @@ Runs build.py unchanged (so the dashboard HTML is rebuilt too) and reuses the `d
   OUT/api/v1/station/{id}.json  per station (id = NSW station code): 400 days of daily prices, profile, own forecast
                                  (see station_api.py)
   OUT/api/v1/app.json        the latest app version per platform and where to get it (app_release.json, checked)
-  OUT/index.html             the dashboard (its source credits rewritten for this pipeline, see DASHBOARD_CREDITS)
+  OUT/index.html             the dashboard (build.py's page plus a hash CSP)
   OUT/s/index.html           the share page for the app's Share link (share.html, with a hash CSP)
 Every file carries `generated_at` (UTC, when this export ran: the app's "Refreshed" time); the top-level files also carry
 `attribution` and `license_note`, and meta.json has the full licence and source list (LICENSE below). See DATA-LICENSE.md.
@@ -61,17 +61,6 @@ LICENSE = {
     ],
 }
 STAMP = {"generated_at": GENERATED_AT, "license_note": f"CC BY-SA 3.0 AU {CC}, with exclusions: see meta.json license", "attribution": ATTRIBUTION}
-
-# The dashboard template is shared with the Claude scheduled task, which still credits FRED; only this pipeline's
-# published copy gets the sources it actually used and the NSW licence.
-DASHBOARD_CREDITS = [
-    ("monthly price history on data.nsw.gov.au;",
-     "monthly price history on data.nsw.gov.au (© State of NSW, NSW Fair Trading, CC BY-SA 3.0 AU; adapted, with forecasts added);"),
-    ("Brent crude (DCOILBRENTEU) and AUD/USD (DEXUSAL) from FRED, Federal Reserve Bank of St. Louis.",
-     "Brent crude from the U.S. Energy Information Administration (Refinitiv) and AUD/USD from the Reserve Bank of Australia (WM/Reuters)."),
-    ('"Brent and AUD (FRED)"', '"Oil and exchange rate (EIA, RBA)"'),
-]
-
 
 def verdict(r):   # same rule as verdict() in template.html
     if r["d3"] >= 1.5 or r["p_jump7"] >= 0.5: return {"cls": "up", "head": "Fill up today"}
@@ -234,11 +223,7 @@ meta = {"schema": SCHEMA, "generated_at": GENERATED_AT, "license": LICENSE,
         "warnings": warnings, "files": files}
 json.dump(meta, open(f"{api}/meta.json", "w"), indent=1, allow_nan=False)
 html = open(f"{BASE}/out/sydney-pump-outlook.html", encoding="utf-8").read()
-for old, new in DASHBOARD_CREDITS:
-    if old in html: html = html.replace(old, new)
-    else: print(f"export_api: WARNING dashboard credit not found: {old[:60]!r}")
-# Content-Security-Policy for the published copy only (the template is shared with the Claude scheduled task, whose
-# artifact host wraps the page). Added after the credit rewrite, so it can pin the page's own inline script by hash:
+# Content-Security-Policy, added here rather than in the template so it can pin the page's own inline script by hash:
 # an injected <script> or on*= handler won't run, and scripts and styles load only from cdnjs (Chart.js, and MapLibre for the
 # stations map when it opens, both with SRI) and Google Fonts. The map's tiles, styles and fonts come from OpenFreeMap
 # (its only network requests), MapLibre runs its worker from a blob: URL, and there are no frames or form posts.

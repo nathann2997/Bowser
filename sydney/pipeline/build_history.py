@@ -1,18 +1,18 @@
-"""One-off: turn Sydney FuelCheck price-change history into the daily store (store/daily.csv).
+"""Rebuild the daily store (store/daily.csv) from Sydney FuelCheck price-change history; run_daily.sh runs it when a
+new monthly file arrives. Usage: python build_history.py EVENTS_DIR STORE_DIR
 
-Input: syd_events_YYYY.csv (sid,fuel,ymd,hhmm,price) and syd_stations.csv, extracted in-browser
+Input: syd_events_YYYY[MM].csv (sid,fuel,ymd,hhmm,price, or key instead of sid) and syd_stations.csv, extracted
 from the NSW monthly history files (Sydney postcodes only).
 Output columns per (date, fuel) match what pipeline/update.py computes from a live snapshot.
 """
 import glob, sys
 import numpy as np, pandas as pd
 
-SRC = sys.argv[1] if len(sys.argv) > 1 else "/mnt/user-data/uploads/Downloads"   # folder with syd_events_*.csv + syd_stations.csv
-OUT = sys.argv[2] if len(sys.argv) > 2 else "/home/claude/syd/store"
+SRC, OUT = sys.argv[1], sys.argv[2]   # folder with syd_events_*.csv + syd_stations.csv; the store
 from fuels import FUELS
 
 # yearly extracts carry a numeric sid (mapped to an address key via syd_stations.csv);
-# monthly extracts made later by pull_history.js carry the address key directly.
+# monthly extracts (fetch.py) carry the address key directly.
 stations = pd.read_csv(f"{SRC}/syd_stations.csv", dtype=str)
 sid2key = dict(zip(stations.sid.astype(int), stations.key.str.upper().str.replace(r"\s+", " ", regex=True).str.strip()))
 parts = []
