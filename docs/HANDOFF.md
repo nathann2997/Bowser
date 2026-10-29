@@ -1,105 +1,97 @@
-# Session handoff — Bowser (FuelForecast) mobile app
+# Session handoff — Bowser (FuelForecast)
 
-Working notes so a fresh session can resume. Update before ending a session (or at ~70% context).
+Working notes so a fresh session can resume. Update before ending a session (or at ~70% context). The full history of every change, with commits, run ids and OTA update groups, is in `CHANGELOG.md`; this file only keeps what's current and what's still open.
 
-## Product decisions (from the owner, 2026-10-21)
-- Audience: the owner plus a handful of friends. Android POC first, iOS later.
-- MVP: "fill now / wait" signal + 1/3/7/14-day outlook, price history charts, station **list** (nearest within a radius; no map), same as the dashboard.
-- Data freshness: was once daily; since 0.6.0 the pipeline runs five times a day (owner asked for data as early as possible, 2026-10-22; see CHANGELOG 0.6.0 §4). No accounts, no push alerts. Sydney only.
-- Stack: React Native + Expo (TypeScript), EAS Build APK via internal distribution link.
-- Constraint: keep the existing Claude-task flow working; the app is a parallel "clone and rebuild".
+## Where things stand (2026-10-29)
+- **Pipeline:** GitHub Actions (`.github/workflows/daily.yml`, 5 runs a day) is the only pipeline. State lives on the `data` branch and the output on GitHub Pages: the dashboard at https://nathann2997.github.io/FuelForecast/ and the API under `/api/v1/`. The claude.ai scheduled task is disabled (2026-10-28), so `main`'s `sydney/store` stopped at 27 Oct. `data-health.yml` watches the API (`docs/DATA_HEALTH.md`).
+- **App:** Bowser **0.8.0** (runtime 0.8.0) on Android: the Stations map plus everything before it. Preview APK: EAS build 69dad55d, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/69dad55d-48de-4f95-90db-ade6fb1bbbf1. JS changes reach it as OTA updates on the `preview` channel. `app_release.json` points at 0.8.0, so older installs show the "new version" notice.
+- **iOS:** compiles (simulator build 46497e9c) but isn't distributed; see the open item below.
 
-## Plan status
-- [x] **Claude automation off; bigger web map; Costco shown** (2026-10-28; CHANGELOG same title). The claude.ai routine trig_01SMwjzj84uqLfyaspwsXFic is disabled, so GitHub Actions is the only pipeline and `main`'s `sydney/store` no longer gets daily commits from it. Both maps show prices over 7 days old as grey tags. Web live via run 40628073519; app OTA to `preview` at runtime 0.8.0, update group adcddf37-4150-4ec7-b496-9cbe2ca2a851.
-- [x] **Web dashboard: stations map and a simpler page** (2026-10-28; CHANGELOG same title). `template.html` and the CSP in `export_api.py` only; `build.py` is untouched. MapLibre plus OpenFreeMap (no key), loaded lazily, falling back to the list if blocked. The page is now four plain questions. **Next:** check the live map on a phone, and look at the Claude task's artifact the next morning (OpenFreeMap may be blocked there, in which case it shows the list).
-- [~] **Premium 95 (P95) as a fifth fuel** (2026-10-27, bee2d9d + data 09ce0be; CHANGELOG same title). A user asked for E85 and 95. P95 is built in full: pipeline, model, dashboard, share page and app (JS only, runtime 0.8.0). E85 is left out (17 stations, too few to forecast). QA audited and fixed. **Live:**
-  - Pushed. Workflow run 40428442344 (with the backtest) passed.
-  - The live API has five fuels, 551 P95 stations, P95 history from 2019, its backtest (AUC 0.94) and its replay, with no warnings.
-  - data-health run 40429312037 is clear.
-  - OTA to `preview` at runtime 0.8.0: update group d45ff55e-fdee-4178-b112-1784eb1e7f0e.
+## Product decisions (owner)
+- Audience: the owner plus a handful of friends. Sydney only, no accounts.
+- 2026-10-21 MVP: the "fill now / wait" signal and 1/3/7/14-day outlook, price history, and a nearest-stations list. A Stations **map** was added at the owner's request on 2026-10-26.
+- Data as early as possible: 5 pipeline runs a day since 0.6.0.
+- Stack: React Native + Expo (TypeScript), EAS Build APKs via an internal distribution link, OTA updates through EAS Update.
+- Keep the "new version available" notice (`UpdateNotice` in the root layout) until Bowser is on an app store.
 
-  **Next:**
-  - Device checks: see the CHANGELOG entry.
-  - **Owner's call:** keep the shared model (the other fuels' 7-day error is up about 0.1c), or fit P95 separately.
-- [~] **Bowser 0.8.0: Stations map** (2026-10-26; CHANGELOG same title). The owner asked for it, which reverses the "no map" MVP decision above. It's a Map/List toggle on Stations, with Google Maps via react-native-maps (Apple Maps on iOS), colour-coded price tags, clusters, a station card with the fill-up call, pinned stations, "Search this area" and the remembered view. It's a native module, so version 0.8.0. Pushed (ad57c16). Key set in EAS (preview and production). Preview APK: EAS build 69dad55d, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/69dad55d-48de-4f95-90db-ade6fb1bbbf1. `app_release.json` points at 0.8.0, so older apps show the update notice. After the owner's first device test, the map was reworked (16f6ad5; CHANGELOG "Map rework after the first device test"): stations load as you pan, the blank cluster bubbles are fixed, and it uses the app's styling. OTA to `preview` at runtime 0.8.0: update group a37d91b5-7d11-4c4b-85c3-402fc9e91a60. **Next:** device check of the rework: cluster counts show, tags recolour after a big pan, the card doesn't hide the tapped tag or the Google logo, clusters split on a tap, and dark-mode contrast.
-- [x] **OTA updates apply on the first open** (2026-10-24; CHANGELOG entry of the same name). The owner still saw the pre-review Today on 0.7.0, because expo-updates runs a downloaded update only on the next cold start. `lib/ota.ts` now checks while the splash is up and restarts into a quick download. Pushed, and OTA to `preview` at runtime 0.7.0: update group e0da3fb4-16ea-4b16-a56a-7aca51235acc (it includes the design review). **The owner needs two full restarts once** (force stop, open, wait about 10 s, force stop, open); after that, updates show on the first open.
-- [x] **Design review: a simpler Today** (2026-10-23; 3ace2b2, 2d31012; CHANGELOG "Design review"; `docs/DESIGN.md` "Design review — 2026-10-23"). "Best for you" removed, so Today leads with the trend and then Your stations. "Calls right" is at the bottom. Advice chips that only repeat the headline are hidden. Labels fit at 360 dp. Pushed, and OTA to `preview` at runtime 0.7.0: update group 707a5929-bcf0-41d4-8a1b-e41b230285fd (with source maps). Reaches 0.7.0 installs on their next cold start. **Next:** a device check of Today with and without pins, and the Stations list on a Wait day.
-- [x] **Web dashboard matches the app again** (2026-10-25, 1e04f9d; CHANGELOG same title): live via workflow run 40161043160. `template.html` only, plus the published freshness label in `export_api.py`; `build.py` is untouched. The Claude scheduled task picks it up on its next run. Web pins are keyed name|postcode|lat|lon (no station codes in the dashboard data) and don't sync with the app. **Next:** if the dashboard ever gets station codes from `build.py`, switch the pin key to them. Not on the web: the track record ("Calls right"), which isn't in `__DATA__`.
-- [x] **"New version available" notice on every older version** (2026-10-22, 8bd87d0; CHANGELOG same title). Owner rule: keep it until Bowser is on an app store. `sydney/pipeline/app_release.json` → `api/v1/app.json` (live, points at 0.7.0 build 9e1d7d49). OTA updates to `preview`, each built from that runtime's last shipped commit plus `update-notice.tsx` (branches `ota/<rt>-update-notice` on origin): 0.7.0 bd3b975b, 0.6.1 38c92ce8, 0.6.0 4ba3b268, 0.5.0 83fdf46c, 0.4.0 77d65a40, 0.3.0 e5967a3a. **0.1.0 can't be reached**: its APK has no expo-updates, so tell any 0.1.0 tester directly. Phones download the OTA on one launch and show the notice on the next. **Release step:** after each native build finishes, update `app_release.json` (version, build URL, notes), push, then `gh workflow run daily.yml`. Keep `UpdateNotice` in the root layout.
-- [~] **Bowser 0.7.0: app analytics (EAS Insights + EAS Observe)** (2026-10-22, e5a88a4; CHANGELOG "Bowser 0.7.0: app analytics"). New native modules, so runtime **0.7.0**. Preview APK: EAS build 9e1d7d49, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/9e1d7d49-b7ba-470c-bb1d-350d1d90d33e. OTA to `preview` at runtime 0.7.0: update group ddab8686-10a2-41bf-a27c-6ee46350c190 (with source maps). 0.6.1 phones keep 0.7 A–D (update 874e5ef9) and get no analytics until they install the 0.7.0 APK. Ship future OTAs with `--environment preview --upload-source-maps`. **Next:** send testers the APK link; after a day, check the EAS dashboard (Insights → App usage; Observe → Errors, Navigation, Events) or `npx eas-cli observe:events`; owner decisions in the CHANGELOG entry (store privacy forms, opt-out switch). Users get no update prompt: OTAs apply on the next cold start, and new APKs must be installed by hand from the build link.
-- [x] **Data health: alerts and automatic fixes** (2026-10-22; runbook `docs/DATA_HEALTH.md`; CHANGELOG "Data health"). `health.py` checks the live API, `remediate.py` re-runs the pipeline or re-enables its schedule within a budget and alerts through a `data-health` GitHub issue, and `export_api.py` hides implausible prices. Workflow `data-health.yml`. **Next:** after the first auto-run, confirm its `triggering_actor` is a Bot (`gh api repos/nathann2997/FuelForecast/actions/runs?per_page=5`) and that the job summary reads well. Dependabot: 3 alerts in build tooling only, with no fixes released yet (see the CHANGELOG).
-- [x] **Bowser 0.7, "prove it"** (2026-10-22; plan `docs/BOWSER_0.7_PLAN.md`; CHANGELOG builds A–D): pushed (d1b7b92). Pipeline run 39725267578 published `track.json` and `/s/`. OTA 874e5ef9 to `preview` at runtime 0.6.1. The 0.6.1 APK 8962e8d6 is superseded by the 0.7.0 analytics APK 9e1d7d49 above.
-  - **The four builds**, built one at a time in this order:
-    - A `2cc4ef9`: your price after discounts. It also covers the widget.
-    - B `6707418`: fill log and savings.
-    - C `4bc27e2`: track record, plus `track_api.py` and `api/v1/track.json`.
-    - D `6a9d319`: share a deal or your savings, plus the `/s/` share page.
-  - **How they connect:**
-    - A defines "your price". B logs it, and D deliberately shares the pump price instead.
-    - B's "when you filled" and C's scoring use the same 7-day window and the same "last day is over" rule.
-    - Today's proof strip shows C's "Calls right" tile beside B's "You saved".
-  - **Shipping:**
-    - The app part is JS only at runtime **0.6.1**, so an OTA update to `preview` only reaches phones with the 0.6.1 APK (that APK still needs building, see the app-ci entry).
-    - The pipeline part (`track_api.py`, `share.html`, `export_api.py`) goes live with the next workflow run after a push to `main`.
-    - Recording live calls starts with that run, so the first call is scored 8 days later. Until 10 live calls have played out, the headline is the replayed backtest, labelled "tested on 2021–2026 prices".
-  - **Next:**
-    - Get the owner's OK, then push (CI and Pages deploy), then `eas update` on `preview`.
-    - Check `track.json` and `/s/?id=…` on the live site.
-    - **Device checks:**
-      - The keyboard lifts the Filled-up and discount sheets.
-      - The Share sheet on Android and iOS.
-      - The share link opens the page, and "Have Bowser? Open it" opens the station.
-      - The widget shows your price after a discount change.
-    - **Known gap:** fills and calls whose week overlaps 1–12 Oct show "pending" until NSW publishes October's history.
-- [~] **app-ci fixed; app 0.6.1** (2026-10-22; CHANGELOG "app-ci fixed…"). Expo SDK 58 patch updates via `npx expo install --fix`, which also added the `expo-status-bar` plugin in `app.json`. The native fingerprint changed, so `version` moved to 0.6.1 (runtime `appVersion`), and 0.6.0 APKs no longer receive OTAs. This also clears the expo-doctor note in the "Data sources" item. **Next:** build a 0.6.1 preview APK (`npx eas-cli build -p android --profile preview`) and send testers the link. Until then, don't publish OTAs expecting 0.6.0 phones to receive them.
-- [x] **Web dashboard redesigned to match the app** (2026-10-22, 05446ef; CHANGELOG "Web dashboard redesigned…"): live.
-  - Only `sydney/pipeline/template.html` changed. `build.py`, `export_api.py`, the store and `out/` were not touched.
-  - Workflow run 39719850502 (build, save and deploy all passed) put it on https://nathann2997.github.io/FuelForecast/, with the CSP hash and the EIA/RBA credits applied.
-  - The Claude scheduled task builds from the same template, so its artifact switches to this design on its next morning run. This supersedes the BOWSER_PLAN note that the dashboard stays untouched.
-  - No app change, so no OTA.
-  - **Next:** check "Use my location" inside the claude.ai artifact (its host may block geolocation; the button shows "Location unavailable" if so).
-- [x] **Data sources, licence notices, "Refreshed" times** (2026-10-22, 80f4c66; CHANGELOG "Data sources…" entry): live.
-  - Pushed with 1aa5296. OTA update group 55f0ac2d reached `preview` at runtime 0.6.0.
-  - Workflow run 39719369901 published the API with `generated_at`, `attribution`/`license_note` and meta `license`, and Brent and AUD/USD from EIA and the RBA (to 20 Oct).
-  - On that run all four fuels flipped to "Wait if you can" (U91 jump chance 6%), mostly from Brent's fall to US$115 that FRED hadn't published yet.
-  - `app-ci` fails only at expo-doctor's minor version drift on 10 existing expo packages; typecheck, lint and jest pass. Fix with `npx expo install --fix` together with the next APK.
-- [~] **iOS build** (2026-10-22, see `docs/IOS.md` and the CHANGELOG 0.6.0 "iOS build" section): the app plus an iOS WidgetKit widget (`expo-widgets`) and background refresh. EAS iOS simulator build 46497e9c compiled with the widget extension. Not pushed or OTA'd. **Blocked on the owner:** an Apple Developer Program account, plus a choice of TestFlight (recommended) or ad hoc. Then run `npx eas-cli build -p ios --profile production --auto-submit` interactively once so EAS can create the certificates, both bundle IDs and the app group. **Next:** the device checks in `docs/IOS.md`.
-- [~] **Bowser 0.6.0 Android: owner's feedback round** (2026-10-22, session fuel-dco-05; commits 7b22aaa, a835960, 95440fc, f1e6ac8, 0efa78f, a101c08; CHANGELOG 0.6.0 §1–5): faster widget taps (native patch), fuel chip step dots, ⟳ and "pull down to refresh" removed, five pipeline runs a day plus intraday widget refetch, Stations "Near you in <suburb>" with live/last-known. QA audited and fixed. Preview APK: EAS build 4ae2119b, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/4ae2119b-9c0a-4f3e-92fb-3673d9b6df9d (native patch compiled). Pushed to main 2026-10-22 (adefcbc, owner: "push everything live"), along with the iOS commits. Five-runs schedule live; manual run 39697277961 started to validate it. Follow-up (CHANGELOG §6–7, JS only): scrolling wins over row swipes (gesture-handler ScrollView in `Screen`, 24 dp swipe start), and Map shows a pin instead of navigating. OTA to `preview` at runtime 0.6.0: update group bfa8a90a-4abb-45fd-a953-61ad50b1968a (reaches the 0.6.0 APK, not 0.5.0). **Next:** device checks: long one-thumb scrolls on Stations/Today no longer swipe a row, pull-to-refresh still works, the AreaPicker keyboard still works, Map opens a labelled pin (also for names with brackets); time mode/fuel taps warm and cold, station-row taps open the app, chip dots in light/dark, no ⟳ on the widget, Stations line at home, after moving, and with location permission withdrawn; after the first day of runs, check the `data` branch for five commits and that `store/backtest_ran` was written.
-- [~] **Security review + hardening** (2026-10-22, 1aa5296, local, NOT pushed; CHANGELOG 0.6.0 §8). Done without a new build: dashboard XSS (escaping, SRI, hash CSP on the Pages copy), least-privilege workflow (build/save/deploy jobs, token only on push, SHA-pinned actions), pipeline input checks (numeric codes, https host allow-list, 100 MB cap, no redirects for NSW calls), hash-locked Python deps + defusedxml, small app JS guards, .gitignore patterns. GitHub settings applied: ruleset on main/data (no deletion/force push), Dependabot alerts, private vulnerability reporting, GitHub-owned actions only. Non-provider secret patterns couldn't be enabled (plan). **Pending a new APK:** widget image provider exported (location leak), allowBackup, unused template permissions, OTA code signing. **Owner:** 2FA on Expo + GitHub; rotate the NSW secret if this folder was synced; delete sydney/pipeline/pull_nsw.js. **Next after push:** watch the first run of the split workflow (hash-locked install, save job push, deploy).
-- [x] Phase 1 — headless pipeline (`fetch.py`, `.github/workflows/daily.yml`)
-- [x] Phase 2 — static JSON API (`export_api.py`)
-- [x] Go-live (2026-10-21): QA audit + fixes, pushed to main, secrets set, Pages enabled, first run passed in 94 s (run 39513415528), `data` branch seeded, API live
-- [~] Phase 3 — Expo app in `/app` built (tabs now Today / Stations / Trends / More under `src/app/(tabs)/`; react-query + expo-sqlite kv-store cache, expo-location, custom react-native-svg chart instead of victory-native). QA audited and fixed, committed. Not yet run on a real Android device (next: Expo Go on the owner's phone).
-- [x] App v0.2 UX redesign (2026-10-21, session fuel-dco-21): see `docs/DESIGN.md` and CHANGELOG. Tabs Today / Stations / Trends / More; the Sydney rise date is computed on the device in `lib/outlook.ts` (port of `market()` in `build.py`; change both together). QA audited and fixed; not yet committed (bundled with the Bowser/v0.3 work run by session fuel-dco-48, see `docs/BOWSER_PLAN.md`). Not yet seen on a device: check keyboard avoidance on Today's suburb search and the fuel bottom sheet.
-- [~] **Bowser 0.5.0** (2026-10-22, c87518d; text-reduction pass d485e48 included): "Best for you" on Today, first-run welcome, swipe rows (pin/directions), opt-in rise alerts (expo-notifications, once per cycle, also scheduled from the widget task), Trends moved off the tab bar (3 tabs) with a cycle summary, small widget names your cheapest station. New native module, so runtime 0.5.0: needs the new APK (preview APK: EAS build 9a04b5ad, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/9a04b5ad-01dc-413b-b85e-91b7216a3c9c). **Next:** device checks listed in the CHANGELOG 0.5.0 entry.
-- [~] **Dashboard link removed; faster widget taps** (2026-10-21, fad2598): OTA to `preview` at runtime 0.4.0 (update group 9b2d229c-6273-4763-b5d4-a9c39d1b9cde). JS only. **Next:** time widget taps on a device with the app recently open vs after the process was killed; if cold taps are still slow, the fix is native (bypass WorkManager in the widget library's click receiver when the React context is alive), which needs a new APK.
-- [~] **New logo (concept C, price-drop fuel drop)** (2026-10-21, bec4ef3): OTA to the `preview` channel at runtime 0.4.0 (update group e88e83df-c2c1-46b8-82ec-0c7c6e8e4630). It covers the in-app header, the More-tab mark and the widget image. Launcher icon and splash need the new 0.4.0 preview APK: build b84c9219, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/b84c9219-78db-4add-919a-d55e3fa92b4a. This supersedes the "held back" logo note below. **Next:** install over 0.4.0 and check the launcher, themed icon, splash and widget.
-- [~] **Bowser 0.4.0** (2026-10-21, 17e001b): the widget follows the phone's location (opt-in "Allow all the time"), a ⟳ button, More → Widget location, and a patch-package fix for the widget library's tap request codes. Preview APK: EAS build 72b2d188, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/72b2d188-bb36-472d-b1d0-ec2755134ad8. OTA updates now target runtime 0.4.0, so 0.3.0 installs stop receiving them. **Held back:** the uncommitted logo redraw by session fuel-dco-29 (owner's call; needs a native build). **Next:** device tests from the 0.4.0 CHANGELOG "Device checks".
-- [~] **Bowser 0.3.0** (2026-10-21): rebrand plus pins, filters, directions, station page, Android widget and the per-station API. See `docs/BOWSER_PLAN.md` and CHANGELOG. QA audited and fixed. Pushed (2957ac5); workflow run 39538872516 passed and the live API has `id` on 866/866 stations plus `station/` files (7.3 MB). Preview APK built: build 69314a1c, install page https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/69314a1c-e1ff-4421-9f09-a208bb7a5ff0. **Next:** install on a device and test the widget (placement, 4 h refresh, taps, release launch without the R8 crash), chart scrubbing, directions, keyboard avoidance on Today.
-- [~] Phase 4 — EAS project `@nathann97/fuel-forecast` linked; first preview APK built (build 2d86c615, 107 MB universal APK, install page https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/2d86c615-d10f-4f6f-978b-1cd0696726ec); update published to channel `preview`; tester guide `docs/TESTING.md`. Next: share the install link, collect tester feedback, verify OTA reaches an installed APK.
+## Open work
+Newest first. Each item has its CHANGELOG entry of the same name for details.
+
+- **Analytics plan** (`docs/ANALYTICS_PLAN.md`, 2026-10-29): proposal, with the decisions marked **(decide)**.
+- **Notifications plan** (`docs/NOTIFICATIONS_PLAN.md`, 2026-10-24): proposal, with the decisions marked **(decide)**.
+- **Web dashboard map** (2026-10-28): **Next:** check the live map on a phone.
+- **Premium 95** (2026-10-27): live. **Owner's call:** keep the shared model (the other fuels' 7-day error is up about 0.1c), or fit P95 separately. Device checks are in the CHANGELOG entry.
+- **0.8.0 Stations map** (2026-10-26, reworked in 16f6ad5). **Next:** device check of the rework:
+  - cluster counts show
+  - tags recolour after a big pan
+  - the card doesn't hide the tapped tag or the Google logo
+  - clusters split on a tap
+  - dark-mode contrast
+- **OTA on first open** (2026-10-24): testers on an older OTA need two full restarts once (force stop, open, wait about 10 s, force stop, open); after that, updates show on the first open.
+- **Design review, simpler Today** (2026-10-23). **Next:** a device check of Today with and without pins, and the Stations list on a Wait day.
+- **0.7.0 analytics (EAS Insights + Observe)** (2026-10-22). **Next:** check the EAS dashboard (Insights → App usage; Observe → Errors, Navigation, Events) or run `npx eas-cli observe:events`. Owner decisions are in the CHANGELOG entry (store privacy forms, an opt-out switch).
+- **Data health** (2026-10-22). **Next:** confirm an automatic run's `triggering_actor` is a Bot (`gh api repos/nathann2997/FuelForecast/actions/runs?per_page=5`) and that the job summary reads well. Dependabot has 3 alerts, in build tooling only, with no fixes released yet.
+- **0.7 "prove it"** (2026-10-22, plan `docs/BOWSER_0.7_PLAN.md`). **Device checks:**
+  - the keyboard lifts the Filled-up and discount sheets
+  - the Share sheet on Android and iOS
+  - the share link opens `/s/`, and "Have Bowser? Open it" opens the station
+  - the widget shows your price after a discount change
+
+  Fills and calls whose week overlaps 1–12 Oct show "pending" until NSW publishes October's history.
+- **iOS build** (2026-10-22, `docs/IOS.md`). **Blocked on the owner:**
+  - an Apple Developer Program account
+  - a choice of TestFlight (recommended) or ad hoc
+
+  Then run `npx eas-cli build -p ios --profile production --auto-submit` interactively once, so EAS can create the certificates, both bundle IDs and the app group.
+- **0.6.0 feedback round** (2026-10-22). **Device checks:**
+  - long one-thumb scrolls don't swipe a row
+  - pull-to-refresh, and the AreaPicker keyboard
+  - Map opens a labelled pin
+  - widget taps, warm and cold; station-row taps open the app; no ⟳ on the widget
+  - chip dots in light and dark
+  - the Stations "Near you" line at home, after moving, and with location withdrawn
+  - on the `data` branch: five commits a day, and `store/backtest_ran` written
+- **Security hardening** (2026-10-22). **Pending a new native build:**
+  - export the widget image provider (location leak)
+  - `allowBackup`
+  - unused template permissions
+  - OTA code signing
+
+  **Owner:** 2FA on Expo and GitHub; rotate the NSW secret if this folder was ever synced; delete the local `sydney/pipeline/pull_nsw.js`, which holds a key and is no longer used by anything.
+- **Earlier device checks still open:**
+  - v0.2/0.3.0: keyboard avoidance on Today's suburb search and the fuel sheet; widget placement, the 4 h refresh, a release launch without the R8 crash, chart scrubbing, directions
+  - 0.4.0: the widget follows location
+  - 0.5.0: welcome, swipe rows, rise alerts
+  - new logo: launcher, themed icon, splash, widget
 
 ## Key facts
-- Node 22 at `~/.local/node/bin` (on PATH via `~/.zshrc`); run app checks with `cd app && npx tsc --noEmit && npx expo lint && npx jest`.
-- Browser preview: `npx expo export --platform web`, serve with an SPA fallback, screenshot with headless Chrome at >=500 px width.
-- API base: `https://nathann2997.github.io/FuelForecast/api/v1/` (see `sydney/README.md` for the file schema).
-- `stations.json` per-fuel tuple: `[price, days since update, advice code, advice label, reason]`; advice codes: now, by, ok, wait, hi, any, chk.
-- Verdict rule lives in `template.html` (`verdict()`) and is mirrored in `export_api.py` — change both together.
-- Workflow state lives on the `data` branch, never on `main`; `main` stays owned by the Claude task.
-- Secrets never in git: `sydney/pipeline/credentials.py`, `sydney/pipeline/pull_nsw.js`, `fuel-api-credentials.md` are gitignored.
+- Node 22 is at `~/.local/node/bin` (on PATH via `~/.zshrc`). App checks: `cd app && npx tsc --noEmit && npx expo lint && npx jest`. Pipeline tests: `python3 -m unittest sydney/pipeline/test_health.py`.
+- Browser preview: `npx expo export --platform web`, serve it with an SPA fallback, and screenshot it with headless Chrome at ≥500 px wide.
+- To check a pipeline change: run the pipeline on a copy of the `data` branch, and compare `export_api.py --allow-stale` output before and after, ignoring `generated_at`. The 2026-10-29 cleanup in the CHANGELOG shows how.
+- API base: `https://nathann2997.github.io/FuelForecast/api/v1/`; the file schema is in `sydney/README.md`.
+- `stations.json` per-fuel tuple: `[price, days since update, advice code, advice label, reason, 7-day forecast price]` (the last is left off on a day the station files failed). Advice codes: now, by, ok, wait, hi, any, chk.
+- The verdict rule is in `template.html` (`verdict()`) and mirrored in `export_api.py`; change both together. The rise date is `market()` in `build.py`, ported to `app/src/lib/outlook.ts`.
+- Workflow state lives on the `data` branch, never on `main`. Don't merge `data` into `main`.
+- OTA updates: `--environment preview --upload-source-maps`. Each runtime's update-notice OTA is built from the `ota/<runtime>-update-notice` branches; 0.1.0 APKs have no expo-updates and can't be reached.
+- **Release step:** after each native build, update `sydney/pipeline/app_release.json` (version, build URL, notes), push, then run `gh workflow run daily.yml`.
+- Secrets never go in git: `sydney/pipeline/credentials.py`, `sydney/pipeline/pull_nsw.js` and `fuel-api-credentials.md` are gitignored.
+- The track record ("Calls right") isn't on the web dashboard: it isn't in `__DATA__`.
+- The Google Maps key `GOOGLE_MAPS_ANDROID_API_KEY` is set in EAS for preview and production; an Android build fails without it, by design.
+- Web dashboard pins are keyed name|postcode|lat|lon (the dashboard data has no station codes), so they don't sync with the app. If `build.py` ever adds codes, switch the key to them.
+- The owner has two Expo accounts (nathann97 and nathannguy); the project lives on nathann97.
 
 ## Open risks
-- Widget library `react-native-android-widget` has open issues: #159 (R8 release crash, mitigated by turning minify off), #154 (taps can stop after many redraws; patch in PR #161 if testers hit it). No picker preview image yet.
-- Station forecasts reuse the Sydney path, shifted by the station's lag and damped by how often it joins jumps. There's no mean reversion for stations already well above their usual price, and the ranges are Sydney-wide.
-- History for 1–12 Oct 2026 is reconstructed from snapshots until the October monthly file lands.
-- The "Shop around" insight (`copy.ts`) still assumes a 50 L tank, not the user's `tankL`.
-- Expo Go can't load our EAS updates (runtime 0.1.0 vs exposdk:58.0.0); Expo Go is live-session only.
-- Owner has two Expo accounts (nathann97, nathannguy); the project lives on nathann97.
-- AIP / FRED worked from GitHub runners on the first run; both stay best-effort (model forward-fills, `meta.warnings` flags staleness).
-- GitHub cron can start 10–30 min late; scheduled workflows pause after 60 days of no repo activity (daily `data` commits count).
-- **Data licences** (`DATA-LICENSE.md`):
-  - The repo and API are public, so everything in them counts as published.
-  - NSW FuelCheck is CC BY-SA 3.0 AU and is now attributed.
-  - **Open:**
-    - AIP's TGP (© AIP, all rights reserved) is still republished: `tgp.csv`, `history.json` `tgp`, and the Today and Trends wholesale figures. The owner was advised to email aip@aip.com.au.
-    - Brent and AUD/USD now come from EIA and the RBA, but both cite commercial vendors (Refinitiv, WM/Reuters), and the raw series sit in the public `data` branch.
-    - The Claude task still pulls FRED, whose terms bar ML training.
+- **Widget library:** `react-native-android-widget` has open issues.
+  - #159: R8 release crash, mitigated by turning minify off.
+  - #154: taps can stop after many redraws; the patch in PR #161 fixes it if testers hit it.
+  - There's no picker preview image yet.
+- **Station forecasts** reuse the Sydney path, shifted by the station's lag and damped by how often it joins jumps. There's no mean reversion for stations already well above their usual price, and the ranges are Sydney-wide.
+- **October history:** 1–12 Oct 2026 is reconstructed from snapshots until the October monthly file lands.
+- **"Shop around"** (`copy.ts`) still assumes a 50 L tank, not the user's `tankL`.
+- **Expo Go** can't load our EAS updates; it's live-session only.
+- **AIP and Brent/AUD** are best-effort: the model forward-fills them, and `meta.warnings` flags staleness.
+- **GitHub cron** can start 10–30 min late. Scheduled workflows pause after 60 days without repo activity; the daily `data` commits count, and the save job re-enables the schedule.
+- **Data licences** (`DATA-LICENSE.md`): the repo and API are public, so everything in them counts as published. NSW FuelCheck is CC BY-SA 3.0 AU and is attributed. **Open:**
+  - AIP's TGP (© AIP, all rights reserved) is still republished: `tgp.csv`, `history.json` `tgp`, and the wholesale figures on Today and Trends. The owner was advised to email aip@aip.com.au.
+  - Brent and AUD/USD come from the EIA and the RBA, but both cite commercial vendors (Refinitiv, WM/Reuters), and the raw series sit in the public `data` branch.
+  - `main`'s `sydney/store/fred.csv` still holds old FRED values.

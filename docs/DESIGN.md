@@ -71,4 +71,4 @@ The owner asked for a simpler Today ("show the trend for the fuel and the statio
 
 **Station page:** one pin control (the Pin / Pinned button). The duplicate top-bar pin is gone; Share stays in the top bar.
 
-**Not changed:** the web dashboard (`template.html`) keeps its own layout, because the Claude scheduled task shares it.
+**Not changed:** the web dashboard (`template.html`) keeps its own layout, because the Claude scheduled task shared it (until 2026-10-28).

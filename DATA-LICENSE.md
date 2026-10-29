@@ -18,6 +18,6 @@ Bowser adapts this data: it filters it to Sydney, computes medians and percentil
 
 The forecasts are model outputs trained partly on the AIP, Brent and AUD/USD series. Neither the RBA nor any other publisher endorses this use.
 
-The GitHub Actions pipeline (`sydney/pipeline/fetch.py`) takes Brent and AUD/USD from the EIA and the RBA. The Claude scheduled task's Chrome pull (`pull_fred.js`) still downloads them from FRED, so `main`'s `sydney/store/fred.csv` holds FRED-sourced values. Despite its name, the `data` branch's `store/fred.csv` holds EIA and RBA values from the first pipeline run after this change.
+The pipeline (`sydney/pipeline/fetch.py`) takes Brent and AUD/USD from the EIA and the RBA. `main`'s `sydney/store/fred.csv` still holds FRED-sourced values from the retired Claude scheduled task (last updated 27 Oct 2026). Despite its name, the `data` branch's `store/fred.csv` holds EIA and RBA values from the first pipeline run after this change.
 
 Forecasts are estimates for planning, not financial advice. All data is provided as is, without warranty.

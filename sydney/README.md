@@ -3,22 +3,15 @@
 Daily forecast of Sydney pump prices (U91, E10, Premium 95, Premium 98, diesel; the list is `pipeline/fuels.py`): a "fill up now or wait" signal, a 14-day outlook, a station finder and the evidence behind it.
 
 ## Daily flow
-**Switched off 2026-10-28 (owner's request):** the claude.ai routine "Sydney pump price refresh" (trigger trig_01SMwjzj84uqLfyaspwsXFic) is disabled, not deleted. The GitHub Actions run below is now the only pipeline, and the dashboard lives at https://nathann2997.github.io/FuelForecast/. What it did, for reference: a Claude scheduled task ran every morning (6:52am Sydney):
-1. Pulls today's inputs through Chrome: NSW FuelCheck live prices (`pipeline/pull_nsw.js`), any newly published NSW monthly history (`pipeline/pull_history.js`), AIP terminal gate prices (`pipeline/find_aip.js`), and Brent + AUD/USD from FRED.
-2. Runs `pipeline/run_daily.sh`: rebuilds history when a new month arrives (`build_history.py`), adds today's snapshot (`update.py`), retrains and forecasts (`model.py`), renders the dashboard (`build.py`).
-3. Republishes `out/sydney-pump-outlook.html` as the dashboard (a claude.ai artifact).
-4. Commits and pushes all changes to this repo.
-
-The walk-forward backtest (`model.py --backtest`, about 8 minutes) reruns on the first Monday of each month.
-
-## Headless run (GitHub Actions) and app API
-`.github/workflows/daily.yml` runs the same pipeline with no browser, up to 5 times a day (see the cron slots in `daily.yml`), alongside the Claude task above and without touching `main`:
-1. `pipeline/fetch.py` replaces the four Chrome pulls and writes the same files into `inbox/` (only the NSW snapshot is required; Brent/AUD, AIP and monthly history are best-effort). Brent comes from the US EIA (which sources it from Refinitiv) and AUD/USD from the RBA (sourced from WM/Reuters), not FRED, whose terms bar using its content to train models. Neither is relicensed here (see `DATA-LICENSE.md`). `update.py` replaces `store/fred.csv` with them, keeping the file name and FRED column ids, so `model.py` is unchanged.
-2. `pipeline/run_daily.sh`, unchanged (with `--backtest` on the first Monday of the month).
-3. `pipeline/export_api.py` runs `build.py` and writes the app API (with `station_api.py` for the per-station files), failing if the data isn't today's or a check fails.
-4. State (`store/`, `archive/`) is committed to the `data` branch (seeded from `main` on the first run); the API and dashboard are deployed to GitHub Pages.
+`.github/workflows/daily.yml` runs the pipeline on GitHub Actions up to 5 times a day (see the cron slots there):
+1. `pipeline/fetch.py` writes the day's raw inputs into `inbox/`: NSW FuelCheck live prices (required), Brent from the US EIA (which sources it from Refinitiv), AUD/USD from the RBA (sourced from WM/Reuters), AIP terminal gate prices and any newly published NSW monthly history (all best-effort). Brent and AUD/USD don't come from FRED, whose terms bar using its content to train models. Neither is relicensed here (see `DATA-LICENSE.md`). `update.py` stores them in `store/fred.csv` under FRED's column ids, so `model.py` reads them unchanged.
+2. `pipeline/run_daily.sh`: rebuilds history when a new month arrives (`build_history.py`, `station_profile.py`), adds today's snapshot (`update.py`), then retrains and forecasts (`model.py`). The walk-forward backtest (`model.py --backtest`, about 8 minutes) runs once every 28 days, or on request (`workflow_dispatch` input `backtest`).
+3. `pipeline/export_api.py` runs `build.py` (the dashboard) and writes the app API, with `station_api.py` for the per-station files and `track_api.py` for the track record. It fails if the data isn't today's or a check fails.
+4. State (`store/`, `archive/`) is committed to the `data` branch; the API and dashboard are deployed to GitHub Pages at https://nathann2997.github.io/FuelForecast/.
 
 Needs repo secrets `NSW_API_KEY` / `NSW_API_SECRET` and Pages set to deploy from GitHub Actions.
+
+Until 2026-10-28 a claude.ai scheduled task ("Sydney pump price refresh", trig_01SMwjzj84uqLfyaspwsXFic, now disabled) ran the same steps each morning through Chrome. It wrote to `main`'s `store/` and published `out/` as an artifact. Its Chrome pull scripts were removed in the 2026-10-29 cleanup; restore them from commit 29d91a4 if the task is ever switched back on. `main`'s `store/` and `archive/` stop at 27 Oct. They're the seed for a fresh `data` branch and for local runs.
 
 API (`https://nathann2997.github.io/FuelForecast/api/v1/`), static JSON regenerated daily:
 | File | What |
@@ -32,23 +25,23 @@ API (`https://nathann2997.github.io/FuelForecast/api/v1/`), static JSON regenera
 
 The site also serves `s/?id=<station code>&f=<fuel>`, the share page behind the app's Share button (`pipeline/share.html`, published by `export_api.py` with a hash-pinned CSP). It reads `stations.json` and `forecast.json` from this API and shows the station's pump prices and advice to friends without the app.
 
-## Credentials
-API keys live in `pipeline/credentials.py` and `pipeline/pull_nsw.js`, which are gitignored (`fetch.py` reads env `NSW_API_KEY` / `NSW_API_SECRET` first). Copy `credentials.example.py` / `pull_nsw.example.js` and fill in your keys.
+## Local runs and credentials
+Install the hash-locked dependencies with `pip install -r sydney/requirements.txt` (Python 3.11, as in Actions). In Actions, `fetch.py` reads env `NSW_API_KEY` / `NSW_API_SECRET`. For a local run, copy `pipeline/credentials.example.py` to `pipeline/credentials.py` (gitignored) and fill in your keys.
 
 ## Layout
 | Path | What |
 |---|---|
-| `pipeline/` | all code |
+| `pipeline/` | all code (`test_health.py` holds the tests) |
 | `store/daily.csv` | Sydney daily price summary per fuel, Jan 2019 onward (history + daily snapshots) |
 | `store/events/` | Sydney price-change records from the NSW monthly files |
-| `store/tgp.csv`, `store/fred.csv` | wholesale TGP (AIP), Brent and AUD/USD (FRED for the Claude task; EIA and RBA on the `data` branch) |
+| `store/tgp.csv`, `store/fred.csv` | wholesale TGP (AIP), Brent and AUD/USD (EIA and RBA on the `data` branch; FRED in `main`'s older copy) |
 | `store/backtest*` | walk-forward backtest results |
 | `store/forecast.json`, `store/stations_today.json` | today's forecast and station prices |
 | `archive/` | daily station-level Sydney snapshots (gzipped JSON) |
-| `out/sydney-pump-outlook.html` | the dashboard |
+| `out/` | local build output (`build.py`'s dashboard, `export_api.py`'s site); gitignored |
 
 Sydney = postcodes 2000-2234, 2555-2574, 2740-2786. Prices in cents per litre incl. GST.
-Sources: NSW Government FuelCheck (API.NSW, data.nsw.gov.au; CC BY-SA 3.0 AU), Australian Institute of Petroleum (© AIP), Brent crude from the U.S. Energy Information Administration (Refinitiv), AUD/USD from the Reserve Bank of Australia (WM/Reuters); the Claude task's Chrome pull still uses FRED. Licence and attribution for the data and the API: [`DATA-LICENSE.md`](../DATA-LICENSE.md). Every API file carries `generated_at` (the app's "Refreshed" time), plus `attribution` and `license_note`.
+Sources: NSW Government FuelCheck (API.NSW, data.nsw.gov.au; CC BY-SA 3.0 AU), Australian Institute of Petroleum (© AIP), Brent crude from the U.S. Energy Information Administration (Refinitiv), AUD/USD from the Reserve Bank of Australia (WM/Reuters). Licence and attribution for the data and the API: [`DATA-LICENSE.md`](../DATA-LICENSE.md). Every API file carries `generated_at` (the app's "Refreshed" time), plus `attribution` and `license_note`.
 
 ## Data health
 `.github/workflows/data-health.yml` checks the published API after every run and every 30 minutes (`pipeline/health.py`), reruns the pipeline for problems a rerun fixes and re-enables a paused schedule (`pipeline/remediate.py`, within a daily budget), and alerts through a `data-health` GitHub issue. `export_api.py` also hides implausible prices before publishing. Alert codes and fixes: [`docs/DATA_HEALTH.md`](../docs/DATA_HEALTH.md).

@@ -51,4 +51,3 @@ Every check's result is on its run page: Actions → data-health → the run →
 
 ## Limits
 - The monitor itself runs on GitHub's scheduler. If GitHub drops its runs too, nothing checks. The run after each pipeline run is the backstop.
-- It watches the app's API (the GitHub Actions pipeline), not the Claude scheduled task's dashboard.

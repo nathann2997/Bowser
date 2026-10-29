@@ -2,6 +2,47 @@
 
 All notable changes to the FuelForecast pipeline and app. Newest first.
 
+## 2026-10-29 — Cleanup: dead code from the Claude task, stale docs
+
+A principal-engineer review of the whole repo, to make it easier to understand and build on. Nothing users see changes.
+- **Removed (nothing ran it):**
+  - `model/`: the first research scripts and CSVs, superseded by `sydney/pipeline/model.py`. They read sandbox paths that don't exist here.
+  - The Claude task's Chrome pulls: `pull_nsw.example.js`, `pull_history.js`, `find_aip.js` and `pull_fred.js`. `fetch.py` does all four. Restore them from 29d91a4 if the task is ever switched back on.
+  - The tracked `sydney/out/sydney-pump-outlook.html`, the Claude artifact's copy. `out/` is now gitignored, since it's local build output.
+- **Pipeline simplified** (same output):
+  - `update.py` reads only the EIA/RBA file; the FRED Chrome-download branch is gone.
+  - `run_daily.sh`:
+    - no unpinned `pip install` fallback
+    - no handling of Chrome's "(1)" duplicate names
+    - no second `build.py` run (`export_api.py` already runs it)
+    - Python errors are no longer sent to `/dev/null`, so they show in the Actions log. `pipefail` was already on, so a failing step already failed the run.
+  - `export_api.py` no longer rewrites the dashboard credits; the template now carries the EIA, RBA and NSW-licence wording itself.
+  - `build_history.py` takes its two arguments without sandbox-path defaults.
+  - Comments no longer refer to the Chrome scripts.
+- **App** (JS only, reaches phones with the next OTA):
+  - Removed the unused `MIN_LIST_H`, and `isFiltered`, which only its test used. `isPinned` stays: the analytics work in progress uses it.
+  - Removed the widget's pre-0.6.0 ⟳ (LOCATE) tap handling. A stale tap is now ignored, and any 0.8.0 widget has been redrawn without the button.
+  - Removed the `widget.cache.v1` fallback. The first v2 write after the forecast change deleted it.
+  - Tests updated (409 pass).
+- **Docs:**
+  - `docs/HANDOFF.md` rewritten to current state, open work and risks. Finished items are one line each; the history stays here.
+  - `app/README.md` rewritten: it described the 0.1 tabs and Expo Go.
+  - `app/AGENTS.md` now starts with the project rules (runtime version, the iOS autolinking exclusion, widget split, privacy, keeping files in step with the pipeline).
+  - `sydney/README.md`: Actions is the only daily flow, the backtest runs every 28 days (not "the first Monday"), and local runs install `requirements.txt` (`run_daily.sh` no longer pip-installs).
+  - `DATA-LICENSE.md` and `docs/DATA_HEALTH.md`: the Claude-task notes are updated or removed.
+  - The 0.3 and 0.7 plans are marked as shipped.
+- **Checks:**
+  - The pipeline ran before and after on a copy of today's `data` branch (`run_daily.sh`, then `export_api.py --allow-stale`). The published site and store were identical, ignoring `generated_at`. The dashboard's CSP script hash was unchanged too, so the page is byte-identical.
+  - Two runs of the old code also matched each other.
+  - `test_health.py` passes (24). App typecheck, lint and jest pass (409).
+- **Left as they were, on purpose:**
+  - `main`'s `sydney/store` and `archive` (the seed for a new `data` branch and for local runs).
+  - The FRED names `store/fred.csv` and `ctx.fred_last`, which are part of the API that installed apps read.
+  - `expo-font`, which no code imports but which expo-doctor may expect.
+  - Duplicated helpers that could change JSON if merged (`r1` differs on -0.0).
+  - The verdict rule mirrored in `template.html` and `export_api.py`.
+- **Owner:** delete the local `sydney/pipeline/pull_nsw.js`, which holds an NSW key and is no longer used.
+
 ## 2026-10-28 — Web dashboard design pass (`template.html` only)
 
 A designer's review of the live page, at 1280 and 390 px.
