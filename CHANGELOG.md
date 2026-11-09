@@ -2,6 +2,23 @@
 
 All notable changes to the FuelForecast pipeline and app. Newest first.
 
+## 2026-11-03 — Security review (web, API, pipeline, app)
+
+Second review after the 2026-10-22 one (0.6.0 §8). Local only: not pushed, no OTA, no native build.
+- **Fixed:**
+  - Dashboard CSP (`export_api.py`): `script-src` names the exact Chart.js and MapLibre files instead of all of cdnjs, and `style-src` names the MapLibre CSS file. Checked in headless Chrome against the live page: both libraries load, and another cdnjs script (jQuery) is blocked, where the old CSP let it load. The versions are read from the page, and the export fails if they can't be found.
+  - Android (`app.json` `blockedPermissions`): removes the unused `SYSTEM_ALERT_WINDOW`, `READ_EXTERNAL_STORAGE` and `WRITE_EXTERNAL_STORAGE`, confirmed with `expo config --type introspect`. This takes effect in the next APK.
+  - `.easignore` and `app/.gitignore` ignore `.claude/`, so local settings aren't uploaded with EAS builds.
+- **Checked and fine:**
+  - The `esc()` and `textContent` sinks on the dashboard and share page; share `?id=` is digits only.
+  - The workflows: least privilege, no `pull_request_target`, no untrusted `${{ }}` in scripts, actions pinned by SHA.
+  - `fetch.py`, including the new VIC call: host allow-list, size cap, no redirects.
+  - The data-health issue body.
+  - Analytics properties: no location, prices or typed text.
+  - The update-notice URL check, and the station-id check in deep links.
+  - No secret in git history on any branch; push protection is on.
+- **Open (owner decisions):** see `docs/HANDOFF.md` "Security review 2026-11-03".
+
 ## 2026-10-29 — Diesel crack signal; VIC prices archived daily; range wording
 
 The owner approved these after the feature experiments (summarised in `docs/HANDOFF.md`).

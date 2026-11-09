@@ -10,6 +10,24 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - Constraint: keep the existing Claude-task flow working; the app is a parallel "clone and rebuild".
 
 ## Plan status
+- [~] **Security review 2026-11-03** (CHANGELOG same title). Local, not committed or pushed: CSP pinned to two cdnjs files, three unused Android permissions blocked (next APK), `.claude/` ignored.
+  - **Owner decisions:**
+    - **Model exposure.** The repo is public, so anyone can read the model code (`sydney/pipeline/model.py`, `model/`), the training data, backtests and `calls.csv` (`data` branch), and the API's `ctx.importance_h7` and `bt`. Git history can't be withdrawn. Going private needs:
+      - GitHub Pro for Pages, which stays public;
+      - auth for `daily.yml`'s two tokenless `data` clones;
+      - about 2,200+ Actions minutes a month (Free plan: 2,000; Pro: 3,000).
+      - Alternative: a private source repo that deploys to a public Pages-only repo.
+    - **Scraping.** It can't be prevented on static Pages (`Access-Control-Allow-Origin: *`, no rate limit, and any app token can be extracted). `meta.json` also licenses the outputs CC BY-SA. Real protection needs a Worker/API with Play Integrity / App Attest, plus a licence change for the forecasts.
+    - **Next APK:**
+      - the widget image provider (`react-native-android-widget`, `exported="true"`; any app can read the rendered widget PNGs; needs a device test of the launcher);
+      - `allowBackup` (still true; low risk; disabling loses pin and fill restore);
+      - OTA code signing.
+    - **Accounts:**
+      - rotate `NSW_API_KEY`/`SECRET` (set 2026-10-20, never rotated);
+      - delete `sydney/pipeline/pull_nsw.js` (holds a key);
+      - confirm 2FA on GitHub and on both Expo Owner accounts (`nathann97`, `nathannguy`);
+      - confirm the Maps key restriction and PostHog IP discard;
+      - set fork PR approval to "all external contributors".
 - [~] **Ranges per fuel, diesel crack signal, VIC archive** (2026-10-29; CHANGELOG entries "Forecast ranges per fuel…" and "Diesel crack signal…").
   - The owner approved shipping all of it ("go ahead with everything").
   - **Live:**

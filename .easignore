@@ -8,6 +8,9 @@
 /.github/
 /CHANGELOG.md
 
+# local Claude Code settings
+.claude/
+
 # secrets (from .gitignore)
 fuel-api-credentials.md
 credentials.py
