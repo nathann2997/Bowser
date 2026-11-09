@@ -10,7 +10,9 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - Constraint: keep the existing Claude-task flow working; the app is a parallel "clone and rebuild".
 
 ## Plan status
-- [~] **Security review 2026-11-03** (CHANGELOG same title). Local, not committed or pushed: CSP pinned to two cdnjs files, three unused Android permissions blocked (next APK), `.claude/` ignored.
+- [~] **Web analytics** (2026-11-10; CHANGELOG same title; `docs/ANALYTICS_PLAN.md` "Web"). The dashboard and share page send anonymous events to the app's PostHog project via the capture API (no library). Tested in headless Chrome. **Next:** confirm `$pageview` arrives from the live site after the next workflow run; the owner opens the dashboard once with `?internal=1` on each of their browsers.
+  - Low app numbers (checked 2026-11-10): only 1 phone has 0.9.0 (the only version with PostHog), per `eas update:insights`; about 3 testers are still on 0.8.0. App tracking code reviewed, no faults found. Checking PostHog's own numbers needs a read-only personal API key (Project read, Query read), not in the repo.
+- [~] **Security review 2026-11-03** (CHANGELOG same title). Pushed 2026-11-10 with web analytics: CSP pinned to two cdnjs files, three unused Android permissions blocked (next APK), `.claude/` ignored.
   - **Owner decisions:**
     - **Model exposure.** The repo is public, so anyone can read the model code (`sydney/pipeline/model.py`, `model/`), the training data, backtests and `calls.csv` (`data` branch), and the API's `ctx.importance_h7` and `bt`. Git history can't be withdrawn. Going private needs:
       - GitHub Pro for Pages, which stays public;

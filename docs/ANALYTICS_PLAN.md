@@ -45,6 +45,29 @@ Every event carries: the app version, the OTA `update` id, the channel (preview 
   - the version number marks a test phone.
 - **Key:** the PostHog project key and host come from EAS environment variables `EXPO_PUBLIC_POSTHOG_KEY` and `EXPO_PUBLIC_POSTHOG_HOST`, inlined at bundle time. Without them PostHog stays off, and an OTA update at runtime 0.9.0 switches it on.
 
+## Web: dashboard and share page (2026-11-10)
+- **No library:** a small tracker in `template.html` (`usage`) and `share.html` (`track`) POSTs to PostHog's capture API (`https://us.i.posthog.com/i/v0/e/`). The two copies must stay in step. Both CSPs in `export_api.py` allow that host in `connect-src`, and nothing else was added.
+- **When it sends:** only on the published site (`nathann2997.github.io`), so a local build or the Claude artifact sends nothing. Never when the browser has Global Privacy Control or Do Not Track on.
+- **No cookies:** a random id in `localStorage` (`bowser.anon`) counts returning visitors. If storage is blocked, the id lasts for one page load. A session (`bowser.session`, UUIDv7) ends after 30 minutes without an event, as in PostHog's library.
+- **Every event carries:** `$process_person_profile: false` (no person profiles for web visitors), `$geoip_disable: true`, `internal`, `$session_id`, the page address without its query, `$device_type` (Mobile or Desktop by pointer), and `$lib: bowser-web`.
+- **Marking your own browser:** open the dashboard with `?internal=1` once to mark it internal; `?internal=0` clears it.
+- **Never sent:** the area or suburb, location, pinned stations' names, the shared station or its prices, the URL query.
+- **Dashboard events:**
+  - `$pageview` with fuel, view, hasArea, pins and `$referring_domain` (the domain only);
+  - `$pageleave`;
+  - `web.fuel_changed` with fuel;
+  - `web.view_changed` with view (list or map);
+  - `web.area_set` with source (gps or suburb), logged once typing settles on a suburb;
+  - `web.station_pinned` and `web.station_unpinned` with the pin count.
+- **Share page events:**
+  - `$pageview` with page: share, found and fuel;
+  - `share_page.open_app` (the "Have Bowser? Open it" link);
+  - `share_page.directions`;
+  - `$pageleave`.
+
+  With the app's `app.opened` source `share`, this shows whether shared links bring people to Bowser.
+- **Notice:** both footers say visits are counted anonymously, with no cookies, location or IP address.
+
 ## Owner actions in PostHog
 1. Create the project. US or EU hosting is chosen at sign-up; that's decision 2 below.
 2. Settings → "Discard client IP data": on.

@@ -337,6 +337,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
   <footer>
     <div>Sources: NSW Government FuelCheck API (live) and monthly price history on data.nsw.gov.au; Australian Institute of Petroleum terminal gate prices; Brent crude (DCOILBRENTEU) and AUD/USD (DEXUSAL) from FRED, Federal Reserve Bank of St. Louis. Sydney means postcodes 2000 to 2234, 2555 to 2574 and 2740 to 2786. Prices in Australian cents per litre including GST.</div>
     <div>Forecasts are estimates for planning, not financial advice.</div>
+    <div>Visits are counted anonymously so we can see what helps: no cookies, and never your location, your area or your IP address.</div>
   </footer>
 </div>
 
@@ -354,6 +355,56 @@ const store = {
   get(k, d){ try { const v = localStorage.getItem("bowser." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v){ try { localStorage.setItem("bowser." + k, JSON.stringify(v)); } catch {} },
 };
+// Anonymous usage (docs/ANALYTICS_PLAN.md, "Web"): events go straight to PostHog's capture API, no library and no cookie.
+// Only on the published site (not a local preview or the Claude artifact), never with Global Privacy Control or Do Not
+// Track on. A random id kept in this browser counts returning visitors. Never sent: the area, location, pinned stations
+// or IP-derived place (the project discards IPs). ?internal=1 marks this browser as the owner's (?internal=0 clears it).
+// share.html has the same tracker; keep the two in step.
+const usage = (() => {
+  const uuid7 = () => {
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    for (let i = 5, t = Date.now(); i >= 0; i--, t = Math.floor(t / 256)) b[i] = t % 256;
+    b[6] = 0x70 | (b[6] & 15); b[8] = 0x80 | (b[8] & 63);
+    const h = [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+  };
+  let on = false, id = null, internal = false;
+  try {
+    on = location.hostname === "nathann2997.github.io" && !navigator.globalPrivacyControl && navigator.doNotTrack !== "1" && !!window.fetch;
+    const q = new URLSearchParams(location.search);
+    if (q.has("internal")) {
+      store.set("internal", q.get("internal") === "1"); q.delete("internal");
+      history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash);
+    }
+    internal = store.get("internal", false) === true;
+    id = store.get("anon", null);
+    if (typeof id !== "string") { id = uuid7(); store.set("anon", id); }
+  } catch { on = false; }
+  // A session ends after 30 minutes without an event, as in PostHog's own library
+  let sess = null;
+  const session = () => {
+    const now = Date.now(), s = sess || store.get("session", null);
+    sess = s && typeof s.id === "string" && now - s.t < 30 * 60e3 ? {id: s.id, t: now} : {id: uuid7(), t: now};
+    store.set("session", sess);
+    return sess.id;
+  };
+  const track = (event, props = {}) => {
+    if (!on) return;
+    try {
+      const properties = {
+        ...props, internal, $lib: "bowser-web", $session_id: session(), $current_url: location.origin + location.pathname,
+        $host: location.host, $pathname: location.pathname, $device_type: matchMedia("(pointer: coarse)").matches ? "Mobile" : "Desktop",
+        $process_person_profile: false, $geoip_disable: true,
+      };
+      fetch("https://us.i.posthog.com/i/v0/e/", {
+        method: "POST", headers: {"Content-Type": "text/plain"}, credentials: "omit", keepalive: true,
+        body: JSON.stringify({api_key: "phc_soNtCQQTfbqiWoJYeDCVp8dkd7xwbnr6n7rD6NSPEkXW", event, distinct_id: id, properties}),
+      }).catch(() => {});
+    } catch {}
+  };
+  return {track};
+})();
+const track = usage.track;
 const TANKS = [30,40,50,60,70,80], RADII = [2,5,10,20], STALE_DAYS = 7, PAGE = 10;
 const savedArea = store.get("area", null);
 // Pins: this data has no station codes, and 50-odd stations share a name and postcode with another site, so the key adds
@@ -441,7 +492,7 @@ const fuelEl = $("fuel"), tankEl = $("tank");
 fuelEl.innerHTML = FUELS.map(([k,l]) => `<option value="${k}">${l}</option>`).join("");
 tankEl.innerHTML = TANKS.map(t => `<option value="${t}">${t} L tank</option>`).join("");
 fuelEl.value = state.fuel; tankEl.value = state.tank;
-fuelEl.addEventListener("change", () => { state.fuel = fuelEl.value; store.set("fuel", state.fuel); state.shown = PAGE; render(); });
+fuelEl.addEventListener("change", () => { state.fuel = fuelEl.value; store.set("fuel", state.fuel); state.shown = PAGE; render(); track("web.fuel_changed", {fuel: state.fuel}); });
 tankEl.addEventListener("change", () => { state.tank = +tankEl.value; store.set("tank", state.tank); renderHero(); renderInsights(); });
 if (CTX.asof < sydToday()) { $("asofLine").classList.add("late"); $("asofLine").textContent = `Prices as of ${nice(CTX.asof)} · today’s update hasn’t arrived yet`; }
 
@@ -534,7 +585,15 @@ qEl.addEventListener("input", () => {
   state.area = !qEl.value.trim() ? null : hit || {missing:true};
   store.set("area", areaSet());
   state.shown = PAGE; renderToday();
+  // Once typing settles on a new suburb (partial words match others on the way); which suburb is never sent
+  clearTimeout(areaTimer);
+  areaTimer = setTimeout(() => {
+    const a = state.area && !state.area.missing && !state.area.gps ? state.area.label : null;
+    if (a && a !== lastSuburb) track("web.area_set", {source: "suburb"});
+    lastSuburb = a;
+  }, 1500);
 });
+let areaTimer = 0, lastSuburb = state.area && !state.area.gps ? state.area.label : null;
 const gpsEl = $("gps");
 if (!navigator.geolocation) gpsEl.hidden = true;
 gpsEl.addEventListener("click", () => {
@@ -542,6 +601,7 @@ gpsEl.addEventListener("click", () => {
   navigator.geolocation.getCurrentPosition(p => {
     state.area = {label:"you", gps:true, la:p.coords.latitude, lo:p.coords.longitude}; store.set("area", state.area);
     qEl.value = ""; gpsEl.textContent = "Use my location"; gpsEl.disabled = false; state.shown = PAGE; renderToday();
+    track("web.area_set", {source: "gps"});
   }, () => { gpsEl.textContent = "Location unavailable"; gpsEl.disabled = false; setTimeout(() => gpsEl.textContent = "Use my location", 2500); }, {timeout:10000, maximumAge:6e5});
 });
 $("more").addEventListener("click", () => { state.shown += 20; renderStations(); });
@@ -571,7 +631,7 @@ function refreshPins(anchor){
 }
 document.addEventListener("click", e => {
   const u = e.target.closest("[data-unpin]");
-  if (u) { pins = pins.filter((_, n) => n !== +u.dataset.unpin); store.set("pins", pins); $("pinStatus").textContent = "Unpinned"; refreshPins(u); mapPinsChanged(); return; }
+  if (u) { pins = pins.filter((_, n) => n !== +u.dataset.unpin); store.set("pins", pins); $("pinStatus").textContent = "Unpinned"; refreshPins(u); mapPinsChanged(); track("web.station_unpinned", {pins: pins.length}); return; }
   const b = e.target.closest("[data-pin]"); if (!b) return;
   const i = +b.dataset.pin, s = D.stations[i], k = pinKey(s), name = stationName(s.n);
   if (pins.includes(k)) pins = pins.filter(x => x !== k);
@@ -579,6 +639,7 @@ document.addEventListener("click", e => {
   else pins = [k, ...pins];
   store.set("pins", pins);
   const on = pins.includes(k);
+  track(on ? "web.station_pinned" : "web.station_unpinned", {pins: pins.length});
   $("pinStatus").textContent = `${on ? "Pinned" : "Unpinned"} ${name}`;
   document.querySelectorAll(`.st[data-i="${i}"]`).forEach(d => {
     d.classList.toggle("is-pinned", on);
@@ -1038,6 +1099,7 @@ document.addEventListener("keydown", e => {
 document.addEventListener("click", e => { if (e.target.closest("[data-closesel]")) closeSel(); });
 
 function setView(v){
+  if (v !== state.view) track("web.view_changed", {view: v});
   state.view = v; store.set("view", v); syncView();
   if (v === "list") closeSel();
   renderStations();
@@ -1057,6 +1119,12 @@ function render(){
   brandOptions(); renderToday(); renderWhy(); renderInsights(); renderMain(); renderBrands(); renderBTTable();
 }
 render(); renderFresh();
+// One pageview per load, with where the visit came from (the site's own domain only, never the address)
+track("$pageview", {
+  fuel: state.fuel, view: state.view, hasArea: !!(state.area && !state.area.missing), pins: pins.length,
+  $referring_domain: (() => { try { return document.referrer ? new URL(document.referrer).hostname : "$direct"; } catch { return "$direct"; } })(),
+});
+addEventListener("pagehide", () => track("$pageleave"), {once: true});
 const rerender = () => { renderMain(); renderBT(); if (map) map.setStyle(mapStyle(), {diff:false}); };   // style.load re-adds the clusters
 let heroW = 0;
 if (window.ResizeObserver) new ResizeObserver(() => { const w = $("hero").clientWidth; if (w !== heroW) { heroW = w; sparkline(); } }).observe($("hero"));

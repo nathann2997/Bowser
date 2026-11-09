@@ -2,9 +2,25 @@
 
 All notable changes to the FuelForecast pipeline and app. Newest first.
 
+## 2026-11-10 — Web analytics: dashboard and share page (PostHog, no library)
+
+Anonymous usage for the web pages, in the same PostHog project as the app. Design and event list: `docs/ANALYTICS_PLAN.md` "Web".
+- **`template.html` and `share.html`:** a small tracker posts to PostHog's capture API with the public project key.
+  - It only runs on the published site, and never with Global Privacy Control or Do Not Track on.
+  - There are no cookies or person profiles; a random id in `localStorage` counts returning visitors, and sessions end after 30 minutes without an event.
+  - Nothing personal is sent: no area, location, pinned stations, shared station, prices or URL query.
+  - Events: dashboard `$pageview` / `$pageleave`, `web.fuel_changed`, `web.view_changed`, `web.area_set` (once typing settles), `web.station_pinned` / `unpinned`; share `$pageview` (found, fuel), `share_page.open_app`, `share_page.directions`, `$pageleave`.
+  - `?internal=1` marks the owner's browser.
+- **`export_api.py`:** both CSPs allow `https://us.i.posthog.com` in `connect-src`, and nothing else.
+- **Footers:** both pages say visits are counted anonymously.
+- **QA:**
+  - Both pages were built with the real export code and live data, then run in headless Chrome served at the real address. Every event returned 200, with no CSP errors or page errors, and the share page's not-found path also logs a view.
+  - The test events are marked `internal` (distinct id `01a1c2a5…`), plus one `web.setup_check` event.
+  - Fixed during QA: typing a suburb logged `web.area_set` for each partial match, so it's now logged once after 1.5 s.
+
 ## 2026-11-03 — Security review (web, API, pipeline, app)
 
-Second review after the 2026-10-22 one (0.6.0 §8). Local only: not pushed, no OTA, no native build.
+Second review after the 2026-10-22 one (0.6.0 §8). Pushed 2026-11-10 together with web analytics; no OTA or native build, so the Android permissions take effect in the next APK.
 - **Fixed:**
   - Dashboard CSP (`export_api.py`): `script-src` names the exact Chart.js and MapLibre files instead of all of cdnjs, and `style-src` names the MapLibre CSS file. Checked in headless Chrome against the live page: both libraries load, and another cdnjs script (jQuery) is blocked, where the old CSP let it load. The versions are read from the page, and the export fails if they can't be found.
   - Android (`app.json` `blockedPermissions`): removes the unused `SYSTEM_ALERT_WINDOW`, `READ_EXTERNAL_STORAGE` and `WRITE_EXTERNAL_STORAGE`, confirmed with `expo config --type introspect`. This takes effect in the next APK.

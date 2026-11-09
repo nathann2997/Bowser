@@ -79,6 +79,7 @@
   </div>
 
   <p class="note" id="foot">Prices from NSW FuelCheck. Advice is an estimate for planning, not financial advice.</p>
+  <p class="note">Visits are counted anonymously: no cookies, and never your location or IP address.</p>
   <p class="note">Contains NSW Government FuelCheck data © State of New South Wales (NSW Fair Trading), licensed under <a href="https://creativecommons.org/licenses/by-sa/3.0/au/" rel="noopener noreferrer">CC BY-SA 3.0 AU</a>; prices adapted and forecasts added by Bowser. Not endorsed by NSW Fair Trading.</p>
 </main>
 <script>
@@ -92,7 +93,50 @@
   var want = q.get('f');
   var $ = function (x) { return document.getElementById(x); };
   var show = function (x, on) { $(x).hidden = !on; };
-  function missing(why) { show('loading', false); show('missing', true); if (why) $('missing-why').textContent = why; }
+  // Anonymous usage, as the dashboard's tracker (template.html, `usage`; keep the two in step): PostHog's capture API,
+  // no library or cookie, only on the published site, off with Global Privacy Control or Do Not Track. Never sent: the
+  // station (it says where the sharer fills up), its prices, or anything from the address.
+  var track = (function () {
+    var on = false, id = null, internal = false, sess = null;
+    var get = function (k, d) { try { var v = localStorage.getItem('bowser.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+    var set = function (k, v) { try { localStorage.setItem('bowser.' + k, JSON.stringify(v)); } catch (e) {} };
+    var uuid7 = function () {
+      var b = crypto.getRandomValues(new Uint8Array(16)), t = Date.now(), h = '', i;
+      for (i = 5; i >= 0; i--) { b[i] = t % 256; t = Math.floor(t / 256); }
+      b[6] = 0x70 | (b[6] & 15); b[8] = 0x80 | (b[8] & 63);
+      for (i = 0; i < 16; i++) h += (b[i] < 16 ? '0' : '') + b[i].toString(16);
+      return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+    };
+    try {
+      on = location.hostname === 'nathann2997.github.io' && !navigator.globalPrivacyControl && navigator.doNotTrack !== '1' && !!window.fetch;
+      internal = get('internal', false) === true;
+      id = get('anon', null);
+      if (typeof id !== 'string') { id = uuid7(); set('anon', id); }
+    } catch (e) { on = false; }
+    return function (event, props) {
+      if (!on) return;
+      try {
+        var now = Date.now(), s = sess || get('session', null);
+        sess = s && typeof s.id === 'string' && now - s.t < 30 * 60e3 ? { id: s.id, t: now } : { id: uuid7(), t: now };
+        set('session', sess);
+        var p = props || {};
+        p.internal = internal; p.$lib = 'bowser-web'; p.$session_id = sess.id;
+        p.$current_url = location.origin + location.pathname; p.$host = location.host; p.$pathname = location.pathname;
+        p.$device_type = matchMedia('(pointer: coarse)').matches ? 'Mobile' : 'Desktop';
+        p.$process_person_profile = false; p.$geoip_disable = true;
+        fetch('https://us.i.posthog.com/i/v0/e/', {
+          method: 'POST', headers: { 'Content-Type': 'text/plain' }, credentials: 'omit', keepalive: true,
+          body: JSON.stringify({ api_key: 'phc_soNtCQQTfbqiWoJYeDCVp8dkd7xwbnr6n7rD6NSPEkXW', event: event, distinct_id: id, properties: p })
+        }).catch(function () {});
+      } catch (e) {}
+    };
+  })();
+  // One pageview per link opened: whether the station was found, and for which fuel
+  var viewed = function (found, fuel) { track('$pageview', { page: 'share', found: found, fuel: fuel || null }); };
+  $('open').addEventListener('click', function () { track('share_page.open_app'); });
+  $('dir').addEventListener('click', function () { track('share_page.directions'); });
+  addEventListener('pagehide', function () { track('$pageleave'); }, { once: true });
+  function missing(why) { show('loading', false); show('missing', true); if (why) $('missing-why').textContent = why; viewed(false); }
   if (!/^\d{1,12}$/.test(id)) { missing('This link doesn’t name a station.'); return; }
 
   var api = '../api/v1/';
@@ -149,6 +193,7 @@
     else show('dir', false);
     if (st.asof) $('foot').textContent = 'Prices from NSW FuelCheck for ' + nice(st.asof) + '. Advice is an estimate for planning, not financial advice.';
     show('loading', false); show('station', true); show('actions', true);
+    viewed(true, fuel);
   }).catch(function () { missing('Couldn’t load today’s prices. Try again in a moment.'); });
 })();
 </script>

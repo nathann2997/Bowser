@@ -240,8 +240,9 @@ for old, new in DASHBOARD_CREDITS:
 # Content-Security-Policy for the published copy only (the template is shared with the Claude scheduled task, whose
 # artifact host wraps the page). Added after the credit rewrite, so it can pin the page's own inline script by hash:
 # an injected <script> or on*= handler won't run, and scripts and styles load only from two cdnjs files (Chart.js, and MapLibre for the
-# stations map when it opens, both with SRI) and Google Fonts. The map's tiles, styles and fonts come from OpenFreeMap
-# (its only network requests), MapLibre runs its worker from a blob: URL, and there are no frames or form posts.
+# stations map when it opens, both with SRI) and Google Fonts. The map's tiles, styles and fonts come from OpenFreeMap;
+# the only other requests are anonymous usage events to PostHog. MapLibre runs its worker from a blob: URL, and there
+# are no frames or form posts.
 inline = re.findall(r"<script>(.*?)</script>", html, re.S)
 # Any inline <script ...> with attributes would be blocked by the CSP: refuse to publish rather than ship a dead page
 n_inline = len(re.findall(r"<script(?![^>]*\bsrc=)[^>]*>", html))
@@ -255,14 +256,15 @@ if len(chart) != 1 or len(ml_v) != 1: raise RuntimeError("dashboard: can't find 
 ml = f"{CDN}maplibre-gl/{ml_v[0]}/maplibre-gl"
 csp = (f"default-src 'none'; script-src 'sha256-{sha}' {chart[0]} {ml}.js; style-src 'unsafe-inline' "
        f"https://fonts.googleapis.com {ml}.css; font-src https://fonts.gstatic.com; "
-       "img-src data: blob: https://tiles.openfreemap.org; connect-src https://tiles.openfreemap.org; worker-src blob:; "
+       "img-src data: blob: https://tiles.openfreemap.org; connect-src https://tiles.openfreemap.org https://us.i.posthog.com; worker-src blob:; "
        "child-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'")
 if html.count("<title>") != 1: raise RuntimeError("dashboard: no <title> to put the CSP after")
 html = html.replace("<title>", f'<meta http-equiv="Content-Security-Policy" content="{csp}">\n<title>', 1)
 open(f"{OUT}/index.html", "w", encoding="utf-8").write(html)   # UTF-8 bytes: what the CSP hash was taken over
 # The share page (share.html → OUT/s/index.html): a station's prices and advice for a friend without the app, from the
 # app's Share link (…/s/?id=<code>&f=<fuel>). Static, built with textContent only, and pinned by a hash CSP: its one
-# inline script and one style block, fetch() to this site only. Fails soft: no page and a warning.
+# inline script and one style block, fetch() to this site and PostHog (anonymous usage) only. Fails soft: no page and a
+# warning.
 shutil.rmtree(f"{OUT}/s", ignore_errors=True)
 try:
     page = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "share.html"), encoding="utf-8").read()
@@ -273,7 +275,7 @@ try:
     if re.search(r"\son\w+\s*=|\sstyle\s*=", page): raise RuntimeError("inline handler or style attribute (blocked by the CSP)")
     h = lambda t: base64.b64encode(hashlib.sha256(t.encode()).digest()).decode()
     share_csp = (f"default-src 'none'; script-src 'sha256-{h(scripts[0])}'; style-src 'sha256-{h(styles[0])}'; "
-                 "connect-src 'self'; img-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'")
+                 "connect-src 'self' https://us.i.posthog.com; img-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'")
     # First thing in <head>, so the policy covers every block after it whatever the page's order
     if page.count("<head>") != 1: raise RuntimeError("no <head> to put the CSP in")
     page = page.replace("<head>", f'<head>\n<meta http-equiv="Content-Security-Policy" content="{share_csp}">', 1)
