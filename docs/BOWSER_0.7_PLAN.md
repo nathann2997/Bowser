@@ -1,6 +1,6 @@
 # Bowser 0.7 — "prove it" release plan (2026-10-22)
 
-Product owner: Nathan. PM, design and build: Claude. **Shipped in 0.7 (builds A–D); kept for the reasoning behind it.** What's live now is in the code, `CHANGELOG.md` and `docs/HANDOFF.md`.
+Product owner: Nathan. **Shipped in 0.7 (builds A–D); kept for the reasoning behind it.** What's live now is in the code, `CHANGELOG.md` and `docs/HANDOFF.md`.
 
 ## Why this release
 Bowser answers "fill now or wait, and where", but the value it creates is invisible. Nothing shows whether the advice was right or how much it saved. This release makes that visible:

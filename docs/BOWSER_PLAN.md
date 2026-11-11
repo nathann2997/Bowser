@@ -1,6 +1,6 @@
 # Bowser — rebrand and v0.3 feature plan (2026-10-21)
 
-Product owner: Nathan. PM: Claude. **Shipped in 0.3.0; kept for the reasoning behind it.** What's live now is in the code, `CHANGELOG.md` and `docs/HANDOFF.md`.
+Product owner: Nathan. **Shipped in 0.3.0; kept for the reasoning behind it.** What's live now is in the code, `CHANGELOG.md` and `docs/HANDOFF.md`.
 
 ## 1. Rebrand: "Sydney Fuel Outlook" → **Bowser**
 - The name is **Bowser**. It has no subtitle and no tagline anywhere: not in the launcher label, the splash, the headers or the store copy.

@@ -226,8 +226,8 @@ html = open(f"{BASE}/out/dashboard.html", encoding="utf-8").read()
 # Content-Security-Policy, added here rather than in the template so it can pin the page's own inline script by hash:
 # an injected <script> or on*= handler won't run, and scripts and styles load only from two cdnjs files (Chart.js, and
 # MapLibre for the stations map when it opens, both with SRI) and Google Fonts. The map's tiles, styles and fonts come
-# from OpenFreeMap; the only other requests are anonymous usage events to PostHog. MapLibre runs its worker from a
-# blob: URL, and there are no frames or form posts.
+# from OpenFreeMap; the only other requests are the page's own api/v1/track.json ('self') and anonymous usage events
+# to PostHog. MapLibre runs its worker from a blob: URL, and there are no frames or form posts.
 inline = re.findall(r"<script>(.*?)</script>", html, re.S)
 # Any inline <script ...> with attributes would be blocked by the CSP: refuse to publish rather than ship a dead page
 n_inline = len(re.findall(r"<script(?![^>]*\bsrc=)[^>]*>", html))
@@ -241,7 +241,7 @@ if len(chart) != 1 or len(ml_v) != 1: raise RuntimeError("dashboard: can't find 
 ml = f"{CDN}maplibre-gl/{ml_v[0]}/maplibre-gl"
 csp = (f"default-src 'none'; script-src 'sha256-{sha}' {chart[0]} {ml}.js; style-src 'unsafe-inline' "
        f"https://fonts.googleapis.com {ml}.css; font-src https://fonts.gstatic.com; "
-       "img-src data: blob: https://tiles.openfreemap.org; connect-src https://tiles.openfreemap.org https://us.i.posthog.com; worker-src blob:; "
+       "img-src data: blob: https://tiles.openfreemap.org; connect-src 'self' https://tiles.openfreemap.org https://us.i.posthog.com; worker-src blob:; "
        "child-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'")
 if html.count("<title>") != 1: raise RuntimeError("dashboard: no <title> to put the CSP after")
 html = html.replace("<title>", f'<meta http-equiv="Content-Security-Policy" content="{csp}">\n<title>', 1)

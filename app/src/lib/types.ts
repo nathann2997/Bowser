@@ -164,11 +164,24 @@ export type Call = {
   head: string;                   // the headline shown that day
   now: number;                    // Sydney median when the call was made, c/L
   move: number | null;            // average median over the days after so far, less `now` (null before any day is known)
-  days: number;                   // days of the window known so far
+  days: number;                   // finished days of the window known so far (today, a partial day, never counts)
   status: CallStatus;             // pending until the whole window has passed
 };
 
-export type Tally = { n: number; right: number; close: number; wrong: number; from: string | null; to: string | null };
+export type Counts = { n: number; right: number; close: number; wrong: number };
+
+// `gain` and `by` (and `base`, `recent`, `pending` below) were added on 2026-11-11; a track.json from before has none
+export type Tally = Counts & {
+  from: string | null; to: string | null;
+  gain?: number | null;           // average value of following the call, c/L: fill +move, wait −move, no rush 0
+  by?: Partial<Record<VerdictCls, Counts>>;   // the counts per call type
+};
+
+/** The best rule that never looks at the forecast (always fill / wait / no rush), and how many of the same days it got right */
+export type Baseline = { cls: VerdictCls; right: number };
+export type TestedTally = Tally & { base?: Baseline };
+export type ReplayTally = TestedTally & { recent?: TestedTally };   // recent: the last 365 days of the replay
+export type LiveTally = Tally & { since: string | null; pending?: number };   // pending: calls not scored yet
 
 export type Track = Stamp & {
   schema: number;
@@ -176,6 +189,6 @@ export type Track = Stamp & {
   window: number;                 // days after a call that it's scored on (7)
   min_days: number;
   calls: Call[];                  // live calls, last 60 days, newest first
-  live: Partial<Record<Fuel, Tally & { since: string | null }>>;
-  replay: Partial<Record<Fuel, Tally>> | null;   // the same rule replayed on the walk-forward backtest
+  live: Partial<Record<Fuel, LiveTally>>;
+  replay: Partial<Record<Fuel, ReplayTally>> | null;   // the same rule replayed on the walk-forward backtest
 };

@@ -1,6 +1,6 @@
 # Bowser notifications plan (2026-10-24)
 
-Product owner: Nathan. PM: Claude. Status: **proposal, nothing built.** Decisions needed are marked **(decide)**.
+Product owner: Nathan. Status: **proposal, nothing built.** Decisions needed are marked **(decide)**.
 
 ## The job notifications do
 Bowser is opened a couple of times a week, usually just before a drive. Notifications should cover the moments when the app *isn't* open and a few dollars are at stake:

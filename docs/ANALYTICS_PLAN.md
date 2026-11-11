@@ -1,6 +1,6 @@
 # Bowser analytics plan (2026-10-29)
 
-Product owner: Nathan. PM: Claude. Status: **PostHog chosen (2026-10-29), built into 0.9.0 and switched on by OTA the same day (US cloud).** Defaults taken: a Share anonymous usage switch (on by default), session replay off, its own native build. The original evaluation follows the metrics.
+Product owner: Nathan. Status: **PostHog chosen (2026-10-29), built into 0.9.0 and switched on by OTA the same day (US cloud).** Defaults taken: a Share anonymous usage switch (on by default), session replay off, its own native build. The original evaluation follows the metrics.
 
 ## Key metrics (what the dashboard shows)
 Small numbers: at about 10 installs, read counts and per-install tables, not percentages. All metrics leave out test phones (`internal = true`: dev builds, and any phone whose version number in More was tapped 5 times) and events marked `background = true`.
@@ -73,8 +73,8 @@ Every event carries: the app version, the OTA `update` id, the channel (preview 
 1. Create the project. US or EU hosting is chosen at sign-up; that's decision 2 below.
 2. Settings → "Discard client IP data": on.
 3. Settings → "Filter out internal and test users": add `internal = true`.
-4. Send the project API key (starts `phc_`) and host to Claude for the EAS environment variables.
-5. Optional: a personal API key with the MCP Server preset, so Claude can build the dashboard above and answer questions directly. Keep it out of the repo.
+4. Add the project API key (starts `phc_`) and host to the EAS `preview` environment.
+5. Optional: a personal API key with the MCP Server preset, for building the dashboard above and querying it through PostHog's API. Keep it out of the repo.
 
 
 
@@ -117,7 +117,7 @@ They're good at "is it fast, is it broken". They can't answer the questions abov
   - Every serious option needs native modules: Firebase always; PostHog needs `expo-device` and `expo-localization`, which aren't installed yet.
   - So it ships as **0.9.0 with a new APK** and an `app_release.json` bump.
   - The new SDK must never reach the `ota/*` branches or 0.8.0 phones. An OTA update that imports a missing native module crashes on launch, as the Observe rollout showed.
-- **Querying from Claude.** "Analysed effectively" includes being able to ask Claude.
+- **Querying by API.** "Analysed effectively" includes being able to ask questions through an API or MCP server.
   - The BigQuery connector is already connected here.
   - PostHog and Amplitude have MCP servers; Amplitude's plugin is installed here but needs authorising.
 
@@ -131,7 +131,7 @@ They're good at "is it fast, is it broken". They can't answer the questions abov
 | **How fast data shows** | Seconds | Realtime view covers 30 minutes; reports take up to ~24 h | Minutes | Minutes | Live view | Minutes |
 | **Location from IP** | On by default; turn off with `disableGeoip` and the project's "discard client IP" | IP isn't stored; city level is on by default, and "granular location and device data" can be turned off for the property, leaving state level | *(unverified)* | *(unverified)* | *(unverified)* | *(unverified)* |
 | **Advertising ID** | No | **Yes on Android by default** (`AD_ID` permission merged in). Needs a manifest flag and a permission removal, then checking the merged manifest | No | No | No | No |
-| **Querying from Claude** | Official MCP server (hosted, needs a key or OAuth) | Through the BigQuery export, which the connected BigQuery MCP can read. Sandbox tables reportedly expire after 60 days *(unverified)*; past that needs billing | MCP (installed, needs auth) | *(unverified)* | *(unverified)* | *(unverified)* |
+| **Querying by API** | Official MCP server (hosted, needs a key or OAuth) | Through the BigQuery export, which the connected BigQuery MCP can read. Sandbox tables reportedly expire after 60 days *(unverified)*; past that needs billing | MCP (installed, needs auth) | *(unverified)* | *(unverified)* | *(unverified)* |
 | **Expo integration** | JS SDK plus `expo-device` and `expo-localization` (Expo modules). Screen views by hand from `usePathname` | `@react-native-firebase/app` and `/analytics` (v26 needs the New Architecture, which we have), `google-services.json`, config plugin. **iOS must switch to static frameworks** (`useFrameworks: 'static'`, `forceStaticLinking`), with known v26 build issues (SPM). Untested against our maps and widget pods | JS SDK | JS SDK | JS SDK | JS SDK |
 | **Session replay** | Yes (separate native plugin) | No | Paid add-on | Some free | No | No |
 
@@ -171,7 +171,7 @@ The costs:
 
 ### The rest, in a line each
 - **Amplitude:** strong product analytics, but its free-tier terms are unclear (third-party sources disagree, and one says it was renamed in 2026, unverified).
-- **Mixpanel:** similar to PostHog for funnels and retention; I didn't check its tooling for querying from Claude.
+- **Mixpanel:** similar to PostHog for funnels and retention; I didn't check its API tooling.
 - **Aptabase and TelemetryDeck:** privacy-first and simple, but they don't do funnels or retention, which is the gap we're trying to fill.
 
 ## Recommendation
@@ -205,7 +205,7 @@ Firebase is the better pick if the priority is free at any scale plus BigQuery. 
   - 0.9.0 native build and the `app_release.json` bump, so older phones see the update notice.
   - CHANGELOG and HANDOFF.
   - QA audit before commit.
-- **Querying:** connect PostHog's MCP server to Claude Code with a project-scoped key, so you can ask Claude the seven questions directly.
+- **Querying:** PostHog's MCP server or API with a project-scoped key answers the seven questions directly.
 
 ## Things that change for testers
 - **More → About text:**

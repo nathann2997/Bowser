@@ -28,7 +28,7 @@ export type EventName =
   | 'station.pin_full'
   | 'fill.logged'
   | 'fill.removed'
-  | 'share.opened'           // kind: deal | savings; shared: false when the sheet was dismissed
+  | 'share.opened'           // kind: deal | savings | track; shared: false when the sheet was dismissed
   | 'directions.opened'      // ok: false when no maps app took the link
   | 'alerts.toggled'         // on: what was asked; granted: whether they're on afterwards
   | 'data.fetch_failed'      // a query gave up after its retries

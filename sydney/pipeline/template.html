@@ -307,6 +307,12 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
     <h2 class="q" id="mh">Can I trust it?</h2>
     <div class="card stats" id="accStats"></div>
     <p id="accLine" style="max-width:70ch"></p>
+    <div class="card" id="trackCard" hidden>
+      <div class="eyebrow" id="trackEyebrow"></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 6px"><span class="bignum" id="trackPct"></span><b>of calls right</b></div>
+      <p class="small" id="trackLift" style="color:var(--fg2);max-width:70ch"></p>
+      <p class="small" id="trackLive" style="max-width:70ch"></p>
+    </div>
     <div class="grid2">
       <div class="section">
         <details class="disc"><summary>Accuracy by days ahead</summary><div class="disc-body">
@@ -873,6 +879,34 @@ function renderBTTable(){
   $("accLine").textContent = `${better > 0 ? `About ${better}% closer than assuming prices stay put. ` : ""}Tested on every month since ${month(D.bt.test_from)} for ${fuelName(f)}, using only the data available at the time.`;
   $("btNote").textContent = `${fuelName(f)}: the average miss in cents a litre, forecasting each month from ${month(D.bt.test_from)} to ${month(D.bt.test_to)} with only the data before it. “No change” assumes today’s price holds. Direction is how often Bowser called the move right, for moves of 1c or more. Jump warnings score ${D.bt.auc[f].toFixed(2)} out of 1, where 0.5 is a coin toss.`;
 }
+// The daily call's track record (api/v1/track.json, track_api.py), worded as the app's Track record screen
+// (app/src/lib/track.ts: keep the two in step): the rule tested on the last year of the replay against the best rule
+// that ignores the forecast, then the live calls as counts. Unlike the app, live calls never take over the headline here. Only on the published site, where the API sits beside the page;
+// anywhere else, or if the file is missing, the card stays hidden.
+let TRACK = null;
+function renderTrack(){
+  const all = TRACK && TRACK.replay && TRACK.replay[state.fuel];
+  if (!all || !all.n) { $("trackCard").hidden = true; return; }
+  const pct = t => Math.round(t.right/t.n*100), word = {up:"Fill", down:"Wait", flat:"No rush"};
+  const r = all.recent && all.recent.n >= 300 && all.recent.to ? all.recent : all;
+  $("trackEyebrow").textContent = r === all ? `Tested on ${all.from.slice(0,4)}–${all.to.slice(0,4)} prices` : `Tested on the year to ${nice(r.to)}`;
+  $("trackPct").textContent = pct(r) + "%";
+  let lift = "Each day’s “fill or wait” call, checked against the average Sydney price over the week after.";
+  if (r.base) {
+    const b = Math.round(r.base.right/r.n*100), pts = pct(r) - b, rule = `always saying “${word[r.base.cls]}”`;
+    lift += pts >= 5 ? ` ${pts} points better than ${rule}, which was right ${b}% of the time.`
+      : pts <= -5 ? ` ${-pts} points worse than ${rule}, which was right ${b}% of the time.`
+      : ` About the same as ${rule} (${b}%)${r.base.cls === "flat" ? ": prices rarely moved enough here to test the calls" : ""}.`;
+  }
+  $("trackLift").textContent = lift;
+  const l = TRACK.live && TRACK.live[state.fuel];
+  $("trackLive").textContent = l && l.n && l.since
+    ? `Live calls since ${nice(l.since)}: ${l.n} scored, ${l.right} right, ${l.close} neutral (prices barely moved) and ${l.wrong} wrong.${l.pending ? ` ${l.pending} more await a result.` : ""}`
+    : "";
+  $("trackCard").hidden = false;
+}
+if (/^https?:$/.test(location.protocol) && window.fetch)
+  fetch("api/v1/track.json").then(r => r.ok ? r.json() : null).then(t => { TRACK = t; renderTrack(); }).catch(() => {});
 function renderFresh(){
   const age = s => daysBetween(s, CTX.asof);
   const items = [
@@ -1116,7 +1150,7 @@ document.addEventListener("click", e => {
 
 function renderToday(){ renderStations(); renderPins(); renderHero(); }
 function render(){
-  brandOptions(); renderToday(); renderWhy(); renderInsights(); renderMain(); renderBrands(); renderBTTable();
+  brandOptions(); renderToday(); renderWhy(); renderInsights(); renderMain(); renderBrands(); renderBTTable(); renderTrack();
 }
 render(); renderFresh();
 // One pageview per load, with where the visit came from (the site's own domain only, never the address)
