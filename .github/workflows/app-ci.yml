@@ -1,5 +1,5 @@
 # The Bowser app: checks on every push/PR that touches it, then (on main) ships it. Nothing is run from a laptop.
-#   check   typecheck, lint, tests, expo-doctor
+#   check   typecheck, lint, tests; expo-doctor reports but does not block
 #   ship    main only, after check passes:
 #             - JS-only change            -> EAS Update (OTA) to the `preview` channel
 #             - `version` in app.json up  -> EAS Build (Android preview APK), waits for it
@@ -51,7 +51,12 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx expo lint
       - run: npx jest --ci
-      - run: npx expo-doctor
+      # Reported, not a gate (owner's decision, 2026-11-12): expo-doctor fails whenever Expo releases a patch version,
+      # which has nothing to do with the commit being checked and blocked every OTA. Upgrading the packages is a native
+      # change, so it goes out with the next APK. Read this step's output before a version bump.
+      - name: expo-doctor (advisory)
+        continue-on-error: true
+        run: npx expo-doctor
 
   ship:
     needs: check
