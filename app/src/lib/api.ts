@@ -2,8 +2,42 @@ import { useQuery } from '@tanstack/react-query';
 
 import type { Forecast, History, Meta, StationDetail, Stations, Track } from './types';
 
-// EXPO_PUBLIC_API_BASE points a local build at another copy of the API (e.g. a scratch export served locally)
-export const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://nathann2997.github.io/FuelForecast/api/v1';
+// The API is the GitHub Pages site of the repo, so its address follows the repo's name. The repo was renamed from
+// FuelForecast to Bowser (2026-11): the new address comes first, and the old one is kept as a fallback so this code
+// works on either side of the rename. EXPO_PUBLIC_API_BASE points a build at another copy of the API instead.
+const BASES = ['https://nathann2997.github.io/Bowser/api/v1', 'https://nathann2997.github.io/FuelForecast/api/v1'];
+export const API_BASES = process.env.EXPO_PUBLIC_API_BASE ? [process.env.EXPO_PUBLIC_API_BASE] : BASES;
+/** The address for links people share and for labels; fetches go through apiFetch() */
+export const API_BASE = API_BASES[0];
+
+let good = -1;   // the base that last answered OK, tried first
+/** Test hook: forget which base answered */
+export const resetApiBase = () => { good = -1; };
+
+/**
+ * fetch() of an API file, from whichever base serves it. The base that last worked is asked first; if it fails, the
+ * others are tried in order. With none OK, the first HTTP response is returned (so a 404 still reads as a 404), or
+ * the first network error is thrown.
+ */
+export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const order = good >= 0 ? [good, ...API_BASES.map((_, i) => i).filter((i) => i !== good)] : API_BASES.map((_, i) => i);
+  let bad: Response | undefined;
+  let err: unknown;
+  for (const i of order) {
+    try {
+      const r = await fetch(`${API_BASES[i]}/${path}`, init);
+      if (r.ok) {
+        good = i;
+        return r;
+      }
+      bad ??= r;
+    } catch (e) {
+      err ??= e;
+    }
+  }
+  if (bad) return bad;
+  throw err;
+}
 const SCHEMA = 1;
 
 /** A non-OK HTTP response; `status` lets callers treat a missing file (404) differently from a network error */
@@ -19,7 +53,7 @@ export const MAX_JSON_BYTES = 25 * 1024 * 1024;
 export const tooBig = (r: Response) => Number(r.headers.get('content-length') ?? 0) > MAX_JSON_BYTES;
 
 async function getJson<T extends { schema: number }>(name: string): Promise<T> {
-  const r = await fetch(`${API_BASE}/${name}.json`, { headers: { Accept: 'application/json' } });
+  const r = await apiFetch(`${name}.json`, { headers: { Accept: 'application/json' } });
   if (!r.ok) throw new HttpError(`${name}.json: HTTP ${r.status}`, r.status);
   if (tooBig(r)) throw new Error(`${name}.json: too large`);
   const j = (await r.json()) as T;

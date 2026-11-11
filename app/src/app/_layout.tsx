@@ -10,7 +10,7 @@ import { initAlerts } from '@/lib/alerts';
 import { configureAnalytics, reportError, track } from '@/lib/analytics';
 import { loadSettings } from '@/lib/settings';
 import { AnalyticsTracker } from '@/components/analytics-tracker';
-import { API_BASE, HttpError, isNotFound } from '@/lib/api';
+import { API_BASES, HttpError, isNotFound } from '@/lib/api';
 import { LAUNCH_WAIT_MS, launchCheck, resumeCheck, RESUME_WAIT_MS, resumeWorthChecking } from '@/lib/ota';
 import { UpdateNotice } from '@/components/update-notice';
 import { useWidgetSync } from '@/widget/sync';
@@ -99,7 +99,7 @@ function RootLayout() {
           <Stack.Screen name="welcome" options={{ headerShown: false, animation: 'fade', gestureEnabled: false }} />
         </Stack>
         <AnalyticsTracker />
-        <UpdateNotice releaseUrl={`${API_BASE}/app.json`} onAction={(action, latest) => track('update.notice', { action, latest })} />
+        <UpdateNotice releaseUrl={API_BASES.map((b) => `${b}/app.json`)} onAction={(action, latest) => track('update.notice', { action, latest })} />
       </ThemeProvider>
     </PersistQueryClientProvider>
     </GestureHandlerRootView>

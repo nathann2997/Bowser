@@ -33,8 +33,9 @@ export function pendingRelease(json: unknown, os: string, installed: string | un
   return { version: r.version, url: r.url, notes };
 }
 
+/** `releaseUrl`: where app.json is; a list is tried in order (the API moved when the repo was renamed) */
 export function UpdateNotice({ releaseUrl, onAction }: {
-  releaseUrl: string;
+  releaseUrl: string | string[];
   onAction?: (a: UpdateAction, latest: string) => void;
 }) {
   const dark = useColorScheme() === 'dark';
@@ -47,8 +48,19 @@ export function UpdateNotice({ releaseUrl, onAction }: {
     // After the splash (hidden within about 4 s: lib/ota.ts launch check), so it doesn't race the first screen
     const t = setTimeout(() => {
       const stop = setTimeout(() => ctl.abort(), 8000);   // a stalled connection: not mid-task minutes later
-      fetch(releaseUrl, { headers: { Accept: 'application/json' }, signal: ctl.signal })
-        .then((r) => (r.ok ? r.json() : null))
+      const urls = Array.isArray(releaseUrl) ? releaseUrl : [releaseUrl];
+      const ask = async () => {
+        for (let i = 0; i < urls.length; i++) {
+          try {
+            const r = await fetch(urls[i], { headers: { Accept: 'application/json' }, signal: ctl.signal });
+            if (r.ok) return await r.json();
+          } catch (e) {
+            if (i === urls.length - 1) throw e;
+          }
+        }
+        return null;
+      };
+      ask()
         .then((j) => {
           asked = true;   // answered: not again this process (an aborted or failed fetch may retry on remount)
           const p = pendingRelease(j, Platform.OS, Constants.expoConfig?.version);

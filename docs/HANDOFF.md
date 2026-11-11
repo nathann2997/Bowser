@@ -8,7 +8,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
   - `data-health.yml`: watches the API and fixes what a rerun fixes (`docs/DATA_HEALTH.md`).
   - `pipeline-ci.yml`: tests a pipeline change on a copy of the data, with no keys.
   - `app-ci.yml`: checks the app, then on `main` ships it: an OTA update for a JS change, or a new APK plus the update notice after a `version` bump.
-- **App:** Bowser **0.9.0** (runtime 0.9.0) on Android, with PostHog analytics. Preview APK: EAS build ffab4b04, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/ffab4b04-76dc-4c51-88b0-7ee5ac3eb066. `app_release.json` points at it, so older installs show the "new version" notice.
+- **App:** `main` is at **0.9.1** (not built yet; see the first open item). Installed: Bowser **0.9.0** (runtime 0.9.0) on Android, with PostHog analytics. Preview APK: EAS build ffab4b04, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/ffab4b04-76dc-4c51-88b0-7ee5ac3eb066. `app_release.json` points at it, so older installs show the "new version" notice.
 - **iOS:** compiles (simulator build 46497e9c) but isn't distributed; see the open item below.
 - **Names:** the product is Bowser everywhere people can see it. The technical identifiers still say `fuelforecast` (GitHub repo and so the Pages URL, Android package, iOS bundle id, Expo slug, URL scheme); changing them breaks installed apps, see "Owner to do".
 
@@ -17,7 +17,6 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - Add the repo secret `VIC_API_KEY` if the Victorian archive is wanted (optional).
 - Delete the old key files on the laptop, which nothing reads any more: `sydney/pipeline/credentials.py`, `sydney/pipeline/pull_nsw.js`, `fuel-api-credentials.md`. Rotate `NSW_API_KEY`/`NSW_API_SECRET` (set 2026-10-20, never rotated).
 - Delete the retired claude.ai routine (disabled since 2026-10-28), if it should be gone for good.
-- Decide whether to rename the GitHub repo. It changes the Pages URL, so it needs a new APK and an OTA for every runtime first (the API base is compiled into the app), and old installs that don't update stop getting data.
 - Confirm 2FA on GitHub and both Expo accounts, the Maps key restriction, PostHog "Discard client IP data", and fork PR approval set to "all external contributors".
 
 ## Product decisions (owner)
@@ -31,6 +30,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 ## Open work
 Newest first. Each item has its CHANGELOG entry of the same name for details.
 
+- **Repo rename, Bowser 0.9.1** (2026-11-11). The owner wants the repo renamed to Bowser. 0.9.1 is pushed (the app reads the new Pages address, then the old one; Expo patch updates so expo-doctor passes) but **not built**, and the repo is **not renamed**. **Next, in this order:** (1) the owner adds `EXPO_TOKEN`; (2) `gh workflow run app-ci.yml -f ship=build`, and check the notice job updated `app_release.json`; (3) `gh repo rename Bowser`, then `gh workflow run daily.yml`, and check `https://nathann2997.github.io/Bowser/api/v1/meta.json`; (4) replace `FuelForecast` with `Bowser` in the docs' URLs and the local git remote; (5) the owner sends testers the install link, since older installs stop getting data at the rename; (6) device check of 0.9.1.
 - **GitHub only** (2026-11-11). **Next:** after the merge, check the first runs of `pipeline-ci` and of `app-ci`'s ship job (neither has run yet), and that the daily run still passes with `out/dashboard.html`.
 - **Track record** (2026-11-11, 8b81609): live (run 42965402103; OTA 2abc8e7e at runtime 0.9.0). **Next:** device check of `/track` and Today's tile. **Owner's call:** should a Wait count as right when prices didn't rise (now "Neutral")? The dashboard card always leads with the tested figure; the app switches to live at 40 scored calls that include a Fill and a Wait.
 - **Stations map: cheapest in view** (2026-11-11, d2477d5): live by OTA 988104b6. **Next:** device check on Android: the Cheapest tag and the "from" labels draw fully, the tag doesn't cover a neighbouring group's count, the card doesn't re-centre twice, the bar fits at 360 dp. Not built: "Change" on the area bar leaves the map for the list; the map header is about 170 dp tall.

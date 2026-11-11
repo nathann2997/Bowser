@@ -1,7 +1,7 @@
 """Data health check for the published app API: is what users see fresh, complete and plausible?
 
 usage: python health.py [BASE] [--out report.json]
-  BASE  the site root (default https://nathann2997.github.io/FuelForecast) or a local export dir (export_api.py's OUT)
+  BASE  the site root (default: this repo's GitHub Pages site) or a local export dir (export_api.py's OUT)
 
 Checks the API the way the app sees it (cache-busted, so a CDN copy can't hide a fresh deploy) and writes a report:
   {"checked_at", "sydney_now", "base", "ok", "issues": [{code, severity, title, detail, fix, hint}], "facts": {...}}
@@ -15,7 +15,9 @@ from zoneinfo import ZoneInfo
 
 SYD = ZoneInfo("Australia/Sydney")
 from fuels import FUELS
-DEFAULT_BASE = "https://nathann2997.github.io/FuelForecast"
+# The Pages site of the repo the workflow runs in, so a repo rename needs no change here
+_REPO = os.environ.get("GITHUB_REPOSITORY", "nathann2997/Bowser")
+DEFAULT_BASE = "https://{}.github.io/{}".format(*_REPO.split("/", 1))
 
 # Freshness. The first run (05:13) can start late, so today's data is expected from 07:30. Daytime slots are at most 5 h
 # apart (05:13, 10:13, 13:13, 17:13, 21:13), so data older than 5.5 h between 07:30 and 23:30 means a slot was skipped.

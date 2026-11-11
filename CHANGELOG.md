@@ -2,6 +2,16 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-11 — Bowser 0.9.1: ready for the repo rename (native, runtime 0.9.1; APK not built yet)
+
+Owner: "update the repo name also and make all changes necessary to ensure everything is live". The API's address is the repo's GitHub Pages address, so renaming the repo (FuelForecast → Bowser) moves it and the old address stops working. **The repo is not renamed yet**: this release has to reach phones first.
+- **The app works on both sides of the rename** (`lib/api.ts` `apiFetch`, used by the screens, the widget and the update notice): it asks `…github.io/Bowser/api/v1` first and falls back to `…github.io/FuelForecast/api/v1`, remembers which one answered, and switches if that one starts failing. Share links and the dashboard link use the new address. Tests: `api-base.test.ts`.
+- **Expo packages updated to the SDK 58 patch versions expo-doctor expects** (`npx expo install --fix`: expo 58.0.23, react-native 0.88.1, expo-updates, expo-router and 14 others). `app-ci` had failed at expo-doctor on every push since about 10 Nov, which would have blocked all shipping. It's a native change, so `version` is 0.9.1 and a new APK is needed; 0.9.0 installs get no more OTA updates.
+- **`health.py`** takes the site address from `GITHUB_REPOSITORY`, so the monitor follows the rename with no change.
+- **Release notes** (`app/release_notes.txt`) ask testers to install this version.
+- **Checked:** typecheck, lint, 441 tests and expo-doctor (20/20) pass on a clean install. **Not checked:** the updated packages on a phone, and the build itself, which waits for the `EXPO_TOKEN` secret.
+- **Order from here:** add `EXPO_TOKEN` → run `app-ci` with `ship=build` → the APK and the update notice go live at the old address → rename the repo → run `daily-forecast` → update the docs' URLs. Phones still on 0.9.0 or older after the rename show their last data and no notice, so testers need the install link sent to them.
+
 ## 2026-11-11 — GitHub only: nothing runs locally, Bowser naming, no Claude task
 
 Owner: "nothing is run locally, everything should be on the github and running automatically", "Bowser naming across the whole project", and "nothing to do with Claude scheduled task". This also lands the `cleanup/streamline` branch from 2026-10-29 (the two entries of that date below), which had never been merged. **Not yet run on GitHub:** `pipeline-ci.yml` and the ship and notice jobs of `app-ci.yml`.

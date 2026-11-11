@@ -1,1 +1,1 @@
-What’s new: a map of nearby stations on the Stations tab, and a Share anonymous usage switch in More. Bowser now sends anonymous usage reports so we can see what helps, never your location, your area or what you paid.
+Please install this version: Bowser’s data has moved to a new address, and older versions will stop getting new prices. Also new: the cheapest station in view is marked on the map, and a clearer track record.

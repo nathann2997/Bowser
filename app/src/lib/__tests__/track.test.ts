@@ -93,9 +93,9 @@ describe('the live record', () => {
   });
   it('shares the tested figure, what it beats, and the live counts', () => {
     expect(trackMessage(track(live(13, 5, { down: 13 }), recent), 'U91')).toBe(
-      'Bowser’s fill-or-wait calls for Sydney Unleaded 91 were right 72% of the time, tested on the year to 22 Oct, 24 points better than always saying “Wait”. Live since 22 Oct: 5 right, 8 neutral, 0 wrong.\nhttps://nathann2997.github.io/FuelForecast/');
+      'Bowser’s fill-or-wait calls for Sydney Unleaded 91 were right 72% of the time, tested on the year to 22 Oct, 24 points better than always saying “Wait”. Live since 22 Oct: 5 right, 8 neutral, 0 wrong.\nhttps://nathann2997.github.io/Bowser/');
     expect(trackMessage(track(none), 'U91')).toBe(
-      'Bowser’s fill-or-wait calls for Sydney Unleaded 91 were right 84% of the time, tested on 2021–2026 prices.\nhttps://nathann2997.github.io/FuelForecast/');
+      'Bowser’s fill-or-wait calls for Sydney Unleaded 91 were right 84% of the time, tested on 2021–2026 prices.\nhttps://nathann2997.github.io/Bowser/');
     expect(trackMessage(track(none), 'DL')).toBeNull();
   });
 });
