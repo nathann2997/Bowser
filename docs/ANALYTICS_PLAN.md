@@ -1,6 +1,82 @@
 # Bowser analytics plan (2026-10-29)
 
-Product owner: Nathan. PM: Claude. Status: **proposal, nothing built.** Decisions needed are marked **(decide)**.
+Product owner: Nathan. PM: Claude. Status: **PostHog chosen (2026-10-29), built into 0.9.0 and switched on by OTA the same day (US cloud).** Defaults taken: a Share anonymous usage switch (on by default), session replay off, its own native build. The original evaluation follows the metrics.
+
+## Key metrics (what the dashboard shows)
+Small numbers: at about 10 installs, read counts and per-install tables, not percentages. All metrics leave out test phones (`internal = true`: dev builds, and any phone whose version number in More was tapped 5 times) and events marked `background = true`.
+
+| # | Metric | Definition (PostHog) | Answers |
+|---|---|---|---|
+| 1 | **Installs acting on the advice** (main metric) | Weekly unique installs with `app.opened`, then in the same week `station.opened`, `directions.opened` or `fill.logged` | Is Bowser doing its job: does a look lead to a decision? |
+| 2 | **Weekly active installs** | Weekly unique installs with `app.opened` | How many use it |
+| 3 | **Retention** | Weekly cohort retention: first `app.opened` → `app.opened` in later weeks (week 1 and week 4 matter) | Do testers come back? |
+| 4 | **Activation funnel** (first 7 days) | First-ever `app.opened` → `area.set` → `onboarding.finished` → `station.pinned` or `station.opened` → `fill.logged`. Only installs whose first event has `hasArea = false`: people upgrading from 0.8.0 have no first run to measure | Where the first run loses people |
+| 5 | **Advice vs action** | `station.opened`, `directions.opened` and `fill.logged` per install, split by the `verdict` property (act / wait / calm) | Do "Fill up" days lead to more filling and Map taps than "Wait" days? |
+| 6 | **Entry sources** | `app.opened` split by `source`: launcher, widget, alert, share, link | What brings people in: is the widget or the rise alert worth it? |
+| 7 | **Feature reach** | Share of weekly active installs that, in the week: viewed the map (screen `/stations` with view=map), used filters (`filters.opened`), set a discount (`settings.changed` keys contains discounts), pinned, logged a fill, shared (`share.opened`), viewed `/track` or `/trends`, turned alerts on (`alerts` property), opened from the widget | What's used and what's dead weight |
+| 8 | **Quality** | `data.fetch_failed` per weekly active install; crash-free sessions (EAS Observe); `$app_version` (the APK) and `update` (the OTA update id) spread; `update.notice` action=update | Is it broken, and are people on the latest version? |
+
+Every event carries: the app version, the OTA `update` id, the channel (preview / production), fuel, alerts on, has area (and whether by GPS), discount-brand count, pins, fills, the current Sydney `verdict` for your fuel, and `internal`. Screens are named by route pattern (`/`, `/stations`, `/station/[id]`, `/savings`, `/track`, `/trends`, `/more`, `/welcome`).
+
+## What was built (0.9.0)
+- `posthog-react-native` behind the existing `track()` in `lib/analytics.ts`; EAS Observe and Insights unchanged.
+- **Config:**
+  - person profiles always (anonymous installs, no accounts);
+  - `disableGeoip`;
+  - lifecycle events off (`app.opened` is the one open event);
+  - no feature flags, surveys or error autocapture;
+  - a `before_send` that strips location, area, price, IP and time-zone fields whatever a future event adds, while keeping the SDK's `$geoip_disable` flag.
+- **Foreground only:** PostHog is only ever started by the root layout with the app in front (`components/analytics-tracker.tsx`), never by the widget task or a background refresh.
+  - If the app is still loaded, events from those tasks (`inBackgroundTask`) carry `background: true`.
+  - Android briefly reports "background" for a permission dialog, the share sheet or Maps opening on top. That isn't treated as leaving the app.
+- **Opens:**
+  - The first time in front after a fresh start is the cold open.
+  - A later return counts only after at least a minute away, or when a link or alert brought it back.
+  - No open is logged while the app is restarting into an OTA update; the restarted app logs it.
+- **Sharing off:** an opted-out install never contacts PostHog, and Observe's events stop too. Observe's crash reports stop once Bowser has been fully closed.
+- **`app.opened` with `source`:**
+  - widget links carry `?src=widget`, and the share page's "Open it" link carries `?src=share`;
+  - a tapped rise alert is counted once (deduped by its id and date);
+  - anything else is the launcher.
+- **New events:** `station.opened` (from list / map / fill, or widget / share / link when a link lands on a station page; pinned), `filters.opened`, `analytics.internal`.
+- **Added 2026-11-11:** `map.cheapest_opened`, when the map's "Cheapest in view" bar is tapped. It has no properties: no station, price or location.
+- **More:**
+  - a "Share anonymous usage" switch: PostHog stops straight away, Observe at the next launch;
+  - About text naming PostHog and Expo;
+  - the version number marks a test phone.
+- **Key:** the PostHog project key and host come from EAS environment variables `EXPO_PUBLIC_POSTHOG_KEY` and `EXPO_PUBLIC_POSTHOG_HOST`, inlined at bundle time. Without them PostHog stays off, and an OTA update at runtime 0.9.0 switches it on.
+
+## Web: dashboard and share page (2026-11-10)
+- **No library:** a small tracker in `template.html` (`usage`) and `share.html` (`track`) POSTs to PostHog's capture API (`https://us.i.posthog.com/i/v0/e/`). The two copies must stay in step. Both CSPs in `export_api.py` allow that host in `connect-src`, and nothing else was added.
+- **When it sends:** only on the published site (`nathann2997.github.io`), so a copy opened anywhere else sends nothing. Never when the browser has Global Privacy Control or Do Not Track on.
+- **No cookies:** a random id in `localStorage` (`bowser.anon`) counts returning visitors. If storage is blocked, the id lasts for one page load. A session (`bowser.session`, UUIDv7) ends after 30 minutes without an event, as in PostHog's library.
+- **Every event carries:** `$process_person_profile: false` (no person profiles for web visitors), `$geoip_disable: true`, `internal`, `$session_id`, the page address without its query, `$device_type` (Mobile or Desktop by pointer), and `$lib: bowser-web`.
+- **Marking your own browser:** open the dashboard with `?internal=1` once to mark it internal; `?internal=0` clears it.
+- **Never sent:** the area or suburb, location, pinned stations' names, the shared station or its prices, the URL query.
+- **Dashboard events:**
+  - `$pageview` with fuel, view, hasArea, pins and `$referring_domain` (the domain only);
+  - `$pageleave`;
+  - `web.fuel_changed` with fuel;
+  - `web.view_changed` with view (list or map);
+  - `web.area_set` with source (gps or suburb), logged once typing settles on a suburb;
+  - `web.station_pinned` and `web.station_unpinned` with the pin count.
+- **Share page events:**
+  - `$pageview` with page: share, found and fuel;
+  - `share_page.open_app` (the "Have Bowser? Open it" link);
+  - `share_page.directions`;
+  - `$pageleave`.
+
+  With the app's `app.opened` source `share`, this shows whether shared links bring people to Bowser.
+- **Notice:** both footers say visits are counted anonymously, with no cookies, location or IP address.
+
+## Owner actions in PostHog
+1. Create the project. US or EU hosting is chosen at sign-up; that's decision 2 below.
+2. Settings → "Discard client IP data": on.
+3. Settings → "Filter out internal and test users": add `internal = true`.
+4. Send the project API key (starts `phc_`) and host to Claude for the EAS environment variables.
+5. Optional: a personal API key with the MCP Server preset, so Claude can build the dashboard above and answer questions directly. Keep it out of the repo.
+
+
 
 ## The job analytics should do
 Bowser has a handful of testers, each opening it a couple of times a week before a drive. We want to learn what they actually do, so we build the right things and catch what's broken. Concretely:

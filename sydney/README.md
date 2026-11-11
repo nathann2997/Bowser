@@ -1,4 +1,4 @@
-# Sydney Pump Price Outlook
+# Bowser pipeline
 
 Daily forecast of Sydney pump prices (U91, E10, Premium 95, Premium 98, diesel; the list is `pipeline/fuels.py`): a "fill up now or wait" signal, a 14-day outlook, a station finder and the evidence behind it.
 
@@ -23,27 +23,17 @@ API (`https://nathann2997.github.io/FuelForecast/api/v1/`), static JSON regenera
 
 The site also serves `s/?id=<station code>&f=<fuel>`, the share page behind the app's Share button (`pipeline/share.html`, published by `export_api.py` with a hash-pinned CSP). It reads `stations.json` and `forecast.json` from this API and shows the station's pump prices and advice to friends without the app.
 
-## Local runs and credentials
-The data lives only on the `data` branch, and `main` has code only. To run the pipeline on your machine, do what Actions does: check out the data, copy the code in, and run the same three steps. Run these from the repo root, with Python 3.11 as in Actions.
-```sh
-pip install -r sydney/requirements.txt              # hash-locked
-git fetch origin data && git worktree add --detach ../fuel-data origin/data
-rsync -a --delete sydney/pipeline/ ../fuel-data/pipeline/   # repeat after each code change
-D="$PWD/../fuel-data"
-python3 "$D/pipeline/fetch.py" "$D" "$D/inbox"      # needs NSW keys (below)
-bash "$D/pipeline/run_daily.sh" "$D" "$D/inbox"
-python3 "$D/pipeline/export_api.py" "$D" "$D/out/site" --allow-stale
-```
-The worktree is detached on purpose. Never commit or push from it: Actions owns the `data` branch, and its save job refuses to save if the branch moved during a run.
+## Testing a change
+Nothing is run from a laptop. Open a PR (or push to `main`) and `.github/workflows/pipeline-ci.yml` runs the unit tests (`pipeline/test_*.py`), then the whole pipeline on a copy of the `data` branch, using the newest archived NSW snapshot in place of the fetch step, so it needs no keys. It keeps the site it built as a run artifact (`site`, 3 days) to compare with the live one, and saves and deploys nothing.
 
-For NSW keys, Actions sets env `NSW_API_KEY` / `NSW_API_SECRET`. Locally, copy `pipeline/credentials.example.py` to `pipeline/credentials.py` (gitignored) and fill it in, or export the same env vars. To check a change without calling NSW, skip `fetch.py`: put the newest `archive/nsw_snapshot_*.json.gz`, unzipped, in `inbox/`, and copy `store/fred.csv` there as `brent_audusd_eia_rba.csv`. Then compare `out/site` before and after your change.
+Keys exist only as GitHub Actions secrets (`NSW_API_KEY`, `NSW_API_SECRET`, optional `VIC_API_KEY`); `fetch.py` reads them from the environment and there is no credentials file. Only Actions writes to the `data` branch: the save job refuses to save if the branch moved during a run.
 
 ## Layout
 `pipeline/` is on `main`; everything else is on the `data` branch.
 
 | Path | What |
 |---|---|
-| `pipeline/` | all code (`test_health.py` holds the tests) |
+| `pipeline/` | all code (tests are `test_*.py`) |
 | `store/daily.csv` | Sydney daily price summary per fuel, Jan 2019 onward (history + daily snapshots) |
 | `store/events/` | Sydney price-change records from the NSW monthly files |
 | `store/tgp.csv`, `store/fred.csv` | wholesale TGP (AIP), Brent and AUD/USD (EIA and RBA; the file keeps FRED's name and column ids) |

@@ -2,10 +2,7 @@
 __pycache__/
 *.pyc
 # secrets — never commit
-fuel-api-credentials.md
-sydney/pipeline/credentials.py
-sydney/pipeline/pull_nsw.js
-# secrets by pattern, so a new credentials file is ignored too (examples with placeholders stay tracked)
+# keys live only in GitHub Actions secrets and EAS; these patterns stop a stray file being committed
 .env
 .env.*
 !.env.example
@@ -15,9 +12,8 @@ sydney/pipeline/pull_nsw.js
 *.keystore
 *.jks
 *credentials*
-!*.example.*
 # raw downloads from the pipeline's fetch step
 sydney/inbox/
-# the pipeline's state lives on the data branch only; a local run must not add it to main
+# the pipeline's state lives on the data branch only, never on main
 sydney/store/
 sydney/archive/

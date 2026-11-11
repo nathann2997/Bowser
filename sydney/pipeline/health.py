@@ -191,10 +191,10 @@ def check(src, now=None):
         w = str(w)
         if w.startswith("tgp_last"):
             issues.append(issue("INPUT_TGP", "warning", "Wholesale prices (AIP) aren't updating", w, None,
-                                "The AIP page or file format may have changed: run fetch.py locally and read the error."))
+                                "The AIP page or file format may have changed: read the fetch step's log in the latest daily-forecast run."))
         elif w.startswith("fred_last"):
             issues.append(issue("INPUT_MACRO", "warning", "Oil price and exchange rate aren't updating", w, None,
-                                "EIA or RBA may have moved their files: run fetch.py locally and read the error."))
+                                "EIA or RBA may have moved their files: read the fetch step's log in the latest daily-forecast run."))
         elif w.startswith("station files unavailable"):
             issues.append(issue("STATION_FILES", "warning", "Station pages have no history", w, "rerun"))
         elif w.startswith("track record unavailable"):

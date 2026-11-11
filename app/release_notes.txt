@@ -1,0 +1,1 @@
+What’s new: a map of nearby stations on the Stations tab, and a Share anonymous usage switch in More. Bowser now sends anonymous usage reports so we can see what helps, never your location, your area or what you paid.

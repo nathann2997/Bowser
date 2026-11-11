@@ -1,6 +1,148 @@
 # Changelog
 
-All notable changes to the FuelForecast pipeline and app. Newest first.
+All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
+
+## 2026-11-11 — Stations map: the cheapest station in view, and group prices
+
+A UX review of the app's map (`station-map.tsx`). JS only, so it ships as an OTA with no new APK. Not yet seen on a phone.
+- **The problem:** a third of the tags are green, so nothing said which one station is cheapest, and a zoomed-out map was mostly numbered circles with no prices.
+- **Cheapest in view:**
+  - The cheapest station on screen is always its own tag, never inside a group: green, a bigger price, the word "Cheapest" above it, and drawn over every tag but the selected one.
+  - A bar at the top of the map, beside the locate button, gives its price, name and distance. Tapping it opens that station's card.
+  - The card shows a "Cheapest in view" badge.
+  - It's the lowest price you pay (after your discounts) among the stations in view with the filters applied; the nearest wins a tie. Prices over 7 days old don't count. Nothing is marked when only one fresh price is in view or they're all the same (`cheapestOf` in `lib/map.ts`).
+  - It follows your pans and zooms, but not the map centring a tapped tag; it catches up when the card closes.
+- **Groups:** each numbered circle shows the lowest fresh price inside it ("from 189.9") on that price's colour, so you can tell which group to open. The label is left off when it would be lower than the Cheapest tag (a group at the edge can hold a station just out of view).
+- **Analytics:** `map.cheapest_opened` when the bar is tapped, with no properties (`docs/ANALYTICS_PLAN.md`).
+- **QA:** typecheck, lint and all 437 tests pass (7 new for `cheapestOf`). A QA audit of the diff found these, now fixed:
+  - Group circles were keyed by supercluster's id, which shifts when the cheapest station leaves the index, so every group was redrawn on Android when the cheapest changed. They're keyed by position now.
+  - After a card closed, the bar could name a station that was no longer in view.
+  - A group could show a "from" price below the Cheapest tag.
+  - A long station name pushed the distance out of the bar.
+- **Not checked (needs a phone):**
+  - How the Cheapest tag and the "from" labels draw on Android, and whether the Cheapest tag covers the count of the group next to it.
+  - Whether the card re-centres twice when the badge wraps the chip row.
+- **Review findings not built:** see the hand-over message; the main ones are that "Change" on the area bar leaves the map for the list, and the header takes about 170 dp before the map starts.
+
+## 2026-11-10 — Web analytics: dashboard and share page (PostHog, no library)
+
+Anonymous usage for the web pages, in the same PostHog project as the app. Design and event list: `docs/ANALYTICS_PLAN.md` "Web".
+- **`template.html` and `share.html`:** a small tracker posts to PostHog's capture API with the public project key.
+  - It only runs on the published site, and never with Global Privacy Control or Do Not Track on.
+  - There are no cookies or person profiles; a random id in `localStorage` counts returning visitors, and sessions end after 30 minutes without an event.
+  - Nothing personal is sent: no area, location, pinned stations, shared station, prices or URL query.
+  - Events: dashboard `$pageview` / `$pageleave`, `web.fuel_changed`, `web.view_changed`, `web.area_set` (once typing settles), `web.station_pinned` / `unpinned`; share `$pageview` (found, fuel), `share_page.open_app`, `share_page.directions`, `$pageleave`.
+  - `?internal=1` marks the owner's browser.
+- **`export_api.py`:** both CSPs allow `https://us.i.posthog.com` in `connect-src`, and nothing else.
+- **Footers:** both pages say visits are counted anonymously.
+- **QA:**
+  - Both pages were built with the real export code and live data, then run in headless Chrome served at the real address. Every event returned 200, with no CSP errors or page errors, and the share page's not-found path also logs a view.
+  - The test events are marked `internal` (distinct id `01a1c2a5…`), plus one `web.setup_check` event.
+  - Fixed during QA: typing a suburb logged `web.area_set` for each partial match, so it's now logged once after 1.5 s.
+
+## 2026-11-03 — Security review (web, API, pipeline, app)
+
+Second review after the 2026-10-22 one (0.6.0 §8). Pushed 2026-11-10 together with web analytics; no OTA or native build, so the Android permissions take effect in the next APK.
+- **Fixed:**
+  - Dashboard CSP (`export_api.py`): `script-src` names the exact Chart.js and MapLibre files instead of all of cdnjs, and `style-src` names the MapLibre CSS file. Checked in headless Chrome against the live page: both libraries load, and another cdnjs script (jQuery) is blocked, where the old CSP let it load. The versions are read from the page, and the export fails if they can't be found.
+  - Android (`app.json` `blockedPermissions`): removes the unused `SYSTEM_ALERT_WINDOW`, `READ_EXTERNAL_STORAGE` and `WRITE_EXTERNAL_STORAGE`, confirmed with `expo config --type introspect`. This takes effect in the next APK.
+  - `.easignore` and `app/.gitignore` ignore `.claude/`, so local settings aren't uploaded with EAS builds.
+- **Checked and fine:**
+  - The `esc()` and `textContent` sinks on the dashboard and share page; share `?id=` is digits only.
+  - The workflows: least privilege, no `pull_request_target`, no untrusted `${{ }}` in scripts, actions pinned by SHA.
+  - `fetch.py`, including the new VIC call: host allow-list, size cap, no redirects.
+  - The data-health issue body.
+  - Analytics properties: no location, prices or typed text.
+  - The update-notice URL check, and the station-id check in deep links.
+  - No secret in git history on any branch; push protection is on.
+- **Open (owner decisions):** see `docs/HANDOFF.md` "Security review 2026-11-03".
+
+## 2026-10-29 — Diesel crack signal; VIC prices archived daily; range wording
+
+The owner approved these after the feature experiments (summarised in `docs/HANDOFF.md`).
+- **Diesel crack (`fetch.py`, `update.py`, `model.py`):**
+  - `pull_macro` also fetches EIA NY Harbor ULSD spot (best effort) as `ULSD_NYH` in `store/fred.csv`.
+  - `model.py` builds 7 crack features from it against Brent (`CRACK`), lagged 1 day and blank if over 10 days stale.
+  - The features feed a second model, fit on all fuels, that predicts **diesel only**; petrol keeps exactly the model it had.
+    - Adding them to the shared model helped diesel but cost every petrol fuel 0.02–0.06 c/L per call, so they don't go there.
+    - It applies to the backtest, the jump classifier and the live forecast. The backtest fits about 1.7× as many models.
+  - **Walk-forward** (local run on the data branch, 2026-10-29):
+    - Petrol unchanged.
+    - Diesel 7-day MAE 2.598 → 2.519; jump AUC 0.838 → 0.899.
+    - Diesel verdict value per call: 0.75 → 0.88 c/L (live model), 0.79 → 0.94 (full model).
+    - All fuels 2025–26: 5.31 → 5.39 c/L (live model), 5.50 → 5.58 (full model).
+- **VIC archive (`fetch.py` `pull_vic`, `daily.yml`):**
+  - Once a day it saves the Servo Saver Open Data snapshot (24 hours delayed) to `archive/vic/` on the data branch (`vic_prices_YYYYMMDD.csv.gz`, about 80 KB, plus `vic_stations.csv.gz`).
+  - It's there so a Melbourne vs Sydney comparison can be backtested once there's history. Not used by the model or published.
+  - Needs the `VIC_API_KEY` repo secret; without it the step logs "skipped".
+  - Attribution and terms are in `DATA-LICENSE.md` (CC BY 4.0, credit Service Victoria).
+- **Wording (`template.html`, `app/src/app/(tabs)/more.tsx`):**
+  - The ranges now say "about 8 in 10 outcomes in normal months and about 7 in 10 in shock months".
+  - The inputs mention the international diesel price.
+
+## 2026-10-29 — Forecast ranges per fuel, scaled by wholesale volatility (`model.py` only)
+
+The "likely between" ranges (`lo{h}`/`hi{h}`) were one width per horizon for every fuel, taken from the full model's errors over the last year.
+- **Problems:**
+  - Diesel's range held about 92% of outcomes (too wide); petrol's held about 72–76% (too narrow).
+  - In shock months, coverage fell to 0.69 at 7 days and 0.61 at 14 days.
+  - Live ranges came from the full model's errors even while the reduced model was running.
+- **Change:**
+  - The 80% width is now per fuel and per horizon, built from errors divided by a wholesale volatility ratio (`vol_ratio`: 28-day mean daily TGP move over its trailing-year mean, capped 0.75–3). Today's ratio multiplies it back.
+  - Widths come from the variant that is live (`+oil & AUD` while cycle memory is off).
+  - The ratio is read on the day after the last real TGP, because TGP arrives in weekly batches and the filled-forward days would read as calm (found in QA).
+  - `backtest.json` gains `q80n`; `q80` is unchanged and remains the fallback; `ctx.range_vol` records the ratio used.
+- **Evidence** (walk-forward 2021–26; method and figures in the session's RESULTS.md, summarised here):
+  - Fuels in the 0.77–0.83 band went from 0/5 to 4/5 (diesel 0.75).
+  - Shock-month 7-day coverage went from 0.69 to 0.73, and 14-day from 0.61 to 0.69. Calm months stayed at about 0.79 with the same width.
+  - It does not pass the pre-set bar of 0.77–0.83 everywhere: shock months still under-cover, and misses lean upward (about 17% above vs 9% below).
+- **Before/after on the data branch (160d2bd):**
+  - Every non-range field is identical. Today's ranges are narrower, because October is calmer than the trailing year (petrol ratio 0.95, diesel at the 0.75 floor).
+  - U91 half-width: 7-day 13.0 → 9.0, 14-day 26.5 → 16.4. Diesel: 7-day 13.0 → 6.4, 14-day 26.5 → 13.1.
+- **Also checked, no change made:** recalibrating the jump chance. Its mid-range overconfidence is a 2021–24 effect (2025–26 is honest there, as `docs/RULE_ANALYSIS_2026-10.md` found), and walk-forward recalibration earned nothing on the money metric (2025–26: 5.49 → 5.46 c/L). Low values are too low in 2025–26 (shown about 1%, actual about 8%), which recalibration doesn't fix.
+- **Follow-up:** the "about 8 in 10" copy (`template.html:321`, `app/src/app/(tabs)/more.tsx:25`) holds overall but not for diesel or shock months.
+
+## 2026-10-29 — Bowser 0.9.0: product analytics with PostHog (native, runtime 0.9.0)
+
+The owner chose PostHog after the evaluation in `docs/ANALYTICS_PLAN.md`, which also defines the key metrics.
+- **PostHog alongside EAS Observe,** both behind `track()` in `lib/analytics.ts`. Observe still handles crashes and load times.
+  - Packages: `posthog-react-native` ~4.84.3, plus `expo-application`, `expo-device`, `expo-localization` and `expo-file-system`. They're native, so `version` goes from 0.8.0 to **0.9.0** and needs a new APK.
+  - Expo SDK 58 patch updates were applied (`npx expo install --fix`); expo-doctor passes 20/20.
+- **Privacy:**
+  - person profiles for anonymous installs, no `identify`;
+  - `disableGeoip`;
+  - a `before_send` that strips location, area, price and IP fields;
+  - no session replay, feature flags, surveys or error autocapture;
+  - device name is the phone model, not the name the owner gave it.
+  - Tests in `posthog.test.ts` cover these.
+- **Foreground only:**
+  - PostHog starts from the root layout when the app is in front (`components/analytics-tracker.tsx`), never from the widget task or a background refresh.
+  - An event sent while the app isn't in front carries `background: true`.
+- **Opens:**
+  - one `app.opened` per time the app comes to the front, with `source`;
+  - widget links now carry `?src=widget` (`widget/logic.ts`), and the share page's "Open it" link carries `?src=share` (`share.html`);
+  - a tapped rise alert is counted once;
+  - PostHog's own lifecycle events are off.
+- **Context on every event:** the current Sydney `verdict` (act / wait / calm) for your fuel, the channel, `internal`, and the existing settings context. Screens are sent by route pattern; Stations also says list or map.
+- **New events:** `station.opened` (from list / map / fill, pinned), `filters.opened`, `analytics.internal`.
+- **More:**
+  - a "Share anonymous usage" switch (setting `analytics`, on by default). PostHog stops straight away, Observe at the next launch.
+  - The About text names PostHog and Expo.
+  - Tapping the version 5 times marks a test phone (`internal`, shown as "· test phone"); dev builds are always internal.
+- **Key:** `EXPO_PUBLIC_POSTHOG_KEY` / `EXPO_PUBLIC_POSTHOG_HOST` are EAS environment variables, inlined at bundle time. Without them PostHog stays off. An OTA update at runtime 0.9.0 switches it on once the owner sends the key. Switched on 2026-10-29: US cloud, OTA update group 52e64cd9 (also ships the background-task sharing fix).
+- **QA audit, and fixed from it:**
+  - **(high)** The privacy filter deleted the SDK's `$geoip_disable` flag, which would have switched IP-based location back on. It's now kept and forced on, with a test.
+  - **(high)** Android reports "background" for permission dialogs, the share sheet and Maps opening on top. Those caused fake opens and marked real Map taps as background.
+    - Background is now set only by `inBackgroundTask`, which wraps the widget task and the iOS refresh.
+    - A return counts as an open only after a minute away, or when a link or alert brought it back.
+  - No double open when the app restarts into an OTA update: it waits for the launch or resume check (`ota.ts` `resumeCheck`/`lastResumeCheck`).
+  - The first time in front is the cold open, whatever state the app started in. Events and the screen from before start are sent once it starts.
+  - Sharing off: PostHog is never constructed, so no remote-config call. Observe's events stop at once, and the More text says crash reports stop once Bowser is fully closed.
+  - A `station.opened` from widget and share links (from the `src` param).
+  - An `update` (OTA id) super property; `$timezone` dropped; `$set`/`$set_once` cleared.
+  - The open source is cleared on background; the verdict is `none` without a forecast row; unhandled rejections are caught.
+  - Funnel 4 reordered (area is set before Start).
+- **Checks:** tsc, lint, jest and expo-doctor (20/20) pass. The Android and web bundles export.
 
 ## 2026-10-29 — GitHub Actions only: Claude pipeline removed
 

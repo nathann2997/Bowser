@@ -1,4 +1,14 @@
-# Typecheck, lint and test the Expo app on every push/PR that touches it.
+# The Bowser app: checks on every push/PR that touches it, then (on main) ships it. Nothing is run from a laptop.
+#   check   typecheck, lint, tests, expo-doctor
+#   ship    main only, after check passes:
+#             - JS-only change            -> EAS Update (OTA) to the `preview` channel
+#             - `version` in app.json up  -> EAS Build (Android preview APK), waits for it
+#             - native files changed but `version` not bumped -> fails, nothing ships (an OTA could crash old installs)
+#   notice  after a build: points sydney/pipeline/app_release.json at the new APK (older installs then show the
+#           "new version" notice), commits it to main and starts daily-forecast to publish it
+# Needs the repo secret EXPO_TOKEN (an Expo access token for the account that owns the project). The EAS `preview`
+# environment holds the app's own keys (Maps, PostHog). Third-party actions are not allowed in this repo, so EAS is
+# called through a pinned eas-cli.
 name: app-ci
 
 on:
@@ -7,9 +17,19 @@ on:
     paths: ["app/**", ".github/workflows/app-ci.yml"]
   pull_request:
     paths: ["app/**", ".github/workflows/app-ci.yml"]
+  workflow_dispatch:
+    inputs:
+      ship:
+        description: "What to ship from main (auto = an OTA update)"
+        type: choice
+        options: [auto, ota, build, nothing]
+        default: auto
 
 permissions:
   contents: read
+
+env:
+  EAS_CLI: eas-cli@27.1.0   # 27.2.0 failed to install on 2026-10-30; move this on purpose, not by `latest`
 
 jobs:
   check:
@@ -32,3 +52,126 @@ jobs:
       - run: npx expo lint
       - run: npx jest --ci
       - run: npx expo-doctor
+
+  ship:
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && inputs.ship != 'nothing'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120   # an EAS build can queue on the free tier
+    concurrency:
+      group: app-ship
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      version: ${{ steps.plan.outputs.version }}
+      build_id: ${{ steps.build.outputs.id }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+        with:
+          persist-credentials: false
+
+      - name: Decide what to ship
+        id: plan
+        env:
+          BEFORE: ${{ github.event.before }}
+          WANT: ${{ inputs.ship || 'auto' }}
+        run: |
+          ver() { node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(0,"utf8")).expo.version)'; }
+          NEW=$(ver < app.json)
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+          MODE="$WANT"
+          if [ "$WANT" = "auto" ]; then
+            MODE=ota
+            # A manual run has no "before": it re-ships the JS as an OTA unless told to build
+            if [ -n "$BEFORE" ] && ! echo "$BEFORE" | grep -qE '^0+$'; then
+              git fetch -q --depth 1 origin "$BEFORE"
+              OLD=$(git show "$BEFORE:app/app.json" | ver)
+              NATIVE=$(git diff --name-only "$BEFORE" HEAD -- package.json package-lock.json app.json app.config.js patches | tr '\n' ' ')
+              if [ "$OLD" != "$NEW" ]; then MODE=build
+              elif [ -n "$NATIVE" ]; then
+                echo "::error::Native files changed ($NATIVE) but version in app.json is still $NEW. Bump it so a new APK is built; an OTA to $NEW installs could crash them. If the change really is JS-only, run this workflow by hand with ship=ota."
+                exit 1
+              fi
+            fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Shipping: $MODE (app version $NEW)" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+
+      - name: Check the Expo token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then echo "::error::Repo secret EXPO_TOKEN is not set, so nothing was shipped. Create an access token at expo.dev (account nathann97) and add it under Settings → Secrets and variables → Actions."; exit 1; fi
+
+      - name: OTA update to the preview channel
+        if: steps.plan.outputs.mode == 'ota'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          MESSAGE: ${{ github.event.head_commit.message || 'Manual OTA' }}
+        run: |
+          npx --yes "$EAS_CLI" update --channel preview --environment preview --upload-source-maps \
+            --message "$(printf '%s' "$MESSAGE" | head -1 | cut -c1-200)" --non-interactive
+
+      - name: Build the Android preview APK
+        id: build
+        if: steps.plan.outputs.mode == 'build'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          npx --yes "$EAS_CLI" build -p android --profile preview --non-interactive --wait --json > "$RUNNER_TEMP/build.json"
+          ID=$(node -e 'const b=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))[0]; if(b.status!=="FINISHED") {console.error("build status: "+b.status); process.exit(1)} process.stdout.write(b.id)' "$RUNNER_TEMP/build.json")
+          echo "$ID" | grep -qE '^[0-9a-f-]{36}$' || { echo "::error::unexpected build id: $ID"; exit 1; }
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "APK: https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/$ID" >> "$GITHUB_STEP_SUMMARY"
+
+  # Runs no third-party code: git, node's standard library and gh only. The token is passed to the push alone.
+  notice:
+    needs: ship
+    if: needs.ship.outputs.mode == 'build' && needs.ship.outputs.build_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write   # start daily-forecast, which publishes app_release.json as api/v1/app.json
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Point the update notice at the new APK
+        env:
+          VERSION: ${{ needs.ship.outputs.version }}
+          BUILD_ID: ${{ needs.ship.outputs.build_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The words testers see come from app/release_notes.txt (first line, up to 300 characters)
+          node -e '
+            const fs = require("fs"), f = "sydney/pipeline/app_release.json";
+            const rel = JSON.parse(fs.readFileSync(f, "utf8"));
+            const notes = (fs.readFileSync("app/release_notes.txt", "utf8").split("\n").find(l => l.trim()) || "").trim();
+            if (!notes || notes.length > 300) { console.error("app/release_notes.txt: need one line of up to 300 characters"); process.exit(1); }
+            rel.android = { version: process.env.VERSION,
+              url: "https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/" + process.env.BUILD_ID, notes };
+            fs.writeFileSync(f, JSON.stringify(rel, null, 2) + "\n");'
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add sydney/pipeline/app_release.json
+          git diff --cached --quiet && { echo "no change"; exit 0; }
+          git commit -q -m "Update notice: $VERSION (build ${BUILD_ID%%-*})"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$AUTH"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH" push -q origin HEAD:main
+          gh workflow run daily.yml --repo "$GITHUB_REPOSITORY"

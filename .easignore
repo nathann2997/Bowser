@@ -6,10 +6,11 @@
 /.github/
 /CHANGELOG.md
 
+# editor and agent settings
+.claude/
+
 # secrets (from .gitignore)
-fuel-api-credentials.md
-credentials.py
-pull_nsw.js
+*credentials*
 
 # from .gitignore / app/.gitignore
 .DS_Store

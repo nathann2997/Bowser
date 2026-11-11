@@ -10,7 +10,7 @@ import { DiscountsEditor } from '@/components/discounts-editor';
 import { Button, Card, Disclosure, FuelPicker, Loading, Screen, Section, Segmented, T } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useReady } from '@/lib/analytics';
+import { track, useReady } from '@/lib/analytics';
 import { useForecast, useMeta, useStations } from '@/lib/api';
 import { backtestNote, backtestRows, plainWarnings, widgetLocationCopy } from '@/lib/copy';
 import { daysBetween, nice, refreshedText } from '@/lib/format';
@@ -20,9 +20,9 @@ import { setSettings, useSettings } from '@/lib/settings';
 
 const MODEL = [
   ['What it predicts', 'How the Sydney median price of each fuel will move over the next 1, 3, 7 and 14 days, and the chance of a jump of 5c or more within a week.'],
-  ['What it looks at', 'How far pump prices sit above the wholesale price compared with the past year, recent wholesale moves, the oil price in Australian dollars, and how spread out and how fresh station prices are.'],
+  ['What it looks at', 'How far pump prices sit above the wholesale price compared with the past year, recent wholesale moves, the oil price in Australian dollars (and for diesel, the international diesel price), and how spread out and how fresh station prices are.'],
   ['How it learns', 'A machine-learning model (gradient-boosted trees) trained on Sydney prices for all five fuels, with a separate model for price jumps.'],
-  ['How it’s tested', 'Every month since Jan 2021 was forecast using only the data before it, including the 2022 and 2026 oil shocks. Across the fuels, the likely ranges covered about 8 in 10 of the past year’s outcomes.'],
+  ['How it’s tested', 'Every month since Jan 2021 was forecast using only the data before it, including the 2022 and 2026 oil shocks. The likely ranges held about 8 in 10 outcomes in normal months and about 7 in 10 in shock months.'],
   ['Limits', 'It reacts to oil and wholesale moves as they happen, but it can’t see wars, OPEC decisions or excise changes coming.'],
 ] as const;
 
@@ -194,13 +194,41 @@ export default function More() {
           <BowserMark size={40} />
           <View style={{ flex: 1, gap: 2 }}>
             <T kind="h2">Bowser</T>
-            <T kind="small">Version {Constants.expoConfig?.version ?? '–'}</T>
+            <VersionLine />
           </View>
         </View>
         <T kind="small">Forecasts are estimates for planning, not financial advice.</T>
-        <T kind="small">Bowser sends anonymous usage and crash reports (which screens you open, how fast they load) so problems get found and fixed. They never include your location, your area or what you paid.</T>
+        <View style={styles.between}>
+          <T color={c.fg} style={{ flex: 1 }}>Share anonymous usage</T>
+          <Switch value={s.analytics} onValueChange={(v) => setSettings({ analytics: v })} accessibilityLabel="Share anonymous usage and crash reports" />
+        </View>
+        <T kind="small">
+          Usage and crash reports help find and fix problems. Usage is linked to this install, not to you, and goes to PostHog; crash
+          reports go to Expo. They never include your location, your area or what you paid.
+          {s.analytics ? '' : ' Usage sharing has stopped. Crash reports stop once Bowser has been fully closed and opened again.'}
+        </T>
       </Section>
     </Screen>
+  );
+}
+
+/** The version; tapping it 5 times marks this phone as a test phone (the owner's or a tester's), left out of the usage
+ *  numbers in PostHog (`internal` on every event) */
+function VersionLine() {
+  const { internal } = useSettings();
+  const [taps, setTaps] = useState<number[]>([]);
+  const onPress = () => {
+    const now = Date.now();
+    const recent = [...taps.filter((t) => now - t < 3000), now];
+    if (recent.length < 5) return setTaps(recent);
+    setTaps([]);
+    setSettings({ internal: !internal });
+    track('analytics.internal', { on: !internal });
+  };
+  return (
+    <Pressable onPress={onPress} accessible={false}>
+      <T kind="small">Version {Constants.expoConfig?.version ?? '–'}{internal ? ' · test phone' : ''}</T>
+    </Pressable>
   );
 }
 

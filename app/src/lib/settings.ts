@@ -2,7 +2,7 @@
 import Storage from './storage';
 import { useSyncExternalStore } from 'react';
 
-import { setContext, settingsAttributes, settingsContext, track } from './analytics';
+import { setContext, setSharingFlag, settingsAttributes, settingsContext, track } from './analytics';
 
 import { cleanDiscounts, type Discounts } from './discounts';
 import { ADVICE_GROUPS, FILTER_DEFAULTS, RADII, type FilterSettings } from './filters';
@@ -17,10 +17,12 @@ export type Settings = FilterSettings & {
   alerts: boolean;           // a notification the morning before a likely price rise (lib/alerts.ts)
   discounts: Discounts;      // cents off by brand: lists rank by the price you pay (lib/discounts.ts)
   view: 'list' | 'map';      // the Stations tab opens on whichever was used last
+  analytics: boolean;        // More → Share anonymous usage (PostHog now; Observe from the next launch)
+  internal: boolean;         // the owner's or a tester's own phone, filtered out of the numbers (tap the version 5 times)
 };
 
 const KEY = 'settings.v1';
-export const DEFAULTS: Settings = { ...FILTER_DEFAULTS, fuel: 'U91', tankL: 50, home: null, onboarded: false, alerts: false, discounts: {}, view: 'list' };
+export const DEFAULTS: Settings = { ...FILTER_DEFAULTS, fuel: 'U91', tankL: 50, home: null, onboarded: false, alerts: false, discounts: {}, view: 'list', analytics: true, internal: false };
 
 const FUEL_CODES: readonly Fuel[] = ['U91', 'E10', 'P95', 'P98', 'DL'];
 const GROUPS = new Set<string>(ADVICE_GROUPS.map(([g]) => g));
@@ -51,6 +53,8 @@ export function normalize(raw: unknown): Settings {
     alerts: bool('alerts'),
     discounts: cleanDiscounts(o.discounts),
     view: o.view === 'map' ? 'map' : 'list',
+    analytics: bool('analytics'),
+    internal: bool('internal'),
   };
 }
 
@@ -66,6 +70,7 @@ export function loadSettings(): Settings {
 
 let state = loadSettings();
 const listeners = new Set<() => void>();
+setSharingFlag(state.analytics);   // before anything logs, in the app and in the widget task alike
 setContext(settingsContext(state));
 
 // Changes within a moment of each other (typing a max price, tapping several chips) are logged as one event
@@ -90,6 +95,7 @@ export function setSettings(patch: Partial<Settings>, { silent = false } = {}) {
     // settings still apply for this session
   }
   listeners.forEach((l) => l());
+  setSharingFlag(state.analytics);
   if (!silent) logChange(patch);
   setContext(settingsContext(state));
 }

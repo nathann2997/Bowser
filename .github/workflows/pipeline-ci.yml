@@ -1,0 +1,69 @@
+# Tests a pipeline change on GitHub, so nobody has to run it on a laptop: the unit tests, then the whole pipeline on a
+# copy of the `data` branch (yesterday's or today's snapshot from archive/, no NSW call, no secrets), then the health
+# checks on what it would publish. Nothing is saved or deployed; the built site is kept for 3 days as a run artifact
+# so a change's output can be compared with the live one.
+name: pipeline-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ["sydney/**", ".github/workflows/pipeline-ci.yml"]
+  pull_request:
+    paths: ["sydney/**", ".github/workflows/pipeline-ci.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Australia/Sydney
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+        with:
+          path: src
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065   # v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: src/sydney/requirements.txt
+
+      - run: pip install -q -r src/sydney/requirements.txt
+
+      - name: Unit tests
+        working-directory: src
+        run: python -m unittest discover -s sydney/pipeline -p "test_*.py"
+
+      - name: Copy of the data branch, with this commit's code
+        run: |
+          git clone -q --depth 1 --branch data "https://github.com/${GITHUB_REPOSITORY}.git" state
+          rm -rf state/.git state/pipeline && cp -r src/sydney/pipeline state/pipeline   # no .git: this copy can't be pushed
+          # Stand-ins for the fetch step: the newest archived NSW snapshot, and the stored Brent / AUD series
+          mkdir -p state/inbox
+          SNAP=$(ls state/archive/nsw_snapshot_*.json.gz | sort | tail -1)
+          gunzip -c "$SNAP" > "state/inbox/$(basename "${SNAP%.gz}")"
+          cp state/store/fred.csv state/inbox/brent_audusd_eia_rba.csv
+          echo "Snapshot used: $(basename "$SNAP")" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update store, model
+        run: bash state/pipeline/run_daily.sh "$PWD/state" "$PWD/state/inbox"
+
+      - name: Export the API and dashboard
+        run: python state/pipeline/export_api.py state site --allow-stale
+
+      # Staleness is expected here (the snapshot may be yesterday's), so the report is shown but doesn't fail the run
+      - name: Health checks on the result
+        run: python state/pipeline/health.py site --out report.json || true
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
+        with:
+          name: site
+          path: |
+            site
+            report.json
+          retention-days: 3

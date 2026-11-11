@@ -46,7 +46,7 @@ The lockup is the mark followed by the word "Bowser", set in monoline geometric 
 ## Files
 | File | What |
 |---|---|
-| `docs/brand/render-brand.mjs` | **Source of truth.** It writes every SVG and PNG below from one path. Run `node docs/brand/render-brand.mjs` (needs Chrome). |
+| `docs/brand/render-brand.mjs` | **Source of truth.** It writes every SVG and PNG below from one path. A design tool, not part of any pipeline: `node docs/brand/render-brand.mjs` (needs Chrome) is rerun only when the logo changes, and its output is committed. |
 | `app/assets/brand/bowser-mark.svg` | Mark, amber `#FFB22E` (for dark surfaces), square 82-unit viewBox |
 | `app/assets/brand/bowser-mark-light.svg` | Mark, deep amber `#F0A000` (for light surfaces) |
 | `app/assets/brand/bowser-mark-mono.svg` | Mark, single colour black (recolour freely) |

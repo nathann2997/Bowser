@@ -2,13 +2,14 @@
 
 Read `README.md` here first, then `docs/HANDOFF.md` at the repo root for the current status.
 
+- **Release notes:** when you bump `version`, put one line (up to 300 characters) of "what's new" in `release_notes.txt`; the workflow copies it into the update notice.
 - **Runtime version = `version` in `app.json`** (`runtimeVersion.policy: appVersion`). A JS-only change ships as an OTA update; anything that changes native code (a new native module, a plugin, native config) needs a `version` bump and a new build. Older installs don't get OTAs for a newer runtime.
 - **iOS-only native modules are excluded from Android autolinking** (`expo.autolinking.android.exclude` in `package.json`), so the APK is unaffected. Add any new iOS-only dependency there.
 - **Widget:** pure logic goes in `src/widget/logic.ts` / `model.ts` (tested). Platform code goes in `*.android.ts` (react-native-android-widget, patched in `patches/`) and `*.ios.ts` (expo-widgets).
 - **Keep in step with the pipeline:** `src/lib/types.ts` with `sydney/pipeline/export_api.py`; `src/lib/copy.ts` and `outlook.ts` with `template.html` and `build.py`.
 - **Privacy:** the location permission copy promises that Bowser never sends your position anywhere. Don't use `showsUserLocation` on the map, and don't put coordinates in analytics.
 - **Technical identifiers stay `fuelforecast`** (package, slug, scheme, API path); the user-facing name is Bowser (`docs/BRAND.md`).
-- Run `npx tsc --noEmit && npx expo lint && npx jest` before calling a change done.
+- **Checks and shipping run on GitHub** (`.github/workflows/app-ci.yml`): typecheck, lint, tests, then an OTA update or, after a `version` bump, a new APK and the update notice. A change is done when that workflow is green. Don't publish OTAs or builds by hand.
 
 # Expo notes (from the Expo template)
 

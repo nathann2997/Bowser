@@ -32,22 +32,23 @@ Every check's result is on its run page: Actions → data-health → the run →
 | RUN_OVERDUE | warning | rerun | Between 07:30 and 23:30, data more than 5.5 h old means GitHub skipped a scheduled run. Nothing to do unless it repeats all day. |
 | WORKFLOW_DISABLED | critical | re-enable | If it was disabled by hand, re-enable it in Actions → daily-forecast. |
 | API_UNREACHABLE / FILE_MISSING / FILE_BAD | critical | rerun | Check Settings → Pages and the last deploy job. |
-| FORECAST_BAD | critical | rerun | The model produced impossible numbers. Check `store/` on the `data` branch (brent/tgp inputs) and run `run_daily.sh` locally on a copy. |
+| FORECAST_BAD | critical | rerun | The model produced impossible numbers. Check `store/` on the `data` branch (brent/tgp inputs) and read the model step's log in the run. To test a fix, open a PR: `pipeline-ci` reruns the model on a copy of the data. |
 | SCHEMA | critical | – | A pipeline change bumped the API schema. Revert it, or ship an app update first. |
 | STATIONS_FEW | warning or critical | rerun | NSW returned a partial feed. If it persists, compare with fuelcheck.nsw.gov.au. |
 | NSW_STALE | warning | rerun | Few prices changed in a day. Check NSW API status; the feed may be lagging. |
 | PRICE_OUTLIER | warning | – | The quarantine didn't hide an absurd price. Check that `export_api.py` ran and that its bounds are right. |
 | MEDIAN_JUMP | warning | – | The median moved more than 50c in a day (real hikes reach 39c), or spiked 15c+ and snapped back the next day. Almost always a bad snapshot: compare with fuelcheck.nsw.gov.au. |
-| INPUT_TGP / INPUT_MACRO | warning | – | AIP, EIA or RBA stopped updating, usually because a file or page moved. Run `python sydney/pipeline/fetch.py <copy> <copy>/inbox` and read the error. |
+| INPUT_TGP / INPUT_MACRO | warning | – | AIP, EIA or RBA stopped updating, usually because a file or page moved. Read the fetch step's log in the latest daily-forecast run; it prints the error for each source. |
 | STATION_FILES / TRACK / SHARE_PAGE | warning | rerun | A part of the export failed soft. The error text is in the alert and in `meta.warnings`. |
 | META_WARNING | warning | – | A new warning text from the pipeline. Read it, and add a mapping in `health.py`. |
 | QUARANTINED, HISTORY_LAG | info | – | No alert. Prices hidden automatically, or NSW's monthly file is late. |
 
 ## Running it by hand
-- **Check the live data:** `python3 sydney/pipeline/health.py`. Point it at a local export with `python3 sydney/pipeline/health.py <OUT dir>`.
-- **See what the monitor would do:** `GITHUB_REPOSITORY=nathann2997/FuelForecast python3 sydney/pipeline/remediate.py report.json --dry-run`. This only reads from GitHub.
-- **Tests:** `python3 -m unittest sydney/pipeline/test_health.py`. The workflow runs them before every check.
+All from GitHub, nothing from a laptop:
 - **Run a check now:** Actions → data-health → Run workflow.
+- **Rerun the pipeline:** Actions → daily-forecast → Run workflow.
+- **Test a fix before it goes live:** open a PR; `pipeline-ci` runs the tests and the whole pipeline on a copy of the data, and keeps the site it built as an artifact.
+- The tests (`test_health.py`) run before every check, and in `pipeline-ci`.
 
 ## Limits
 - The monitor itself runs on GitHub's scheduler. If GitHub drops its runs too, nothing checks. The run after each pipeline run is the backstop.

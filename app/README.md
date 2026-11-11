@@ -13,25 +13,14 @@ Expo / React Native app for the Sydney pump price forecast. It runs on Android, 
 
 There's also a home-screen widget (`src/widget/`) and an opt-in price-rise alert (`src/lib/alerts.ts`). Data is cached on the device for offline use.
 
-## Run it
-Node 22+ (installed at `~/.local/node`; `~/.zshrc` adds it to `PATH`).
-```sh
-cd app
-npm install                      # postinstall applies patches/ (react-native-android-widget)
-npx expo start                   # live JS reload; the widget and map only work in a preview APK (see Ship)
-npx expo export --platform web   # browser preview (no widget or native map)
-```
+## Checks and shipping: all on GitHub
+Nothing is run from a laptop. `.github/workflows/app-ci.yml` does it on every push or PR that touches `app/`:
+- **Checks:** `tsc --noEmit`, `expo lint`, `jest` and `expo-doctor`.
+- **JS-only change on `main`:** published as an OTA update to the `preview` channel. It reaches installs whose `version` in `app.json` (the runtime version) matches, on their next open.
+- **Native change** (a new native module, a plugin, native config in `app.json`): bump `version` in `app.json` and put one line of "what's new" in `release_notes.txt`. The workflow then builds the Android preview APK, points `sydney/pipeline/app_release.json` at it and starts the daily pipeline, so older installs show the "new version" notice.
+- If native files change without a `version` bump, the workflow stops and ships nothing, because an OTA could crash the installed APKs. Run it by hand with `ship=ota` if the change really is JS-only.
 
-## Checks
-```sh
-npx tsc --noEmit && npx expo lint && npx jest && npx expo-doctor
-```
-`.github/workflows/app-ci.yml` runs the same on every push or PR that touches `app/`.
-
-## Ship
-- **JS-only change:** `npx eas-cli update --channel preview --environment preview --upload-source-maps`. It reaches installs whose `version` in `app.json` (the runtime version) matches, on their next cold start.
-- **Native change** (new native module, plugin or native config in `app.json`): bump `version`, then run `npx eas-cli build -p android --profile preview`. When the build is done, update `sydney/pipeline/app_release.json` so older installs show the "new version" notice.
-- Android builds need the EAS env var `GOOGLE_MAPS_ANDROID_API_KEY` for the Stations map.
+It needs the repo secret `EXPO_TOKEN`. The app's own keys (`GOOGLE_MAPS_ANDROID_API_KEY`, PostHog) live in the EAS `preview` environment. iOS isn't automated yet: the first build has to create Apple credentials interactively (`docs/IOS.md`).
 
 ## Layout
 - `src/app/`: screens (expo-router). `_layout.tsx` sets up the query cache, analytics, the OTA check and the update notice. `(tabs)/_layout.tsx` sets up the tabs.

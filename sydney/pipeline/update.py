@@ -97,8 +97,9 @@ if x:
 # name and the FRED-id column names stay, so model.py is unchanged.
 er = newest("brent_audusd_eia_rba*.csv")
 if er:
-    Fr = pd.read_csv(er, parse_dates=["date"]).set_index("date")[["DCOILBRENTEU", "DEXUSAL"]].sort_index()
+    Fr = pd.read_csv(er, parse_dates=["date"]).set_index("date")
+    Fr = Fr[[c for c in ["DCOILBRENTEU", "DEXUSAL", "ULSD_NYH"] if c in Fr]].sort_index()   # ULSD_NYH: diesel crack, optional
     Fr.to_csv(f"{STORE}/fred.csv", index_label="date")
-    log.append(f"brent/aud (EIA/RBA) to {Fr.dropna().index.max().date()}")
+    log.append(f"brent/aud (EIA/RBA) to {Fr[['DCOILBRENTEU', 'DEXUSAL']].dropna().index.max().date()}")
 
 print("; ".join(log) or "nothing in inbox")

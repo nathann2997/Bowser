@@ -1,6 +1,6 @@
 """Assemble dashboard data (stats + forecast + backtest) and render the HTML page.
 
-usage: python build.py BASE  -> BASE/out/sydney-pump-outlook.html
+usage: python build.py BASE  -> BASE/out/dashboard.html
 """
 import json, os, sys
 import numpy as np, pandas as pd
@@ -127,5 +127,5 @@ os.makedirs(f"{BASE}/out", exist_ok=True)
 # Escaped for an inline <script>: a station name from the NSW API containing "</script>" or "<!--" must not end the block.
 # \u003c etc. are the same characters to the JSON/JS parser. (ensure_ascii already escapes U+2028/U+2029.)
 js = json.dumps(data, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-open(f"{BASE}/out/sydney-pump-outlook.html", "w", encoding="utf-8").write(tpl.replace("__DATA__", js))
+open(f"{BASE}/out/dashboard.html", "w", encoding="utf-8").write(tpl.replace("__DATA__", js))
 print("built", asof.date(), len(json.dumps(data)) // 1024, "KB", stats)
