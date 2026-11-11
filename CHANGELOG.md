@@ -2,12 +2,20 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-12 — Update prompt on every open, for every version; app updates ship by themselves
+
+Owner: yes to making expo-doctor advisory, and "make sure prompts are always on the app to update".
+- **`app-ci.yml`:** expo-doctor still runs and prints its report but no longer blocks (it failed on every Expo patch release, three times in two days). Read its output before a `version` bump. With that, the first automatic OTA went out: run 43111676797, runtime 0.9.1, update group ef6169d0-b1ad-44bd-a241-e7e0c3432638. It carries the station-page price fix below and the new notice.
+- **Update notice (`components/update-notice.tsx`):** it now checks at launch and every time the app comes back to the front, so "Later" lasts only until the next open. It was once per cold launch, and Android rarely cold-starts an app.
+- **Older versions prompt again (new `app-ota-legacy.yml`):** since the repo rename, installs on 0.9.0 or older read a dead address, so they got no prices and no notice. Each old version now has a branch `ota/<version>-update-notice` (0.3.0 to 0.9.0; the 0.7.0, 0.8.0 and 0.9.0 ones are new) holding that version's last code with the new address and the new notice. The workflow typechecks and publishes each one. Run 43113185748 published all eight: 0.3.0 305212ae, 0.4.0 0292d9de, 0.5.0 fd8e9ac7, 0.6.0 a26a87d9, 0.6.1 9f3f9fd3, 0.7.0 54ab8035, 0.8.0 07106a4d, 0.9.0 7a98a79a. Those phones take it on their next open or the one after, then show prices and the 0.9.1 prompt again. 0.1.0 APKs have no OTA support and can't be reached.
+- **Not checked on a phone:** the notice reappearing on return, and any old version taking its OTA.
+
 ## 2026-11-12 — Station page shows the same price as the lists (JS only, runtime 0.9.1)
 
 Owner: Costco Auburn showed 238.7 in the lists and 252 on its station page.
 - **What happened:** the lists read `stations.json`; the station page reads the station's own file (`station/{id}.json`). The live API agrees (both 238.7 for Premium 98; 252.7 was the price until 9 Nov). The page was showing an old saved copy of the station file because its refresh failed, which is what any install on 0.9.0 or older does since the repo rename took the old address away on 11 Nov. Not confirmed on the owner's phone.
 - **Fix (`lib/station.ts` `ticker`, `station/[id].tsx`):** when `stations.json` is dated after the station file, the page's price comes from `stations.json`, and the "since yesterday / over 7 days" changes are left out, since they would compare it with the wrong days. The banner still says the history is a saved copy. One new test.
-- **Not shipped:** `app-ci` is blocked at expo-doctor (see the entry below), so this OTA waits on that decision.
+- **Shipped** in the OTA of the entry above (update group ef6169d0, runtime 0.9.1).
 
 ## 2026-11-11 — Bowser 0.9.1: ready for the repo rename (native, runtime 0.9.1; APK not built yet)
 

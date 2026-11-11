@@ -13,7 +13,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - **Names:** the repo is `nathann2997/Bowser` (renamed 2026-11-11), so the site is https://nathann2997.github.io/Bowser/. The old `…/FuelForecast/` address is gone (404). Still `fuelforecast`, because installed apps depend on them: the Android package, iOS bundle id, Expo slug and URL scheme.
 
 ## Owner to do
-- **Send testers the 0.9.1 install link** (above). Installs on 0.9.0 or older read the old address, so they show their last prices and no update notice.
+- **Install 0.9.1 and check it on a phone**; testers on older versions now get the prompt by themselves (see the first open item), so sending the link is optional.
 - Add the repo secret `VIC_API_KEY` if the Victorian archive is wanted (optional).
 - Delete the old key files on the laptop, which nothing reads any more: `sydney/pipeline/credentials.py`, `sydney/pipeline/pull_nsw.js`, `fuel-api-credentials.md`. Rotate `NSW_API_KEY`/`NSW_API_SECRET` (set 2026-10-20, never rotated).
 - Delete the retired claude.ai routine (disabled since 2026-10-28), if it should be gone for good.
@@ -30,6 +30,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 ## Open work
 Newest first. Each item has its CHANGELOG entry of the same name for details.
 
+- **Update prompts and automatic shipping** (2026-11-12): live. expo-doctor is advisory in `app-ci`, so pushes to `main` ship OTAs (first one: ef6169d0, runtime 0.9.1, with the station-page price fix). The update notice shows on every open. `app-ota-legacy.yml` published the new API address and the new notice to 0.3.0–0.9.0 from the `ota/<version>-update-notice` branches (run 43113185748). **Next:** on a phone, check that the notice comes back after "Later" and that an older install recovers its prices and shows the 0.9.1 prompt. When a future change must reach old versions (for example another address move), commit it to each `ota/` branch and run `app-ota-legacy`.
 - **Repo rename, Bowser 0.9.1** (2026-11-11): done. APK built by `app-ci`, the notice went live at the old address, then the repo was renamed and run 43010272458 published the site at the new one; data-health passed after it. **Next:** device check of 0.9.1 (the Expo patch updates are untested on a phone); the first automatic OTA from `app-ci`; drop the old address from `lib/api.ts` once no install needs it.
 - **GitHub only** (2026-11-11). **Next:** after the merge, check the first runs of `pipeline-ci` and of `app-ci`'s ship job (neither has run yet), and that the daily run still passes with `out/dashboard.html`.
 - **Track record** (2026-11-11, 8b81609): live (run 42965402103; OTA 2abc8e7e at runtime 0.9.0). **Next:** device check of `/track` and Today's tile. **Owner's call:** should a Wait count as right when prices didn't rise (now "Neutral")? The dashboard card always leads with the tested figure; the app switches to live at 40 scored calls that include a Fill and a Wait.
@@ -89,7 +90,7 @@ Newest first. Each item has its CHANGELOG entry of the same name for details.
 - `stations.json` per-fuel tuple: `[price, days since update, advice code, advice label, reason, 7-day forecast price]` (the last is left off on a day the station files failed). Advice codes: now, by, ok, wait, hi, any, chk.
 - The verdict rule is in `template.html` (`verdict()`) and mirrored in `export_api.py`; change both together. The rise date is `market()` in `build.py`, ported to `app/src/lib/outlook.ts`.
 - The data (`store/`, `archive/`) lives only on the `data` branch; `main` holds code and docs. Don't merge `data` into `main`, and only Actions writes to `data`.
-- Each runtime's update-notice OTA was built from the `ota/<runtime>-update-notice` branches; 0.1.0 APKs have no expo-updates and can't be reached.
+- Older versions are kept alive from the `ota/<version>-update-notice` branches (0.3.0–0.9.0), published by `app-ota-legacy.yml`; 0.1.0 APKs have no expo-updates and can't be reached. expo-doctor in `app-ci` is advisory: read it before a `version` bump.
 - Web dashboard pins are keyed name|postcode|lat|lon (the dashboard data has no station codes), so they don't sync with the app. If `build.py` ever adds codes, switch the key to them.
 - The owner has two Expo accounts (nathann97 and nathannguy); the project lives on nathann97.
 - `docs/brand/render-brand.mjs` is a design tool (needs Chrome), rerun only when the logo changes; it isn't part of any pipeline.
