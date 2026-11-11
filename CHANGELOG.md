@@ -4,7 +4,7 @@ All notable changes to the FuelForecast pipeline and app. Newest first.
 
 ## 2026-11-11 — Track record: an honest headline, what it beats, and calls in runs (pipeline + JS + dashboard)
 
-A product review of the track record (`/track`, Today's "Calls right" tile, `track.json`). Not committed, pushed or shipped yet, and not yet seen on a phone.
+A product review of the track record (`/track`, Today's "Calls right" tile, `track.json`). Shipped 2026-11-11: commit 8b81609, pipeline run 42965402103, OTA update group 2abc8e7e to `preview` at runtime 0.9.0. Not yet seen on a phone.
 - **The problem:**
   - Live results replaced the tested figure after 10 scored calls. This week that turned Today's tile from about 83% into 38% for U91 and E10 (31% for P98), on a record with no wrong call: 13 "Wait" calls from one falling fortnight, 8 of them scored "close" because prices moved under 1c.
   - The tested figure had nothing to compare with. Over 2021–26 "always No rush" is right 85% of the time for diesel, against 87% for the calls.
