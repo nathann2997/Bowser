@@ -1,0 +1,72 @@
+# OTA update for installs of OLDER app versions, so they keep working and keep showing the "new version" notice.
+# An OTA only reaches installs whose version matches the code it was built from, so each old version has a branch
+# `ota/<version>-update-notice`: that version's last code plus whatever it needs to stay alive (the current update
+# notice, the API's current address). Run this by hand after changing those branches; `main` ships through app-ci.
+# Needs the repo secret EXPO_TOKEN.
+name: app-ota-legacy
+
+on:
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "Which old versions (JSON list)"
+        type: string
+        default: '["0.3.0","0.4.0","0.5.0","0.6.0","0.6.1","0.7.0","0.8.0","0.9.0"]'
+      message:
+        description: "What changed (shown in the EAS dashboard)"
+        type: string
+        default: "Keep older versions working: current API address and update notice"
+
+permissions:
+  contents: read
+
+env:
+  EAS_CLI: eas-cli@27.1.0
+
+jobs:
+  ota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        version: ${{ fromJSON(inputs.versions) }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Check the version
+        working-directory: .
+        env:
+          VERSION: ${{ matrix.version }}
+        run: |
+          echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::not a version: $VERSION"; exit 1; }
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+        with:
+          ref: ota/${{ matrix.version }}-update-notice
+          persist-credentials: false
+
+      - name: The branch's code is the version it claims
+        env:
+          VERSION: ${{ matrix.version }}
+        run: |
+          HAS=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync("app.json","utf8")).expo.version)')
+          [ "$HAS" = "$VERSION" ] || { echo "::error::branch ota/$VERSION-update-notice has app version $HAS"; exit 1; }
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+      - name: Publish to the preview channel
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          MESSAGE: ${{ inputs.message }}
+          VERSION: ${{ matrix.version }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then echo "::error::Repo secret EXPO_TOKEN is not set"; exit 1; fi
+          npx --yes "$EAS_CLI" update --channel preview --environment preview \
+            --message "$(printf '%s (%s)' "$MESSAGE" "$VERSION" | cut -c1-200)" --non-interactive
