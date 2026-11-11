@@ -2,6 +2,13 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-12 — Station page shows the same price as the lists (JS only, runtime 0.9.1)
+
+Owner: Costco Auburn showed 238.7 in the lists and 252 on its station page.
+- **What happened:** the lists read `stations.json`; the station page reads the station's own file (`station/{id}.json`). The live API agrees (both 238.7 for Premium 98; 252.7 was the price until 9 Nov). The page was showing an old saved copy of the station file because its refresh failed, which is what any install on 0.9.0 or older does since the repo rename took the old address away on 11 Nov. Not confirmed on the owner's phone.
+- **Fix (`lib/station.ts` `ticker`, `station/[id].tsx`):** when `stations.json` is dated after the station file, the page's price comes from `stations.json`, and the "since yesterday / over 7 days" changes are left out, since they would compare it with the wrong days. The banner still says the history is a saved copy. One new test.
+- **Not shipped:** `app-ci` is blocked at expo-doctor (see the entry below), so this OTA waits on that decision.
+
 ## 2026-11-11 — Bowser 0.9.1: ready for the repo rename (native, runtime 0.9.1; APK not built yet)
 
 Owner: "update the repo name also and make all changes necessary to ensure everything is live". The API's address is the repo's GitHub Pages address, so renaming the repo (FuelForecast → Bowser) moves it and the old address stops working. **The repo is not renamed yet**: this release has to reach phones first.

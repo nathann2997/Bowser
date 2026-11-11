@@ -51,8 +51,15 @@ export type Ticker = {
   unchangedDays: number | null;  // days the price has sat at this level (from the history)
 };
 
-/** The ticker block: price, change since yesterday and over 7 days, and the gap to the Sydney median */
-export function ticker(d: StationDetail, fuel: Fuel, medianNow: number | null | undefined): Ticker {
+/**
+ * The ticker block: price, change since yesterday and over 7 days, and the gap to the Sydney median.
+ * `newer` is this station's price from a stations.json dated after the station file. The station file can be an old
+ * saved copy (its refresh failed, or today's file wasn't published) while the lists already show today's price; the
+ * page must show the same price as the lists, so the newer one wins and the changes, which would compare it with the
+ * wrong days, are left out.
+ */
+export function ticker(d: StationDetail, fuel: Fuel, medianNow: number | null | undefined, newer?: number | null): Ticker {
+  if (isNum(newer)) return { price: newer, d1: null, d7: null, gap: isNum(medianNow) ? newer - medianNow : null, unchangedDays: null };
   const s = d.hist[fuel] ?? [];
   const i = s.length ? asofIndex(d, s) : -1;
   const fromHist = i >= 0 ? s[i] : null;

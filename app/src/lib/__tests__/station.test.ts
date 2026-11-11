@@ -65,6 +65,14 @@ describe('station fuels', () => {
 });
 
 describe('ticker', () => {
+  it('a newer list price wins over an old saved station file, without the day changes', () => {
+    const t = ticker(D, 'U91', 193, 238.7);
+    expect(t.price).toBe(238.7);
+    expect(t.gap).toBeCloseTo(45.7);
+    expect([t.d1, t.d7, t.unchangedDays]).toEqual([null, null, null]);
+    expect(ticker(D, 'U91', 193, null).price).toBe(ticker(D, 'U91', 193).price);
+  });
+
   it('computes the change since yesterday and over 7 days, and the gap to the median', () => {
     const t = ticker(D, 'U91', 193);
     expect(t.price).toBe(195);

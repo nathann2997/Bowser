@@ -75,7 +75,10 @@ export default function StationPage() {
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
   const live = fuel ? fq.data?.live.find((r) => r.fuel === fuel) : undefined;
-  const tk = d && fuel ? ticker(d, fuel, live?.now ?? null) : null;
+  // The lists read stations.json; this page reads the station's own file. If that file is an older saved copy, the
+  // price comes from the newer stations.json, so the page never disagrees with the list the user tapped
+  const listPrice = fuel && d && sq.data && sq.data.asof > d.asof ? row?.p[fuel]?.[0] ?? null : null;
+  const tk = d && fuel ? ticker(d, fuel, live?.now ?? null, listPrice) : null;
   const hasHist = !!(d && fuel && d.hist[fuel]?.some((v) => v != null));
   // The React Compiler memoizes this (and the paths in TickerChart key off its identity)
   const chart = d && fuel ? tickerData(d, hq.data, fuel, hasHist ? range : '1W') : null;
