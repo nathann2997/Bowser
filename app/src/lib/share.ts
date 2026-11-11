@@ -7,7 +7,8 @@ import { track } from './analytics';
 import { API_BASE } from './api';
 import { fuelName, nice, stationName } from './format';
 import { money, type SavingsSummary } from './savings';
-import type { Fuel } from './types';
+import { countsText, tested } from './track';
+import type { Fuel, Track } from './types';
 
 /** The share page sits beside the API: …/api/v1 → …/s/ */
 export const SHARE_BASE = API_BASE.replace(/\/api\/v1\/?$/, '') + '/s/';
@@ -29,12 +30,26 @@ export function savingsMessage(s: SavingsSummary): string | null {
   return `Bowser has saved me ${money(s.total)} on fuel${s.since ? ` since ${nice(s.since, false)}` : ''} (${s.n} fill${s.n === 1 ? '' : 's'}). It tells me when to fill up in Sydney and where it’s cheapest.`;
 }
 
+/** The dashboard, which shows the track record too: …/api/v1 → …/ */
+export const SITE = API_BASE.replace(/\/api\/v1\/?$/, '') + '/';
+
+/** The track record for a fuel: the tested hit rate with what it beats, and the live calls so far. Null with no tested
+ *  figure (a fuel the backtest doesn't cover). */
+export function trackMessage(t: Track, fuel: Fuel): string | null {
+  const x = tested(t, fuel);
+  if (!x) return null;
+  const beat = x.lift && x.lift.pts >= 5 ? `, ${x.lift.pts} points better than always saying “${x.lift.rule}”` : '';
+  const l = t.live?.[fuel];
+  const live = l && l.n > 0 && l.since ? ` Live since ${nice(l.since, false)}: ${countsText(l, ', ')}.` : '';
+  return `Bowser’s fill-or-wait calls for Sydney ${fuelName(fuel)} were right ${x.pct}% of the time, tested on ${x.period}${beat}.${live}\n${SITE}`;
+}
+
 /** Whether there's a share sheet: always on Android and iOS; on the web only where the browser has navigator.share
  *  (react-native-web's Share rejects without it, so the buttons are hidden there) */
 export const canShare = () => Platform.OS !== 'web' || (typeof navigator !== 'undefined' && typeof navigator.share === 'function');
 
 /** Opens the system share sheet; a dismissed sheet or a platform without one is not an error */
-export async function shareText(message: string, kind: 'deal' | 'savings') {
+export async function shareText(message: string, kind: 'deal' | 'savings' | 'track') {
   try {
     const r = await Share.share({ message });
     track('share.opened', { kind, shared: r.action === Share.sharedAction });

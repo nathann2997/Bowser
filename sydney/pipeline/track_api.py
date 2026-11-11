@@ -9,12 +9,22 @@ Called by export_api.py (the app path only; the Claude task never runs it). Two 
 Scoring, one rule for both (Sydney medians from store/daily.csv):
   move = average median over the WINDOW days after the call - the median on the call day
          (pending until the window's last day is over, i.e. before the latest day in daily.csv, and MIN_DAYS of its days
-         are known)
+         are known). The latest day in daily.csv is today, a partial day: it never counts, in `move` or in `days`.
   A live call's "median on the call day" is the one it was made with (the morning snapshot); a replayed call's is that
   day's end-of-day median, so on a jump day a live "fill" call scores a little better than its replay would.
   up   (fill)     right if move >= +1c, wrong if <= -1c, else close
   down (wait)     right if move <= -1c, wrong if >= +1c, else close
   flat (no rush)  right if |move| < 3c, wrong if >= 5c, else close
+Beside the right / close / wrong counts, every tally carries:
+  gain    the average value of following the call, c/L: fill +move, wait -move, no rush 0 (docs/RULE_ANALYSIS_2026-10.md)
+  by      the counts per call type (up / down / flat)
+and each replay tally also carries:
+  base    the best rule that never looks at the forecast (always fill, always wait or always no rush) and how many of
+          the same days it got right: the hit rate to beat. Diesel rarely moves 3c in a week, so "always no rush" is
+          right about 85% of the time there.
+  recent  the same tally over the last RECENT_DAYS days of the replay (it ends when the backtest does, a week or more
+          before today), with its own base: the like-for-like comparison
+          for live calls, and the figure the app leads with (the 2021-on average hid a weak 2026).
 The app's fill savings use the same window (app/src/lib/savings.ts), so "the week after" means the same on both screens.
 """
 import csv, datetime as dt, json, os
@@ -23,6 +33,7 @@ import pandas as pd
 
 from fuels import FUELS
 WINDOW, MIN_DAYS = 7, 5
+RECENT_DAYS = 365       # the replay's "recent" tally
 KEEP_DAYS = 60          # live calls listed in track.json (the summary counts all of them)
 FIELDS = ["date", "fuel", "cls", "head", "now", "d3", "d7", "p_jump7"]
 
@@ -44,10 +55,12 @@ def medians(base):
 def window(med, fuel, date, last):
     """(average median over the WINDOW days after `date`, days known, complete?)"""
     day = dt.date.fromisoformat(date)
-    vals = [med.get(fuel, {}).get((day + dt.timedelta(k)).isoformat()) for k in range(1, WINDOW + 1)]
+    days = [(day + dt.timedelta(k)).isoformat() for k in range(1, WINDOW + 1)]
+    # `last` (today) is a partial day while the day's runs go on: it isn't averaged or counted, so a pending call
+    # never reads "7 of 7 days", and the window is complete once its last day is over
+    vals = [med.get(fuel, {}).get(d) for d in days if d < last]
     vals = [v for v in vals if v is not None]
-    # Complete once the window's last day is over: `last` (today) is a partial day while the day's runs go on
-    done = (day + dt.timedelta(WINDOW)).isoformat() < last and len(vals) >= MIN_DAYS
+    done = days[-1] < last and len(vals) >= MIN_DAYS
     return (sum(vals) / len(vals) if vals else None), len(vals), done
 
 
@@ -77,13 +90,28 @@ def append(base, rows):
         w.writerows(rows)
 
 
-def tally(rows):
-    out = {}
-    for f in FUELS:
-        rs = [r for r in rows if r["fuel"] == f and r["status"] != "pending"]
-        out[f] = {"n": len(rs), **{k: sum(r["status"] == k for r in rs) for k in ["right", "close", "wrong"]},
-                  "from": min((r["date"] for r in rs), default=None), "to": max((r["date"] for r in rs), default=None)}
-    return out
+def value(cls, move):
+    """What following the call was worth, c/L: filling before a rise, or waiting through a fall; no rush is 0"""
+    return move if cls == "up" else -move if cls == "down" else 0.0
+
+
+def counts(rs):
+    return {"n": len(rs), **{k: sum(r["status"] == k for r in rs) for k in ["right", "close", "wrong"]}}
+
+
+def one(rs, base=False):
+    """The tally of scored rows (each: date, cls, move, status) for one fuel"""
+    t = {**counts(rs), "from": min((r["date"] for r in rs), default=None), "to": max((r["date"] for r in rs), default=None),
+         "gain": round(sum(value(r["cls"], r["move"]) for r in rs) / len(rs), 2) + 0.0 if rs else None,
+         "by": {c: counts([r for r in rs if r["cls"] == c]) for c in ("up", "down", "flat")}}
+    if base and rs:
+        best = max(("up", "down", "flat"), key=lambda c: sum(score(c, r["move"]) == "right" for r in rs))
+        t["base"] = {"cls": best, "right": sum(score(best, r["move"]) == "right" for r in rs)}
+    return t
+
+
+def tally(rows, base=False):
+    return {f: one([r for r in rows if r["fuel"] == f and r["status"] != "pending"], base) for f in FUELS}
 
 
 def live_calls(base, med, last, extra=()):
@@ -131,8 +159,12 @@ def replay(base, med, last, verdict, live_model=None):
         avg, _, done = window(med, r.fuel, date, last)
         if not done: continue
         cls = verdict({"d3": r.d3, "d7": r.d7, "p_jump7": r.p_jump7})["cls"]
-        rows.append({"date": date, "fuel": r.fuel, "status": score(cls, avg - now)})
-    return tally(rows)
+        rows.append({"date": date, "fuel": r.fuel, "cls": cls, "move": avg - now, "status": score(cls, avg - now)})
+    out = tally(rows, base=True)
+    if rows:
+        cut = (dt.date.fromisoformat(max(r["date"] for r in rows)) - dt.timedelta(RECENT_DAYS)).isoformat()
+        for f, t in tally([r for r in rows if r["date"] > cut], base=True).items(): out[f]["recent"] = t
+    return out
 
 
 def build(base, verdict, schema, stamp, extra=(), live_model=None):
@@ -140,7 +172,11 @@ def build(base, verdict, schema, stamp, extra=(), live_model=None):
     calls = live_calls(base, med, last, extra)
     cutoff = (dt.date.fromisoformat(last) - dt.timedelta(KEEP_DAYS)).isoformat()
     since = {f: min((c["date"] for c in calls if c["fuel"] == f), default=None) for f in FUELS}
-    live = {f: dict(t, since=since[f]) for f, t in tally(calls).items()}
+    # pending: calls whose week isn't over yet. A call left unscored for good (its week has passed with fewer than
+    # MIN_DAYS medians) isn't "awaiting a result", so it isn't counted
+    open_from = (dt.date.fromisoformat(last) - dt.timedelta(WINDOW)).isoformat()
+    live = {f: dict(t, since=since[f], pending=sum(c["fuel"] == f and c["status"] == "pending" and c["date"] >= open_from for c in calls))
+            for f, t in tally(calls).items()}
     return {"schema": schema, **stamp, "asof": last, "window": WINDOW, "min_days": MIN_DAYS,
             "calls": [c for c in calls if c["date"] >= cutoff], "live": live, "replay": replay(base, med, last, verdict, live_model)}
 
@@ -153,5 +189,8 @@ def check(t):
         if not 100 < c["now"] < 500: errs.append(f"call now {c['now']}")
     for part in ("live", "replay"):
         for f, s in (t[part] or {}).items():
-            if s["right"] + s["close"] + s["wrong"] != s["n"]: errs.append(f"{part} {f} counts {s}")
+            for name, c in [(f, s), *((f"{f} {k}", v) for k, v in s["by"].items()), *([(f"{f} recent", s["recent"])] if "recent" in s else [])]:
+                if c["right"] + c["close"] + c["wrong"] != c["n"]: errs.append(f"{part} {name} counts {c}")
+            if sum(v["n"] for v in s["by"].values()) != s["n"]: errs.append(f"{part} {f} by-call counts {s['by']}")
+            if "base" in s and not 0 <= s["base"]["right"] <= s["n"]: errs.append(f"{part} {f} base {s['base']}")
     return errs

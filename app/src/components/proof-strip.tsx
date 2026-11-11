@@ -34,7 +34,8 @@ export function SavingsStrip() {
   );
 }
 
-/** How often Bowser’s calls were right, at the foot of Today (your stations come first) */
+/** How often Bowser’s calls were right, at the foot of Today (your stations come first): the tested figure for the
+ *  replay's last year until enough live calls are scored (lib/track.ts headline) */
 export function TrackStrip() {
   const tq = useTrack();
   const { fuel } = useSettings();

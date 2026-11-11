@@ -2,6 +2,44 @@
 
 All notable changes to the FuelForecast pipeline and app. Newest first.
 
+## 2026-11-11 — Track record: an honest headline, what it beats, and calls in runs (pipeline + JS + dashboard)
+
+A product review of the track record (`/track`, Today's "Calls right" tile, `track.json`). Not committed, pushed or shipped yet, and not yet seen on a phone.
+- **The problem:**
+  - Live results replaced the tested figure after 10 scored calls. This week that turned Today's tile from about 83% into 38% for U91 and E10 (31% for P98), on a record with no wrong call: 13 "Wait" calls from one falling fortnight, 8 of them scored "close" because prices moved under 1c.
+  - The tested figure had nothing to compare with. Over 2021–26 "always No rush" is right 85% of the time for diesel, against 87% for the calls.
+  - The 2021–26 average hid a weak last year: U91 is 83% over the whole test and 72% over the year to 22 Oct 2026.
+- **Pipeline (`track_api.py`):**
+  - Today, a partial day, is no longer averaged or counted for a pending call, so a call can't read "7 of 7 days" and still be pending. Scored calls are unchanged: the new build reproduces every published live and replay count.
+  - Every tally gains `gain` (the average value of following the call in c/L: Fill +move, Wait −move, No rush 0, as in `docs/RULE_ANALYSIS_2026-10.md`) and `by` (the counts per call type). Live gains `pending`.
+  - Replay tallies gain `base` (the best of always Fill / always Wait / always No rush, and how many of the same days it got right) and `recent` (the same tally over the last 365 days, with its own `base`).
+  - The new fields are additions, so the schema stays 1 and older apps ignore them. `track.json` grows from 14 KB to 17 KB.
+  - New `test_track.py` (9 tests). It isn't in a workflow: `data-health.yml` has no pandas, and a failing test in `daily.yml` would stop a publish that the track record is meant to fail soft on.
+- **App (`lib/track.ts`, `app/track.tsx`):**
+  - **Headline:** the tested figure for the last year of the replay leads, labelled by its last day ("Tested on the year to 22 Oct"; the whole replay if an older API has no `recent`), with what it beats: "24 points better than always saying Wait, which was right 48% of the time". Live leads only after 40 scored calls that include a Fill and a Wait (`LIVE_MIN`, `liveLeads`). Today's tile follows the same rule.
+  - **Live calls** are their own card, as counts: "13 scored · 0 wrong", the right / neutral / wrong bar, how many await a result, and a caveat while every scored call is the same call.
+  - **Dollars:** both cards say what following each call was worth on your tank on average.
+  - **"Close" is now "Neutral"** on screen (the data keeps `close`). The scoring rule is unchanged.
+  - **By call:** Fill, Wait and No rush each with their tested hit rate and wrong count, over the same period as the headline (U91, year to 22 Oct: Fill 71%, Wait 79%, No rush 53%).
+  - **A wrong No rush shows its cost** ("Waiting would have saved about $4.65 a tank"); it used to show nothing.
+  - **Recent calls** are grouped into runs of the same call ("Wait · 22 Oct – 3 Nov · 13 calls: 5 right, 8 neutral") that open to their days, with the calls awaiting a result in one group below. Each day shows the headline as it was shown and the median with its unit.
+  - **Share the track record** (`trackMessage` in `lib/share.ts`; `share.opened` kind `track`), linking to the dashboard.
+  - The hit rate is no longer always green, and "13 calls since" now says they're scored.
+- **Dashboard (`template.html`, `export_api.py`):** a track record card under "Can I trust it?", read from `api/v1/track.json` with the same wording as the app. The CSP's `connect-src` gains `'self'` for it. The card stays hidden off the published site or if the file is missing.
+- **Not done:**
+  - Whether a Wait should count as right when prices simply didn't rise. That changes the definition, so it's the owner's call.
+  - The track record on the share page (`/s/`), which is about one station.
+  - A fuel switcher on the screen: the review asked for one, but the header's fuel chip already does it.
+- **QA audit** of the diff: no high findings. Fixed from it:
+  - "About the same as always saying…" blamed quiet prices for any small lift; it now says so only when the rule it matches is No rush.
+  - "A wrong Fill costs the most" had nothing in the data behind it, so it's gone.
+  - By call used the whole 2021–26 replay under a last-year headline (Wait 94% against 79%); it now uses the headline's period.
+  - "The last 12 months" is now "the year to" the replay's last day, and needs 300 days of replay (it ends a week or more before today).
+  - `pending` no longer counts a call left unscored for good (its week passed with under 5 days of prices).
+  - A run's mark is its most common result, and an empty line no longer leaves a gap on the live card.
+- **Left from the audit (low):** the dashboard card always leads with the tested figure, where the app switches to live at 40 calls; the lift is the difference of two rounded percentages, so it can be a point out.
+- **Checks:** typecheck, lint and jest pass (437), and `test_track.py` (9) and `test_health.py` pass. `/track` rendered in headless Chrome at 390 px, light and dark, for U91 and diesel, against today's data with the new fields. The dashboard card rendered under the real CSP.
+
 ## 2026-11-11 — Stations map: the cheapest station in view, and group prices
 
 A UX review of the app's map (`station-map.tsx`). JS only, so it ships as an OTA with no new APK. Not yet seen on a phone.
