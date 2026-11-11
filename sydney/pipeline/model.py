@@ -2,6 +2,8 @@
 
 usage: python model.py BASE [--backtest]
 Reads store/daily.csv, store/tgp.csv, store/fred.csv; writes store/forecast.json (+ store/backtest.json with --backtest).
+Also, when store/station_feats.csv is there, logs a shadow forecast (the same model plus station features) beside the
+live one in store/shadow.csv. It is on trial, never published, and can't fail the run (shadow_score.py compares them).
 """
 import json, os, sys, warnings
 import numpy as np, pandas as pd, lightgbm as lgb
@@ -10,6 +12,10 @@ from sklearn.metrics import roc_auc_score
 warnings.filterwarnings("ignore")
 BASE = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORE = f"{BASE}/store"; DO_BT = "--backtest" in sys.argv
+BT_VERSION = 2   # bump when the features change: a stored backtest from another version is rerun on the next run
+try: _bt = json.load(open(f"{STORE}/backtest.json")); _v = _bt.get("version") if isinstance(_bt, dict) else None
+except (OSError, ValueError): _v = None     # missing or unreadable: rerun it too, rather than restamp old predictions
+DO_BT = DO_BT or _v != BT_VERSION
 from fuels import FUELS
 H = [1, 3, 7, 14]
 PARAMS = dict(n_estimators=400, learning_rate=0.03, num_leaves=15, min_child_samples=40, subsample=0.8,
@@ -20,12 +26,28 @@ T = pd.read_csv(f"{STORE}/tgp.csv", parse_dates=["date"]).set_index("date")
 Fr = pd.read_csv(f"{STORE}/fred.csv", parse_dates=["date"]).set_index("date")
 asof = D.date.max()
 cal = pd.date_range("2018-06-01", asof + pd.Timedelta(days=20))
-TL = T.reindex(cal).ffill().shift(1)                    # wholesale known with a 1-day lag
-FrL = Fr.reindex(cal).ffill().shift(1)
+TL = T.reindex(cal).ffill().shift(1)                    # wholesale known with a 1-day lag (the AIP page has each weekday's by mid-morning)
+FrL = Fr.reindex(cal).ffill().shift(1)                  # AUD/USD known with a 1-day lag (RBA, 4pm Sydney)
+# Brent and NY Harbor diesel, as old as the pipeline can have them. EIA's daily prices page posts the previous close
+# each US weekday morning (before Sydney's first run), so in Sydney the newest close is 2 days old Wednesday to
+# Saturday, 3 on Sunday and 4 on Monday and Tuesday. The fit, the backtest and the live row all use these ages, so the
+# tested figures assume what the live forecast normally gets. (They assumed 1 day while the weekly files left Brent
+# 2-8 days old, which flattered the 2026 track record: docs/MODEL_INPUTS_2026-11.md.) The page skips US federal
+# holidays, about 11 a year: for a day or two after one the live row is a trading day older than this assumes.
+EIA_AGE = np.array([4, 4, 2, 2, 2, 2, 3])               # days, Monday..Sunday
+
+
+def as_known(s):
+    """A daily series (already on `cal`, gaps filled) read EIA_AGE days back from each day."""
+    i = np.arange(len(cal)) - EIA_AGE[cal.dayofweek]
+    return pd.Series(np.where(i >= 0, s.values[np.clip(i, 0, None)], np.nan), index=cal)
+
+
+FrL["DCOILBRENTEU"] = as_known(Fr.DCOILBRENTEU.reindex(cal).ffill())
 FrL["brent_aud"] = FrL.DCOILBRENTEU / FrL.DEXUSAL         # Brent in AUD per barrel
-# Diesel crack: EIA NY Harbor ULSD (USD/gal) against Brent, same 1-day lag; blank if missing or over 10 days stale.
+# Diesel crack: EIA NY Harbor ULSD (USD/gal) against Brent, the same age; blank if missing or about two weeks stale.
 # Diesel rows only: it helped diesel and hurt petrol in the walk-forward test (2026-10, diesel 7-day jump AUC 0.84 -> 0.90)
-ULSD = (Fr.ULSD_NYH.reindex(cal).ffill(limit=10).shift(1) * 42) if "ULSD_NYH" in Fr else pd.Series(np.nan, index=cal)
+ULSD = (as_known(Fr.ULSD_NYH.reindex(cal).ffill(limit=10)) * 42) if "ULSD_NYH" in Fr else pd.Series(np.nan, index=cal)
 CRACK = ["prod_pct7", "prod_pct14", "prod_pct28", "crack", "crack_chg14", "crack_chg28", "crack_vs90"]
 
 
@@ -163,7 +185,7 @@ if os.path.exists(f"{STORE}/backtest_preds.parquet"):
     bt7 = P[(P.h == 7) & (P.fuel == "U91")].sort_values("date")
     bt7 = bt7[bt7.date >= bt7.date.max() - pd.Timedelta(days=730)]
     json.dump({"summary": summ, "yearly_u91_h7": {str(k): v for k, v in yearly.items()}, "q80": resid, "q80n": q80n, "auc": auc,
-               "test_from": "2021-01", "test_to": str(P.date.max().date()), "variants": list(VARIANTS), "prod": PROD,
+               "version": BT_VERSION, "test_from": "2021-01", "test_to": str(P.date.max().date()), "variants": list(VARIANTS), "prod": PROD,
                "bt7": {"dates": [str(d.date()) for d in bt7.date], "actual": bt7.actual.round(1).tolist(),
                        "pred": bt7[PROD].round(1).tolist()}},
               open(f"{STORE}/backtest.json", "w"))
@@ -206,7 +228,9 @@ pj = dict(zip(X.fuel, predict(lambda t, fs: clf if fs is LIVE_FEATS else fit_clf
 for o in live:
     o["p_jump7"] = round(float(pj[o["fuel"]]), 2)
 ctx = {"asof": str(asof.date()), "tgp_last": str(T.dropna().index.max().date()), "fred_last": str(Fr[["DCOILBRENTEU", "DEXUSAL"]].dropna().index.max().date()),
-       "brent_aud": round(float(FrL.brent_aud.loc[asof]), 1), "brent_usd": round(float(FrL.DCOILBRENTEU.loc[asof]), 1),
+       # the newest Brent in the store, so the dashboard's "Oil today" matches the fred_last date beside it (the model
+       # itself reads Brent EIA_AGE days back, which on a late run can be a close older than the newest)
+       "brent_aud": round(float(Fr.DCOILBRENTEU.dropna().iloc[-1] / FrL.DEXUSAL.loc[asof]), 1), "brent_usd": round(float(Fr.DCOILBRENTEU.dropna().iloc[-1]), 1),
        "audusd": round(float(FrL.DEXUSAL.loc[asof]), 4), "importance_h7": imp,
        "history_last": str(D[D.source == "history"].date.max().date()),
        "live_model": "full (with cycle memory)" if LIVE_FEATS is FD else "no cycle memory (daily history has a gap)",
@@ -214,3 +238,38 @@ ctx = {"asof": str(asof.date()), "tgp_last": str(T.dropna().index.max().date()),
        "range_vol": {f: round(float(VOL[f].loc[VOL_DAY[f]]), 2) for f in FUELS}}   # wholesale volatility ratio behind lo/hi
 json.dump({"live": live, "ctx": ctx}, open(f"{STORE}/forecast.json", "w"))
 print(json.dumps(live, indent=0)[:1500]); print(ctx)
+
+# ---- shadow forecast: the live model plus the station features (station_feats.py), logged beside the live forecast and
+# not published. In the walk-forward test they were the largest gain found (7-day petrol error 5.21 -> 4.87 c/L), but
+# that test scores end-of-day prices, and the call people act on is the morning one, when the day's hikes have barely
+# started. So it runs here unseen until shadow_score.py can compare real morning calls. Two rows a day per fuel: the
+# first run to log one (never revised; `time` says when, since a failed early run leaves it to a later one) and the latest.
+try:
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    import station_feats as SFm
+    SFd = pd.read_csv(f"{STORE}/station_feats.csv", parse_dates=["date"])
+    # the history rows are what the shadow is fitted on: without them (build_history.py's features failed) it would be
+    # the live model under another name, and the comparison would read "no difference"
+    if (SFd.source == "history").sum() < 1000: raise RuntimeError("station_feats.csv has no history rows")
+    G = F.merge(SFd[["date", "fuel"] + SFm.COLS], on=["date", "fuel"], how="left")
+    Xs = G[G.date == asof]
+    if Xs.empty or Xs[["p95_spread", "up5_1d"]].isna().any().any(): raise RuntimeError(f"no station features for {asof.date()}")
+    SH = LIVE_FEATS + SFm.COLS; sh = {f: {} for f in Xs.fuel}
+    for h in H:
+        tr = G[G[f"y{h}"].notna()]
+        for f, v in zip(Xs.fuel, predict(lambda t, fs: fit(t, fs, f"y{h}"), tr, Xs, SH)): sh[f][f"s_d{h}"] = round(float(v), 1)
+    trs = G[G.y_jump7.notna()]
+    for f, v in zip(Xs.fuel, predict(fit_clf, trs, Xs, SH, proba=True)): sh[f]["s_pj"] = round(float(v), 2)
+    day, hhmm = str(asof.date()), dt.datetime.now(ZoneInfo("Australia/Sydney")).strftime("%H:%M")
+    cols = ["date", "fuel", "run", "time", "now", "d1", "d3", "d7", "d14", "pj", "s_d1", "s_d3", "s_d7", "s_d14", "s_pj"]
+    new = pd.DataFrame([dict(date=day, fuel=o["fuel"], time=hhmm, now=o["now"], pj=o["p_jump7"], **{f"d{h}": o[f"d{h}"] for h in H},
+                             **sh[o["fuel"]]) for o in live if o["fuel"] in sh])
+    path = f"{STORE}/shadow.csv"
+    old = pd.read_csv(path, dtype={"date": str, "time": str}) if os.path.exists(path) else pd.DataFrame(columns=cols)
+    add = [new.assign(run="last")] + ([] if ((old.date == day) & (old.run == "first")).any() else [new.assign(run="first")])
+    out = pd.concat([old[~((old.date == day) & (old.run == "last"))]] + add)[cols]
+    out.sort_values(["date", "run", "fuel"]).to_csv(path, index=False)
+    print(f"shadow: {len(new)} fuels logged for {day} {hhmm}", file=sys.stderr)
+except Exception as e:   # stderr: run_daily.sh shows only the last stdout line
+    print(f"::warning::shadow forecast skipped ({type(e).__name__}: {str(e)[:200]})", file=sys.stderr)

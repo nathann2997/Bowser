@@ -4,8 +4,8 @@ Daily forecast of Sydney pump prices (U91, E10, Premium 95, Premium 98, diesel; 
 
 ## Daily flow
 `.github/workflows/daily.yml` runs the pipeline on GitHub Actions up to 5 times a day (see the cron slots there):
-1. `pipeline/fetch.py` writes the day's raw inputs into `inbox/`: NSW FuelCheck live prices (required), Brent from the US EIA (which sources it from Refinitiv), AUD/USD from the RBA (sourced from WM/Reuters), AIP terminal gate prices and any newly published NSW monthly history (all best-effort). Brent and AUD/USD don't come from FRED, whose terms bar using its content to train models. Neither is relicensed here (see `DATA-LICENSE.md`). `update.py` stores them in `store/fred.csv` under FRED's column ids, so `model.py` reads them unchanged.
-2. `pipeline/run_daily.sh`: rebuilds history when a new month arrives (`build_history.py`, `station_profile.py`), adds today's snapshot (`update.py`), then retrains and forecasts (`model.py`). The walk-forward backtest (`model.py --backtest`, about 8 minutes) runs once every 28 days, or on request (`workflow_dispatch` input `backtest`).
+1. `pipeline/fetch.py` writes the day's raw inputs into `inbox/`: NSW FuelCheck live prices (required), Brent from the US EIA (which sources it from Refinitiv), AUD/USD from the RBA (sourced from WM/Reuters), AIP terminal gate prices and any newly published NSW monthly history (all best-effort). The AIP workbook and EIA's history files only gain a week's rows at a time, so two daily pages fill the days after them: AIP's terminal gate prices page and EIA's daily prices page (`pages.py` parses both; the weekly files win wherever they have a value). Brent and AUD/USD don't come from FRED, whose terms bar using its content to train models. Neither is relicensed here (see `DATA-LICENSE.md`). `update.py` stores them in `store/fred.csv` under FRED's column ids, so `model.py` reads them unchanged.
+2. `pipeline/run_daily.sh`: rebuilds history when a new month arrives, or once when `store/station_feats.csv` is missing (`build_history.py`, `station_profile.py`), adds today's snapshot (`update.py`), then retrains and forecasts (`model.py`). `model.py` also logs a shadow forecast, the same model plus station-level features (`station_feats.py`), to `store/shadow.csv`; it is on trial and never published, and `python pipeline/shadow_score.py BASE` compares it with the live one (`docs/MODEL_INPUTS_2026-11.md`). The walk-forward backtest (`model.py --backtest`, about 8 minutes) runs once every 28 days, on request (`workflow_dispatch` input `backtest`), or by itself on the first run after the model's features change (`BT_VERSION` in `model.py`).
 3. `pipeline/export_api.py` runs `build.py` (the dashboard) and writes the app API, with `station_api.py` for the per-station files and `track_api.py` for the track record. It fails if the data isn't today's or a check fails.
 4. State (`store/`, `archive/`) is committed to the `data` branch; the API and dashboard are deployed to GitHub Pages at https://nathann2997.github.io/FuelForecast/.
 
@@ -37,6 +37,8 @@ Keys exist only as GitHub Actions secrets (`NSW_API_KEY`, `NSW_API_SECRET`, opti
 | `store/daily.csv` | Sydney daily price summary per fuel, Jan 2019 onward (history + daily snapshots) |
 | `store/events/` | Sydney price-change records from the NSW monthly files |
 | `store/tgp.csv`, `store/fred.csv` | wholesale TGP (AIP), Brent and AUD/USD (EIA and RBA; the file keeps FRED's name and column ids) |
+| `store/eia_daily.csv` | the EIA daily page's readings (the page only shows the latest close), last 60 |
+| `store/station_feats.csv`, `store/shadow.csv` | station-level features per day and fuel, and the shadow forecast logged beside the live one (trial only) |
 | `store/backtest*` | walk-forward backtest results |
 | `store/forecast.json`, `store/stations_today.json` | today's forecast and station prices |
 | `archive/` | daily station-level Sydney snapshots (gzipped JSON) |

@@ -7,7 +7,9 @@ Writes into INBOX, for run_daily.sh / update.py:
   brent_audusd_eia_rba.csv     Brent (US EIA) + AUD/USD (RBA F11.1), FRED ids, + ULSD_NYH (EIA) when available
                                -- optional
 And straight into BASE/archive/vic/: vic_prices_YYYYMMDD.csv.gz (VIC Servo Saver, once a day; optional, env VIC_API_KEY)
-  AIP_TGP_Data_*.xlsx          AIP terminal gate price workbook                -- optional
+  AIP_TGP_Data_*.xlsx          AIP terminal gate price workbook (gains a week's rows each Friday) -- optional
+  aip_tgp_page.csv             Sydney TGP for the last five business days, from the AIP page   -- optional
+  eia_daily_page.csv           the latest Brent and NY Harbor diesel close, from EIA's daily prices page -- optional
   syd_events_YYYYMM.csv        NSW monthly history after ctx.history_last       -- optional
 Credentials: env NSW_API_KEY / NSW_API_SECRET (GitHub Actions secrets). There is no credentials file.
 """
@@ -196,6 +198,44 @@ def pull_aip():
     return name
 
 
+# ---- The days after the weekly files. The AIP workbook gains its rows on Fridays and EIA's history files on Wednesdays
+# (US), so between them wholesale was up to 6 days old and Brent up to 8, while the model is fitted on prices a day old;
+# scored with prices as old as they really were, the 2026 calls earned 2.95 c/L against about 3.5 with these two pages
+# (docs/MODEL_INPUTS_2026-11.md). Same publishers and series as the files (DATA-LICENSE.md); update.py lets the files
+# win wherever they have a value. Parsing is in pages.py.
+AIP_PAGE = "https://www.aip.com.au/pricing/terminal-gate-prices"
+EIA_PAGE = "https://www.eia.gov/todayinenergy/prices.php"
+PAGE_MAX_AGE = 10     # days: a page still showing older dates than this has stopped updating; the weekly files cover it
+
+
+def recent(day):
+    """A page's date must be a real recent weekday: not ahead of Sydney's today (UTC+11 at most, so never ahead of the
+    US close either) and not stale."""
+    today = dt.datetime.now(SYD).date()
+    return day.weekday() < 5 and dt.timedelta(0) <= today - day <= dt.timedelta(days=PAGE_MAX_AGE)
+
+
+def pull_aip_page():
+    import pages
+    r = get(AIP_PAGE, headers=UA); r.raise_for_status()
+    t = {d: v for d, v in pages.parse_aip_tgp(r.text).items() if recent(d) and len(v) == 2}
+    if not t: raise RuntimeError("no recent Sydney prices on the AIP page")
+    with open(f"{INBOX}/aip_tgp_page.csv", "w") as fh:
+        fh.write("date,tgp_ulp,tgp_dl\n" + "".join(f"{d},{v['tgp_ulp']:g},{v['tgp_dl']:g}\n" for d, v in sorted(t.items())))
+    last = max(t)
+    return f"tgp page to {last} {t[last]['tgp_ulp']:g} / {t[last]['tgp_dl']:g} ({len(t)} days)"
+
+
+def pull_eia_daily():
+    import pages
+    r = get(EIA_PAGE, headers=UA); r.raise_for_status()
+    day, v = pages.parse_eia_daily(r.text)
+    if not recent(day): raise RuntimeError(f"EIA daily page shows {day}: not a recent weekday")
+    with open(f"{INBOX}/eia_daily_page.csv", "w") as fh:
+        fh.write(f"date,DCOILBRENTEU,ULSD_NYH\n{day},{v['DCOILBRENTEU']:g},{v.get('ULSD_NYH', '')}\n")
+    return f"eia daily page {day}: brent {v['DCOILBRENTEU']:g}" + (f", ulsd {v['ULSD_NYH']:g}" if "ULSD_NYH" in v else ", no ulsd")
+
+
 # ---- NSW monthly price-change history
 MON = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])}
 
@@ -278,7 +318,8 @@ def pull_history():
     return "; ".join(done)
 
 
-for name, fn, required in [("nsw", pull_nsw, True), ("macro", pull_macro, False), ("aip", pull_aip, False), ("history", pull_history, False),
+for name, fn, required in [("nsw", pull_nsw, True), ("macro", pull_macro, False), ("aip", pull_aip, False), ("aip_page", pull_aip_page, False),
+                           ("eia_daily", pull_eia_daily, False), ("history", pull_history, False),
                            ("vic", pull_vic, False)]:
     try:
         log.append(f"{name}: {fn()}")

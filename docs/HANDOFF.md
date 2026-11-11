@@ -31,6 +31,12 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 ## Open work
 Newest first. Each item has its CHANGELOG entry of the same name for details.
 
+- **Fresh inputs and the shadow forecast** (2026-11-11; branch `model/fresh-inputs-shadow`, committed, not pushed; `docs/MODEL_INPUTS_2026-11.md`). TGP and Brent now come daily from two pages as well as the weekly files, the backtest assumes the ages the live forecast really gets, and a shadow forecast with station-level features is logged to `store/shadow.csv` without being published. **Next:**
+  - Push the branch and watch `pipeline-ci`: it rebuilds the history and reruns the backtest (30-minute limit; 15 minutes on a busy laptop).
+  - After the merge, check the first `daily-forecast` run: the fetch log shows `aip_page` and `eia_daily`, `meta.json` has `tgp_last` at today or the last business day (AIP posts each weekday's price during the morning; it was up by 09:55 on 12 Nov) and `fred_last` 2–4 days back, and the `data` branch gains `store/eia_daily.csv`, `station_feats.csv` and `shadow.csv`.
+  - From about 2026-12-23 (six weeks of scored calls), run `python pipeline/shadow_score.py` on a checkout of `data` and apply the decision rule in the doc.
+  - `update.py`'s merge of workbook, page and store has no unit test; making it importable would allow one.
+  - Later candidate: Gulf Coast diesel in place of NY Harbor for the diesel crack (small, consistent gain).
 - **GitHub only** (2026-11-11). **Next:** after the merge, check the first runs of `pipeline-ci` and of `app-ci`'s ship job (neither has run yet), and that the daily run still passes with `out/dashboard.html`.
 - **Track record** (2026-11-11, 8b81609): live (run 42965402103; OTA 2abc8e7e at runtime 0.9.0). **Next:** device check of `/track` and Today's tile. **Owner's call:** should a Wait count as right when prices didn't rise (now "Neutral")? The dashboard card always leads with the tested figure; the app switches to live at 40 scored calls that include a Fill and a Wait.
 - **Stations map: cheapest in view** (2026-11-11, d2477d5): live by OTA 988104b6. **Next:** device check on Android: the Cheapest tag and the "from" labels draw fully, the tag doesn't cover a neighbouring group's count, the card doesn't re-centre twice, the bar fits at 360 dp. Not built: "Change" on the area bar leaves the map for the list; the map header is about 170 dp tall.

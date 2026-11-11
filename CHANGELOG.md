@@ -2,6 +2,36 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-11 — Fresh wholesale and oil prices; shadow forecast with station features (pipeline only)
+
+Owner asked which data would improve accuracy, then "build out all your recommendations". Analysis and numbers: `docs/MODEL_INPUTS_2026-11.md`. On branch `model/fresh-inputs-shadow`; **not pushed, not run on GitHub**. No app or dashboard change.
+- **The problem:** the model is fitted on wholesale (TGP) and Brent one day old, but the pipeline got them weekly: TGP up to 6 days old, Brent up to 8. Scored with inputs as old as they really were, the 2026 calls earned 2.95 c/L, not the 3.69 the tested track record showed.
+- **Daily pages fill the days after the weekly files (`fetch.py`, new `pages.py`, `update.py`):**
+  - `pull_aip_page`: Sydney TGP for the last five business days from AIP's terminal gate prices page.
+  - `pull_eia_daily`: the previous close for Brent and NY Harbor diesel from EIA's daily prices page. The page shows one day, so readings are kept in the new `store/eia_daily.csv` (last 60).
+  - The weekly files win wherever they have a value. A page reading that jumps more than 40c (TGP) or 35% (Brent, diesel) from the last value is ignored. Both pulls are best-effort; a failure leaves the old behaviour.
+  - Both are on sites already in the allow-list, from the same publishers and series as before (`DATA-LICENSE.md` updated).
+- **The tested figures now assume what the live forecast gets (`model.py`):**
+  - Brent and diesel are read at the ages the EIA page gives (2 days Wednesday to Saturday, 3 Sunday, 4 Monday and Tuesday) in the fit, the backtest and the live row.
+  - New `BT_VERSION`: when the stored backtest is from another version (or is missing or unreadable), the backtest reruns by itself. It doesn't touch `store/backtest_ran`, so the 28-day rerun can follow sooner than 28 days.
+  - The EIA page skips US federal holidays (about 11 a year); for a day or two after one, the live row is a trading day older than the fit assumes.
+  - `ctx.brent_usd` and `brent_aud` now show the newest Brent in the store, to match the `fred_last` date on the dashboard. So the first run after this merges takes about 8 minutes longer, and `pipeline-ci` reruns it until the `data` branch has the new one.
+  - Tested figures fall slightly (U91 7-day error 4.91 → 4.95 c/L). Against the real pipeline the gain is +0.12 c/L per call over 2021–26 and +0.61 in 2026; Wait calls before a 5c+ jump fall from 183 to 126.
+- **Shadow forecast, on trial and never published (`station_feats.py`, `build_history.py`, `update.py`, `model.py`, `shadow_score.py`):**
+  - Eleven station-level features per day and fuel (share of stations up 5c+ on 1, 3 and 7 days ago, the same for the leading brands, share 8c+ over the median, 95th percentile) in the new `store/station_feats.csv`: history rows from `build_history.py`, snapshot rows from `update.py` against the archived snapshots.
+  - `run_daily.sh` runs `build_history.py` once when that file is missing, so the first run rebuilds the history.
+  - `model.py` fits the live model plus these features and logs both forecasts to the new `store/shadow.csv` at the first and the latest run of each day. It runs after `forecast.json` is written, inside a try: a failure prints a warning and changes nothing.
+  - `python pipeline/shadow_score.py BASE` compares the two on the money measure. A `first` row logged at or after 12:00 (an early run failed) isn't counted as a morning call.
+  - The shadow is skipped while `station_feats.csv` has no history rows, so a failed feature build can't log a look-alike of the live model.
+  - Tested: petrol 7-day error 5.21 → 4.87 c/L, money 4.94 → 5.03. Not live because the test scores end-of-day prices and the call people act on is the morning one.
+- **Rejected:** a petrol crack spread (worse with all three US gasoline series); Singapore benchmarks and a futures curve (no free source with usable terms).
+- **Tests:** new `test_pages.py` (7) and `test_station_feats.py` (11); all 51 pass. `update.py`'s merge of workbook, page and store has no unit test (it is a script, not importable); the QA audit ran 34 scenarios against it by hand.
+- **Checked here**, on a copy of the `data` branch with the newest archived snapshot:
+  - Both page pulls ran against the live sites through `fetch.py`'s own `get()`.
+  - `run_daily.sh` end to end (history rebuild, store update, backtest rerun, forecast, shadow log), then `export_api.py --allow-stale` and `health.py` (OK, no warnings). TGP filled to 11 Nov and Brent to 9 Nov (they were 6 Nov and 3 Nov).
+  - It took 15 minutes on a laptop that was busy with other work. `pipeline-ci` allows 30: watch its first run.
+- **QA audit** (before commit): nothing found that could corrupt the published forecast or the stored files; `daily.csv` and `forecast.json` were byte-identical with and without the new parts. Fixed from it: the look-alike shadow above; an unreadable `backtest.json` being restamped as current; damaged stored files failing `update.py`; the TGP jump check using an old workbook's last row, or a blank cell, as its reference; a later page reading with diesel blank erasing an earlier value; the AIP parser trusting table order instead of the Petrol and Diesel headings; `shadow_score.py` crashing on some damaged rows; and several comments and docs.
+
 ## 2026-11-11 — GitHub only: nothing runs locally, Bowser naming, no Claude task
 
 Owner: "nothing is run locally, everything should be on the github and running automatically", "Bowser naming across the whole project", and "nothing to do with Claude scheduled task". This also lands the `cleanup/streamline` branch from 2026-10-29 (the two entries of that date below), which had never been merged. **Not yet run on GitHub:** `pipeline-ci.yml` and the ship and notice jobs of `app-ci.yml`.
