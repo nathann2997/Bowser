@@ -1,10 +1,10 @@
-// "A new version of Bowser is available": shown on every cold launch while the API's app.json (sydney/pipeline/
+// "A new version of Bowser is available": shown on every launch and every return to the app while the API's app.json (sydney/pipeline/
 // app_release.json) lists a newer version for this platform than the one installed. Testers sideload APKs, so nothing
 // else tells them; drop this once Bowser is on the Play Store / App Store. Self-contained (no app imports, own colours)
 // on purpose: the same file is added to older versions' code and shipped to them as an OTA update.
 import Constants from 'expo-constants';
 import { useEffect, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 type Release = { version: string; url: string; notes?: string };
 export type UpdateAction = 'shown' | 'update' | 'later';
@@ -12,8 +12,6 @@ export type UpdateAction = 'shown' | 'update' | 'later';
 const SEMVER = /^\d+\.\d+\.\d+$/;
 /** Only Bowser's own EAS build pages open from here (same rule as export_api.py) */
 const SAFE_URL = /^https:\/\/expo\.dev\/accounts\/nathann97\/projects\/fuel-forecast\/builds\/[0-9a-f-]{36}$/;
-/** Once per app process: a root remount (error-boundary retry, Activity re-created) doesn't ask again */
-let asked = false;
 
 /** a > b for x.y.z versions */
 export function newer(a: string, b: string): boolean {
@@ -33,39 +31,65 @@ export function pendingRelease(json: unknown, os: string, installed: string | un
   return { version: r.version, url: r.url, notes };
 }
 
+/** `releaseUrl`: where app.json is; a list is tried in order (the API moved when the repo was renamed) */
 export function UpdateNotice({ releaseUrl, onAction }: {
-  releaseUrl: string;
+  releaseUrl: string | string[];
   onAction?: (a: UpdateAction, latest: string) => void;
 }) {
   const dark = useColorScheme() === 'dark';
   const [rel, setRel] = useState<Release | null>(null);
 
   useEffect(() => {
-    if (Platform.OS === 'web' || asked) return;
+    if (Platform.OS === 'web') return;
     let live = true;
-    const ctl = new AbortController();
-    // After the splash (hidden within about 4 s: lib/ota.ts launch check), so it doesn't race the first screen
-    const t = setTimeout(() => {
-      const stop = setTimeout(() => ctl.abort(), 8000);   // a stalled connection: not mid-task minutes later
-      fetch(releaseUrl, { headers: { Accept: 'application/json' }, signal: ctl.signal })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j) => {
-          asked = true;   // answered: not again this process (an aborted or failed fetch may retry on remount)
-          const p = pendingRelease(j, Platform.OS, Constants.expoConfig?.version);
-          if (live && p) {
-            setRel(p);
-            onAction?.('shown', p.version);
+    let ctl: AbortController | null = null;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const urls = Array.isArray(releaseUrl) ? releaseUrl : [releaseUrl];
+    // Asks at launch and again every time the app comes back to the front, so "Later" only lasts until the next
+    // open: testers sideload APKs, and an old version can stop getting data without anything else telling them
+    const check = (delay: number) => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        ctl?.abort();
+        const mine = (ctl = new AbortController());
+        const stop = setTimeout(() => mine.abort(), 8000);   // a stalled connection: not mid-task minutes later
+        const ask = async () => {
+          for (let i = 0; i < urls.length; i++) {
+            try {
+              const r = await fetch(urls[i], { headers: { Accept: 'application/json' }, signal: mine.signal });
+              if (r.ok) return await r.json();
+            } catch (e) {
+              if (i === urls.length - 1) throw e;
+            }
           }
-        })
-        .catch(() => {})   // offline: ask next launch
-        .finally(() => clearTimeout(stop));
-    }, 3500);
+          return null;
+        };
+        ask()
+          .then((j) => {
+            const p = pendingRelease(j, Platform.OS, Constants.expoConfig?.version);
+            if (!live || !p) return;
+            // Already on screen: leave it be (and count it once)
+            setRel((cur) => {
+              if (!cur) onAction?.('shown', p.version);
+              return cur ?? p;
+            });
+          })
+          .catch(() => {})   // offline: ask on the next open
+          .finally(() => clearTimeout(stop));
+      }, delay);
+    };
+    // After the splash (hidden within about 4 s: lib/ota.ts launch check), so it doesn't race the first screen
+    check(3500);
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') check(800);
+    });
     return () => {
       live = false;
       clearTimeout(t);
-      ctl.abort();
+      ctl?.abort();
+      sub.remove();
     };
-    // Once per launch
+    // Set up once; releaseUrl and onAction don't change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

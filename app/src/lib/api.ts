@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { Forecast, History, Meta, StationDetail, Stations } from './types';
 
 // EXPO_PUBLIC_API_BASE points a local build at another copy of the API (e.g. a scratch export served locally)
-export const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://nathann2997.github.io/FuelForecast/api/v1';
+export const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'https://nathann2997.github.io/Bowser/api/v1';
 const SCHEMA = 1;
 
 /** A non-OK HTTP response; `status` lets callers treat a missing file (404) differently from a network error */
