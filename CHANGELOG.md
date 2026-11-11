@@ -42,7 +42,7 @@ A product review of the track record (`/track`, Today's "Calls right" tile, `tra
 
 ## 2026-11-11 — Stations map: the cheapest station in view, and group prices
 
-A UX review of the app's map (`station-map.tsx`). JS only, so it ships as an OTA with no new APK. Not yet seen on a phone.
+A UX review of the app's map (`station-map.tsx`). JS only, so it ships as an OTA with no new APK. Not yet seen on a phone. Pushed (d2477d5); OTA to `preview` at runtime 0.9.0: update group 988104b6-fac3-451b-8d24-4e323f46f4b5.
 - **The problem:** a third of the tags are green, so nothing said which one station is cheapest, and a zoomed-out map was mostly numbered circles with no prices.
 - **Cheapest in view:**
   - The cheapest station on screen is always its own tag, never inside a group: green, a bigger price, the word "Cheapest" above it, and drawn over every tag but the selected one.
