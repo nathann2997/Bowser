@@ -7,11 +7,11 @@ Daily forecast of Sydney pump prices (U91, E10, Premium 95, Premium 98, diesel; 
 1. `pipeline/fetch.py` writes the day's raw inputs into `inbox/`: NSW FuelCheck live prices (required), Brent from the US EIA (which sources it from Refinitiv), AUD/USD from the RBA (sourced from WM/Reuters), AIP terminal gate prices and any newly published NSW monthly history (all best-effort). Brent and AUD/USD don't come from FRED, whose terms bar using its content to train models. Neither is relicensed here (see `DATA-LICENSE.md`). `update.py` stores them in `store/fred.csv` under FRED's column ids, so `model.py` reads them unchanged.
 2. `pipeline/run_daily.sh`: rebuilds history when a new month arrives (`build_history.py`, `station_profile.py`), adds today's snapshot (`update.py`), then retrains and forecasts (`model.py`). The walk-forward backtest (`model.py --backtest`, about 8 minutes) runs once every 28 days, or on request (`workflow_dispatch` input `backtest`).
 3. `pipeline/export_api.py` runs `build.py` (the dashboard) and writes the app API, with `station_api.py` for the per-station files and `track_api.py` for the track record. It fails if the data isn't today's or a check fails.
-4. State (`store/`, `archive/`) is committed to the `data` branch; the API and dashboard are deployed to GitHub Pages at https://nathann2997.github.io/FuelForecast/.
+4. State (`store/`, `archive/`) is committed to the `data` branch; the API and dashboard are deployed to GitHub Pages at https://nathann2997.github.io/Bowser/.
 
 Needs repo secrets `NSW_API_KEY` / `NSW_API_SECRET` and Pages set to deploy from GitHub Actions.
 
-API (`https://nathann2997.github.io/FuelForecast/api/v1/`), static JSON regenerated daily:
+API (`https://nathann2997.github.io/Bowser/api/v1/`), static JSON regenerated daily:
 | File | What |
 |---|---|
 | `meta.json` | schema version, generated time, as-of date per source, file sizes (`station/` = total bytes of the station files, `station/count` = how many). Check `asof` for staleness |

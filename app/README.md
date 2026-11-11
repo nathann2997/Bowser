@@ -1,6 +1,6 @@
 # Bowser
 
-Expo / React Native app for the Sydney pump price forecast. It runs on Android, and an iOS build is in progress (`docs/IOS.md`). It reads the static JSON API that `.github/workflows/daily.yml` publishes (`https://nathann2997.github.io/FuelForecast/api/v1/`; the schema is in `sydney/README.md`), and uses the same numbers and wording as the web dashboard.
+Expo / React Native app for the Sydney pump price forecast. It runs on Android, and an iOS build is in progress (`docs/IOS.md`). It reads the static JSON API that `.github/workflows/daily.yml` publishes (`https://nathann2997.github.io/Bowser/api/v1/`; the schema is in `sydney/README.md`), and uses the same numbers and wording as the web dashboard.
 
 | Screen | What |
 |---|---|

@@ -10,6 +10,7 @@ Owner: "update the repo name also and make all changes necessary to ensure every
 - **`health.py`** takes the site address from `GITHUB_REPOSITORY`, so the monitor follows the rename with no change.
 - **Release notes** (`app/release_notes.txt`) ask testers to install this version.
 - **Checked:** typecheck, lint, 441 tests and expo-doctor (20/20) pass on a clean install. **Not checked:** the updated packages on a phone, and the build itself, which waits for the `EXPO_TOKEN` secret.
+- **Done (same day):** `EXPO_TOKEN` added; `app-ci` run 42969569188 built the APK (EAS build ad1c55ea, 24 min) and its notice job committed a58d57c; the notice was live at the old address from 17:27 AEDT; the repo was renamed to `nathann2997/Bowser` about 22:10 AEDT; run 43010272458 published https://nathann2997.github.io/Bowser/ (API, dashboard, share page all 200; old address 404); data-health passed. Docs now use the new address.
 - **Order from here:** add `EXPO_TOKEN` → run `app-ci` with `ship=build` → the APK and the update notice go live at the old address → rename the repo → run `daily-forecast` → update the docs' URLs. Phones still on 0.9.0 or older after the rename show their last data and no notice, so testers need the install link sent to them.
 
 ## 2026-11-11 — GitHub only: nothing runs locally, Bowser naming, no Claude task

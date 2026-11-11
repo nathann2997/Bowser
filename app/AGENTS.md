@@ -8,7 +8,7 @@ Read `README.md` here first, then `docs/HANDOFF.md` at the repo root for the cur
 - **Widget:** pure logic goes in `src/widget/logic.ts` / `model.ts` (tested). Platform code goes in `*.android.ts` (react-native-android-widget, patched in `patches/`) and `*.ios.ts` (expo-widgets).
 - **Keep in step with the pipeline:** `src/lib/types.ts` with `sydney/pipeline/export_api.py`; `src/lib/copy.ts` and `outlook.ts` with `template.html` and `build.py`.
 - **Privacy:** the location permission copy promises that Bowser never sends your position anywhere. Don't use `showsUserLocation` on the map, and don't put coordinates in analytics.
-- **Technical identifiers stay `fuelforecast`** (package, slug, scheme, API path); the user-facing name is Bowser (`docs/BRAND.md`).
+- **Technical identifiers stay `fuelforecast`** (package, slug, scheme); the repo, the API address and the user-facing name are Bowser (`docs/BRAND.md`). `lib/api.ts` keeps the old API address as a fallback only.
 - **Checks and shipping run on GitHub** (`.github/workflows/app-ci.yml`): typecheck, lint, tests, then an OTA update or, after a `version` bump, a new APK and the update notice. A change is done when that workflow is green. Don't publish OTAs or builds by hand.
 
 # Expo notes (from the Expo template)

@@ -3,7 +3,7 @@
 ## Name
 - The app is **Bowser** (Aussie slang for a fuel pump). Always one word with a capital B and the rest lower case: never "BOWSER", "bowser" or "Bowser App".
 - **No tagline or subtitle, anywhere.** That covers the launcher label, the splash, headers, store copy and the widget. Don't add "Sydney", "Fuel Outlook" or a descriptor after the name.
-- Technical identifiers (package, slug, scheme, API path) keep their `fuelforecast` names. They are never shown to users. See `BOWSER_PLAN.md` §1.
+- Technical identifiers (package, slug, scheme) keep their `fuelforecast` names; the repo and API address are `Bowser`. They are never shown to users. See `BOWSER_PLAN.md` §1.
 
 ## The mark
 The mark is a fuel drop with a down arrow cut out of it: fuel, and the price about to drop, which is the question the app answers. It's concept C from `docs/brand/concepts.png`, chosen on 2026-10-21 in place of the first mark (B, a B-shaped pump with a hose). That one read as "B1" at small sizes. The drop is one simple silhouette that reads at 16 px and survives Android's single-colour themed icon.

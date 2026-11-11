@@ -70,7 +70,7 @@ Every build follows the same steps: design, then build, then checks (`tsc`, `exp
 
 ## D — Share a deal (quick win)
 - **Station page:** a **Share** action. React Native's `Share` sends text with the station, the pump price, the gap to the Sydney median, Bowser's advice and a link.
-- **Link:** `https://nathann2997.github.io/FuelForecast/s/?id=<code>`, a small static page (`sydney/pipeline/share.html`, copied by `export_api.py`).
+- **Link:** `https://nathann2997.github.io/Bowser/s/?id=<code>`, a small static page (`sydney/pipeline/share.html`, copied by `export_api.py`).
   - It reads `stations.json` and shows that station's prices and advice, with **Open in Bowser** (`fuelforecast://station/<id>`) and **Directions**.
   - So friends without the app still see the deal.
   - DOM is built with `textContent` only, the id must be digits, and it has a strict hash-pinned CSP (connect-src to the API only).

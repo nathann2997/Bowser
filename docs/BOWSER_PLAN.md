@@ -5,7 +5,7 @@ Product owner: Nathan. **Shipped in 0.3.0; kept for the reasoning behind it.** W
 ## 1. Rebrand: "Sydney Fuel Outlook" → **Bowser**
 - The name is **Bowser**. It has no subtitle and no tagline anywhere: not in the launcher label, the splash, the headers or the store copy.
 - User-visible surfaces change: the launcher name (`app.json` `name`), the icon, adaptive icon and monochrome icon, the splash, the favicon, the in-app wordmark, the More/About copy, the widget, `app/README.md` and `docs/TESTING.md`.
-- **Technical identifiers stay** (deliberately): Android package `com.nathann2997.fuelforecast`, iOS bundle id, Expo slug `fuel-forecast`, the EAS project, URL scheme `fuelforecast`, the GitHub repo and the API URL `…/FuelForecast/api/v1`. Changing these would orphan the installed tester APKs, break OTA updates and move the API. Users never see them.
+- **Technical identifiers stay** (deliberately): Android package `com.nathann2997.fuelforecast`, iOS bundle id, Expo slug `fuel-forecast`, the EAS project, URL scheme `fuelforecast`. Changing these would orphan the installed tester APKs and break OTA updates. Users never see them. (The GitHub repo, and so the API URL, was renamed to Bowser on 2026-11-11 with app 0.9.1.)
 - The web dashboard (`sydney/pipeline/template.html`, "Sydney Pump Outlook") stays untouched in this release.
 - The new launcher name and icon need a new APK. OTA updates can't change them. Native code for the widget forces a new build anyway, so `version` moves to **0.3.0** (the runtime policy is `appVersion`, so 0.1.0 installs won't receive 0.3.0 OTA bundles that need the widget's native code).
 
