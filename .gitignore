@@ -12,6 +12,8 @@ __pycache__/
 *.keystore
 *.jks
 *credentials*
+# an old local key file that may still sit on a laptop; nothing reads it
+sydney/pipeline/pull_nsw.js
 # raw downloads from the pipeline's fetch step
 sydney/inbox/
 # the pipeline's state lives on the data branch only, never on main
