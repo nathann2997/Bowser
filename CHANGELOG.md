@@ -2,6 +2,28 @@
 
 All notable changes to the FuelForecast pipeline and app. Newest first.
 
+## 2026-11-11 — Stations map: the cheapest station in view, and group prices
+
+A UX review of the app's map (`station-map.tsx`). JS only, so it ships as an OTA with no new APK. Not yet seen on a phone.
+- **The problem:** a third of the tags are green, so nothing said which one station is cheapest, and a zoomed-out map was mostly numbered circles with no prices.
+- **Cheapest in view:**
+  - The cheapest station on screen is always its own tag, never inside a group: green, a bigger price, the word "Cheapest" above it, and drawn over every tag but the selected one.
+  - A bar at the top of the map, beside the locate button, gives its price, name and distance. Tapping it opens that station's card.
+  - The card shows a "Cheapest in view" badge.
+  - It's the lowest price you pay (after your discounts) among the stations in view with the filters applied; the nearest wins a tie. Prices over 7 days old don't count. Nothing is marked when only one fresh price is in view or they're all the same (`cheapestOf` in `lib/map.ts`).
+  - It follows your pans and zooms, but not the map centring a tapped tag; it catches up when the card closes.
+- **Groups:** each numbered circle shows the lowest fresh price inside it ("from 189.9") on that price's colour, so you can tell which group to open. The label is left off when it would be lower than the Cheapest tag (a group at the edge can hold a station just out of view).
+- **Analytics:** `map.cheapest_opened` when the bar is tapped, with no properties (`docs/ANALYTICS_PLAN.md`).
+- **QA:** typecheck, lint and all 437 tests pass (7 new for `cheapestOf`). A QA audit of the diff found these, now fixed:
+  - Group circles were keyed by supercluster's id, which shifts when the cheapest station leaves the index, so every group was redrawn on Android when the cheapest changed. They're keyed by position now.
+  - After a card closed, the bar could name a station that was no longer in view.
+  - A group could show a "from" price below the Cheapest tag.
+  - A long station name pushed the distance out of the bar.
+- **Not checked (needs a phone):**
+  - How the Cheapest tag and the "from" labels draw on Android, and whether the Cheapest tag covers the count of the group next to it.
+  - Whether the card re-centres twice when the badge wraps the chip row.
+- **Review findings not built:** see the hand-over message; the main ones are that "Change" on the area bar leaves the map for the list, and the header takes about 170 dp before the map starts.
+
 ## 2026-11-10 — Web analytics: dashboard and share page (PostHog, no library)
 
 Anonymous usage for the web pages, in the same PostHog project as the app. Design and event list: `docs/ANALYTICS_PLAN.md` "Web".

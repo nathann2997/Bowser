@@ -39,6 +39,7 @@ Every event carries: the app version, the OTA `update` id, the channel (preview 
   - a tapped rise alert is counted once (deduped by its id and date);
   - anything else is the launcher.
 - **New events:** `station.opened` (from list / map / fill, or widget / share / link when a link lands on a station page; pinned), `filters.opened`, `analytics.internal`.
+- **Added 2026-11-11:** `map.cheapest_opened`, when the map's "Cheapest in view" bar is tapped. It has no properties: no station, price or location.
 - **More:**
   - a "Share anonymous usage" switch: PostHog stops straight away, Observe at the next launch;
   - About text naming PostHog and Expo;

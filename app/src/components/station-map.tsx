@@ -13,17 +13,20 @@ import { useTheme } from '@/hooks/use-theme';
 import { openInMaps } from '@/lib/directions';
 import { offText } from '@/lib/discounts';
 import { STALE_DAYS } from '@/lib/filters';
+import { track } from '@/lib/analytics';
 import { brandSuburb, stationName, updatedText } from '@/lib/format';
 import type { Place, StationRow } from '@/lib/geo';
 import {
-  areaMoved, bboxOf, brandLabel, inBox, lonSpanAt, padBox, priceTiers, regionFor, SYDNEY, zoomOf, type Region, type Tier,
+  areaMoved, bboxOf, brandLabel, cheapestOf, inBox, lonSpanAt, padBox, priceTiers, regionFor, SYDNEY, zoomOf, type Region, type Tier,
 } from '@/lib/map';
 import { togglePin, usePins } from '@/lib/pins';
 
 // The Stations tab's map view, like NSW FuelCheck: every station on screen as a price tag, loaded as you pan and zoom,
 // grouped into numbered circles when zoomed out. Tags are coloured by the cheapest, middle and dearest third of the
-// stations in view. Tapping a tag opens a card over the bottom of the map with the price, the when-to-fill call and
-// directions. Google Maps on Android, Apple Maps on iOS (no key needed there).
+// stations in view. The cheapest station in view is always its own, larger tag marked "Cheapest" (never inside a
+// group), and a bar at the top of the map names it; a group shows the lowest price inside it. Tapping a tag opens a
+// card over the bottom of the map with the price, the when-to-fill call and directions. Google Maps on Android, Apple
+// Maps on iOS (no key needed there).
 //
 // Android draws each marker as a picture, and only reliably redraws it when the marker is added (react-native-maps'
 // tracksViewChanges skips colour-only changes). So a tag whose look changes (colour, price, selection, theme) is keyed
@@ -44,6 +47,10 @@ type Props = {
 
 /** Clustering stops at this zoom (about a suburb across a phone screen): past it every station has its own tag */
 const CLUSTER_MAX_ZOOM = 13;
+/** A group marker's padding, and its "from" label's height and gap (dp): fixed, so the anchor can be worked out */
+const CLUSTER_PAD = 2;
+const CLUSTER_FROM_H = 18;
+const CLUSTER_FROM_GAP = 2;
 /** Room at the bottom of the map for the toggle; the Google logo sits above it */
 const TOGGLE_ROOM = 72;
 
@@ -71,6 +78,9 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
   // Colours: thirds of the stations in view, recomputed only after a real move (a zoom of most of a level, or a pan of
   // over a third of the screen), so tags don't change colour on a nudge or when a tapped tag is centred
   const [tierRegion, setTierRegion] = useState<Region>(start);
+  // The cheapest station follows every move of yours, but not the map centring a tapped tag: the station you just
+  // opened as "Cheapest" shouldn't lose the label because the view shifted under it
+  const [bestRegion, setBestRegion] = useState<Region>(start);
   const ownMove = useRef(false);
   const onRegion = (r: Region) => {
     setRegion(r);
@@ -78,6 +88,7 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
       ownMove.current = false;
       return;
     }
+    setBestRegion(r);
     const t = tierRegion;
     const moved =
       Math.abs(zoomOf(r, width) - zoomOf(t, width)) > 0.75 ||
@@ -90,12 +101,36 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
     return priceTiers(all.filter((r) => !isOld(r) && inBox(b, r.la, r.lo)).map((r) => r.price));   // old prices don't set the colours
   }, [all, tierRegion]);
 
+  // The cheapest fresh price in view: its own tag (left out of the groups below), and named in the bar over the map
+  const best = useMemo(() => {
+    const b = bboxOf(bestRegion);
+    return cheapestOf(all.filter((r) => inBox(b, r.la, r.lo)), STALE_DAYS);
+  }, [all, bestRegion]);
+  const bestId = best?.id ?? null;
+  // Once the card closes, the bar is back: catch up with whatever the centring move brought into view
+  const close = () => {
+    setSelected(null);
+    setBestRegion(region);
+  };
+
   const index = useMemo(() => {
-    // 60 of supercluster's 512 = 30 dp at Google's zoom: only tags that would sit on top of each other merge
-    const sc = new Supercluster<{ id: string }>({ radius: 60, maxZoom: CLUSTER_MAX_ZOOM });
-    sc.load(rows.map((r) => ({ type: 'Feature', properties: { id: r.id }, geometry: { type: 'Point', coordinates: [r.lo, r.la] } })));
+    // 60 of supercluster's 512 = 30 dp at Google's zoom: only tags that would sit on top of each other merge.
+    // Each group carries the lowest fresh price inside it (`min`; an old price counts as none).
+    const sc = new Supercluster<{ id: string; min: number }, { min: number }>({
+      radius: 60,
+      maxZoom: CLUSTER_MAX_ZOOM,
+      map: (p) => ({ min: p.min }),
+      reduce: (acc, p) => {
+        acc.min = Math.min(acc.min, p.min);
+      },
+    });
+    sc.load(
+      rows.filter((r) => r.id !== bestId).map((r) => ({
+        type: 'Feature', properties: { id: r.id, min: isOld(r) ? Infinity : r.price }, geometry: { type: 'Point', coordinates: [r.lo, r.la] },
+      })),
+    );
     return sc;
-  }, [rows]);
+  }, [rows, bestId]);
   const byId = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
   const clusters = useMemo(() => index.getClusters(padBox(box, 0.15, 0.25), Math.floor(zoom)), [index, box, zoom]);
 
@@ -132,6 +167,12 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
     }
   }, [index, width]);
 
+  const showBest = () => {
+    if (!best) return;
+    track('map.cheapest_opened');
+    setSelected(best.id);
+  };
+
   const n = inView.length;
   const iosTabs = Platform.OS === 'ios' ? insets.bottom + 50 : 0;
   const open = !!sel;
@@ -152,7 +193,7 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
           provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
           initialRegion={start}
           onRegionChangeComplete={onRegion}
-          onPress={(e) => e.nativeEvent.action !== 'marker-press' && setSelected(null)}
+          onPress={(e) => e.nativeEvent.action !== 'marker-press' && close()}
           customMapStyle={dark ? DARK_STYLE : LIGHT_STYLE}
           userInterfaceStyle={dark ? 'dark' : 'light'}
           showsPointsOfInterests={false}
@@ -168,21 +209,57 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
           {clusters.map((f) => {
             const [lo, la] = f.geometry.coordinates;
             if ('cluster' in f.properties && f.properties.cluster) {
-              const { point_count: count, cluster_id: id } = f.properties;
-              return <ClusterMarker key={`c${id}|${count}|${c.bg}`} id={id} la={la} lo={lo} count={count} c={c} onPress={zoomInto} />;
+              const { point_count: count, cluster_id: id, min } = f.properties;
+              // No "from" when it would undercut the Cheapest tag: a group at the edge can hold a station just out of view
+              const from = Number.isFinite(min) && !(best && min < best.price) ? min : null;
+              const tier = from != null ? tierOf(from) : 'mid';
+              // Keyed by place, not supercluster's id: the ids shift when the cheapest station changes (it leaves the
+              // index), and every group would be redrawn
+              return (
+                <ClusterMarker key={`c${la.toFixed(5)},${lo.toFixed(5)}|${count}|${from}|${tier}|${c.bg}`} id={id} la={la} lo={lo} count={count} from={from} tier={tier} c={c} onPress={zoomInto} />
+              );
             }
             const r = byId.get((f.properties as { id: string }).id);
             if (!r) return null;
             const tier = tierOf(r.price);
             const isSel = r.id === selected;
-            return <PriceMarker key={`${r.id}|${tier}|${isSel}|${r.price}|${r.age}|${c.bg}`} r={r} tier={tier} selected={isSel} pinned={false} c={c} onPress={setSelected} />;
+            return <PriceMarker key={`${r.id}|${tier}|${isSel}|${r.price}|${r.age}|${c.bg}`} r={r} tier={tier} selected={isSel} pinned={false} cheapest={false} c={c} onPress={setSelected} />;
           })}
+          {best && !pinIds.has(best.id) ? (
+            <PriceMarker key={`b${best.id}|${best.id === selected}|${best.price}|${c.bg}`} r={best} tier="low" selected={best.id === selected} pinned={false} cheapest c={c} onPress={setSelected} />
+          ) : null}
           {pinned.map((r) => {
             const tier = tierOf(r.price);
             const isSel = r.id === selected;
-            return <PriceMarker key={`p${r.id}|${tier}|${isSel}|${r.price}|${r.age}|${c.bg}`} r={r} tier={tier} selected={isSel} pinned c={c} onPress={setSelected} />;
+            const isBest = r.id === bestId;
+            return <PriceMarker key={`p${r.id}|${tier}|${isSel}|${isBest}|${r.price}|${r.age}|${c.bg}`} r={r} tier={tier} selected={isSel} pinned cheapest={isBest} c={c} onPress={setSelected} />;
           })}
         </MapView>
+
+        {best && !open ? (
+          <Pressable
+            onPress={showBest}
+            accessibilityRole="button"
+            accessibilityLabel={`Cheapest in view: ${stationName(best.n)}, ${best.price.toFixed(1)} cents${best.d != null ? `, ${best.d.toFixed(1)} kilometres away` : ''}`}
+            accessibilityHint="Shows it on the map"
+            style={({ pressed }) => [
+              styles.bestBar,
+              { right: home ? Spacing.four + 48 + Spacing.two : Spacing.four, backgroundColor: c.surface, borderColor: c.line, opacity: pressed ? 0.7 : 1 },
+            ]}>
+            <View style={[styles.bestPrice, { backgroundColor: tierColors(c, 'low').bg }]}>
+              <Text style={[styles.bestPriceText, { color: tierColors(c, 'low').fg }]}>{best.price.toFixed(1)}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.bestLabel, { color: c.muted }]} numberOfLines={1}>CHEAPEST IN VIEW</Text>
+              {/* the name gives way first; the distance always shows */}
+              <View style={{ flexDirection: 'row' }}>
+                <Text style={[styles.bestName, { color: c.fg, flexShrink: 1 }]} numberOfLines={1}>{stationName(best.n)}</Text>
+                {best.d != null ? <Text style={[styles.bestName, { color: c.fg2 }]}>{` · ${best.d.toFixed(1)} km`}</Text> : null}
+              </View>
+            </View>
+            <Text style={{ color: c.muted, fontSize: 20, fontWeight: '700' }}>›</Text>
+          </Pressable>
+        ) : null}
 
         {home && !open ? (
           <Pressable
@@ -204,8 +281,9 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
           <StationCard
             r={sel}
             pinned={pinIds.has(sel.id)}
+            cheapest={sel.id === bestId}
             median={median}
-            onClose={() => setSelected(null)}
+            onClose={close}
             bottom={iosTabs}
             onHeight={setCardH}
           />
@@ -236,28 +314,31 @@ function useFirstPaint() {
   return tracking;
 }
 
-/** One station's price tag: the price on its colour, the brand below; pinned ones have a dark outline and a pin */
+/** One station's price tag: the price on its colour, the brand below; pinned ones have a dark outline and a pin. The
+ *  cheapest in view is green whatever its third, with a bigger price under the word "Cheapest" and a green outline, and
+ *  sits above every tag but the selected one. */
 const PriceMarker = memo(function PriceMarker({
-  r, tier, selected, pinned, c, onPress,
-}: { r: StationRow; tier: Tier; selected: boolean; pinned: boolean; c: Palette; onPress: (id: string) => void }) {
+  r, tier, selected, pinned, cheapest, c, onPress,
+}: { r: StationRow; tier: Tier; selected: boolean; pinned: boolean; cheapest: boolean; c: Palette; onPress: (id: string) => void }) {
   const tracking = useFirstPaint();
   const old = isOld(r);
-  const col = old ? { bg: c.calmBg, fg: c.calmFg } : tierColors(c, tier);
+  const col = cheapest ? tierColors(c, 'low') : old ? { bg: c.calmBg, fg: c.calmFg } : tierColors(c, tier);
   const name = stationName(r.n);
-  const edge = selected || pinned ? c.fg : c.line;
+  const edge = selected || pinned ? c.fg : cheapest ? c.cheap : c.line;
   return (
     <Marker
       coordinate={{ latitude: r.la, longitude: r.lo }}
       anchor={{ x: 0.5, y: 1 }}
       tracksViewChanges={tracking}
-      zIndex={selected ? 30 : pinned ? 20 : old ? 9 : tier === 'low' ? 12 : tier === 'mid' ? 11 : 10}   // cheaper on top where they overlap
+      zIndex={selected ? 30 : cheapest ? 25 : pinned ? 20 : old ? 9 : tier === 'low' ? 12 : tier === 'mid' ? 11 : 10}   // cheaper on top where they overlap
       onPress={() => onPress(r.id)}
-      accessibilityLabel={`${name}, ${r.price.toFixed(1)} cents${old ? `, ${updatedText(r.age).toLowerCase()}` : ''}${pinned ? ', pinned' : ''}`}>
+      accessibilityLabel={`${name}, ${r.price.toFixed(1)} cents${old ? `, ${updatedText(r.age).toLowerCase()}` : ''}${pinned ? ', pinned' : ''}${cheapest ? ', cheapest in view' : ''}`}>
       {/* Selection is a thicker outline, not a scale: Android draws the marker at its layout size, so a scaled tag is clipped */}
       <View style={styles.tagWrap}>
-        <View style={[styles.tag, { backgroundColor: c.surface, borderColor: edge, borderWidth: selected ? 3 : pinned ? 2 : 1 }]}>
+        <View style={[styles.tag, { backgroundColor: c.surface, borderColor: edge, borderWidth: selected ? 3 : pinned || cheapest ? 2 : 1 }]}>
           <View style={[styles.tagPrice, { backgroundColor: col.bg }]}>
-            <Text style={[styles.tagPriceText, { color: col.fg }]}>{r.price.toFixed(1)}</Text>
+            {cheapest ? <Text style={[styles.tagBestText, { color: col.fg }]}>CHEAPEST</Text> : null}
+            <Text style={[styles.tagPriceText, cheapest && styles.tagPriceBest, { color: col.fg }]}>{r.price.toFixed(1)}</Text>
           </View>
           <View style={styles.tagBrand}>
             {pinned ? <PinIcon filled color={c.fg} size={11} /> : null}
@@ -271,24 +352,36 @@ const PriceMarker = memo(function PriceMarker({
 });
 
 /** A group of stations too close to show apart at this zoom: the count, in the app's primary colours (not blue, so it
- *  can't be taken for the "you" dot). Tapping zooms in until it splits. */
+ *  can't be taken for the "you" dot), and under it the lowest fresh price inside ("from 189.9") on its tier colour, so
+ *  you can tell which group is worth opening. Tapping zooms in until it splits. */
 const ClusterMarker = memo(function ClusterMarker({
-  id, la, lo, count, c, onPress,
-}: { id: number; la: number; lo: number; count: number; c: Palette; onPress: (id: number, la: number, lo: number) => void }) {
+  id, la, lo, count, from, tier, c, onPress,
+}: {
+  id: number; la: number; lo: number; count: number; from: number | null; tier: Tier; c: Palette;
+  onPress: (id: number, la: number, lo: number) => void;
+}) {
   const tracking = useFirstPaint();
   const size = count < 10 ? 36 : count < 50 ? 42 : 48;
+  const col = tierColors(c, tier);
+  // The circle's centre stays on the point: the label below it makes the marker taller
+  const h = CLUSTER_PAD * 2 + size + (from != null ? CLUSTER_FROM_H + CLUSTER_FROM_GAP : 0);
   return (
     <Marker
       coordinate={{ latitude: la, longitude: lo }}
-      anchor={{ x: 0.5, y: 0.5 }}
+      anchor={{ x: 0.5, y: (CLUSTER_PAD + size / 2) / h }}
       tracksViewChanges={tracking}
       zIndex={5}
       onPress={() => onPress(id, la, lo)}
-      accessibilityLabel={`${count} stations. Zoom in`}>
+      accessibilityLabel={`${count} stations${from != null ? `, from ${from.toFixed(1)} cents` : ''}. Zoom in`}>
       <View style={styles.clusterWrap}>
         <View style={[styles.cluster, { width: size, height: size, borderRadius: size / 2, backgroundColor: c.fg, borderColor: c.bg }]}>
           <Text style={[styles.clusterText, { color: c.bg }]}>{count}</Text>
         </View>
+        {from != null ? (
+          <View style={[styles.clusterFrom, { backgroundColor: col.bg, borderColor: c.bg }]}>
+            <Text style={[styles.clusterFromText, { color: col.fg }]}>from {from.toFixed(1)}</Text>
+          </View>
+        ) : null}
       </View>
     </Marker>
   );
@@ -326,8 +419,8 @@ export function MapLegend() {
 /** The tapped station, over the bottom of the map like the app's sheets: name, price, the when-to-fill call and the
  *  7-day forecast in one line, then Directions, Pin and Details. The full forecast is on the station page. */
 function StationCard({
-  r, pinned, median, onClose, bottom, onHeight,
-}: { r: StationRow; pinned: boolean; median: number | undefined; onClose: () => void; bottom: number; onHeight: (h: number) => void }) {
+  r, pinned, cheapest, median, onClose, bottom, onHeight,
+}: { r: StationRow; pinned: boolean; cheapest: boolean; median: number | undefined; onClose: () => void; bottom: number; onHeight: (h: number) => void }) {
   const c = useTheme();
   usePins();   // re-render when this station is pinned or unpinned from the card
   const [, , code, label, , fc7] = r.adv;
@@ -369,6 +462,11 @@ function StationCard({
       </View>
 
       <View style={styles.cardChips}>
+        {cheapest ? (
+          <View style={[styles.cardBest, { backgroundColor: tierColors(c, 'low').bg }]}>
+            <Text style={{ color: tierColors(c, 'low').fg, fontSize: 12, fontWeight: '700' }}>Cheapest in view</Text>
+          </View>
+        ) : null}
         <Badge tone={ADVICE_TONE[code] ?? 'calm'}>{label}</Badge>
         {r.off ? <OffTag off={r.off} /> : null}
         {fcDelta != null ? (
@@ -437,7 +535,14 @@ const styles = StyleSheet.create({
     width: 0, height: 0, marginTop: -1,
     borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 7, borderLeftColor: 'transparent', borderRightColor: 'transparent',
   },
-  clusterWrap: { padding: 2 },
+  tagBestText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
+  tagPriceBest: { fontSize: 18 },
+  clusterWrap: { padding: CLUSTER_PAD, alignItems: 'center' },
+  clusterFrom: {
+    height: CLUSTER_FROM_H, marginTop: CLUSTER_FROM_GAP, paddingHorizontal: 6, borderRadius: CLUSTER_FROM_H / 2, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  clusterFromText: { fontSize: 11, fontWeight: '800', fontVariant: ['tabular-nums'] },
   cluster: { alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
   clusterText: { fontWeight: '800', fontSize: 15, fontVariant: ['tabular-nums'] },
   meRing: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(42,120,214,0.25)', alignItems: 'center', justifyContent: 'center' },
@@ -452,6 +557,18 @@ const styles = StyleSheet.create({
     width: 48, height: 48, borderRadius: 24, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3,
   },
+  // Beside the locate button, the same height
+  bestBar: {
+    position: 'absolute', top: Spacing.three, left: Spacing.four,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: 48, paddingVertical: 6, paddingLeft: 6, paddingRight: Spacing.three,
+    borderRadius: Radius.card, borderWidth: 1,
+    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3,
+  },
+  bestPrice: { borderRadius: 10, paddingHorizontal: 10, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+  bestPriceText: { fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  bestLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
+  bestName: { fontSize: 14, fontWeight: '700' },
+  cardBest: { borderRadius: Radius.chip, paddingVertical: 3, paddingHorizontal: 9 },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendText: { fontSize: 11, fontWeight: '700' },
   legendDot: { width: 9, height: 9, borderRadius: 5 },

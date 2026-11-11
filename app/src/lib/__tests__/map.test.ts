@@ -2,7 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import Supercluster from 'supercluster';
 
 import { km } from '../geo';
-import { areaMoved, bboxOf, brandLabel, inBox, lonSpanAt, mapStations, padBox, priceTiers, regionFor, zoomOf } from '../map';
+import { areaMoved, bboxOf, brandLabel, cheapestOf, inBox, lonSpanAt, mapStations, padBox, priceTiers, regionFor, zoomOf } from '../map';
 import { DEFAULTS, normalize } from '../settings';
 import type { Station } from '../types';
 
@@ -49,6 +49,38 @@ describe('mapStations', () => {
   it('respects members-only, and has no distances without an area', () => {
     expect(mapStations(stations, 'U91', { home, members: false }).map((r) => r.id)).toEqual(['1', '2']);
     expect(mapStations(stations, 'U91', { home: null, members: true }).every((r) => r.d === null)).toBe(true);
+  });
+});
+
+describe('cheapestOf', () => {
+  const home = { label: 'home', la: -33.87, lo: 151.0 };
+  const rows = (s: Station[]) => mapStations(s, 'U91', { home, members: true });
+  const aged = (s: Station, age: number): Station => ({ ...s, p: { U91: [s.p.U91![0], age, 'ok', 'No rush', ''] } });
+
+  it('picks the lowest price, and the nearest on a tie', () => {
+    expect(cheapestOf(rows([st('1', -33.87, 151.0, 200), st('2', -33.87, 151.2, 190), st('3', -33.87, 151.1, 195)]))!.id).toBe('2');
+    expect(cheapestOf(rows([st('far', -33.87, 151.2, 190), st('near', -33.87, 151.01, 190), st('3', -33.87, 151.1, 195)]))!.id).toBe('near');
+  });
+  it('keeps the first on a tie with no distances, and counts a price exactly 7 days old as fresh', () => {
+    const noHome = mapStations([st('a', -33.87, 151.0, 190), st('b', -33.87, 151.1, 190), st('c', -33.87, 151.2, 195)], 'U91', { home: null, members: true });
+    expect(cheapestOf(noHome)!.id).toBe('a');
+    expect(cheapestOf(rows([aged(st('7d', -33.87, 151.0, 180), 7), st('2', -33.87, 151.1, 195)]))!.id).toBe('7d');
+  });
+  it('uses the price you pay, after a discount', () => {
+    const s = [st('1', -33.87, 151.0, 200), { ...st('2', -33.87, 151.1, 202), b: 'Shell' }];
+    const r = mapStations(s, 'U91', { home, members: true, discounts: { Shell: 4 } });
+    expect(r.find((x) => x.id === '2')!.price).toBe(198);   // the discount applied, or this test proves nothing
+    expect(cheapestOf(r)!.id).toBe('2');
+  });
+  it('leaves out old prices', () => {
+    const s = [aged(st('old', -33.87, 151.0, 180), 12), st('2', -33.87, 151.1, 195), st('3', -33.87, 151.2, 199)];
+    expect(cheapestOf(rows(s))!.id).toBe('2');
+  });
+  it('is nothing with under two fresh prices, or when they are all the same', () => {
+    expect(cheapestOf([])).toBeNull();
+    expect(cheapestOf(rows([st('1', -33.87, 151.0, 200)]))).toBeNull();
+    expect(cheapestOf(rows([st('1', -33.87, 151.0, 200), aged(st('2', -33.87, 151.1, 190), 9)]))).toBeNull();
+    expect(cheapestOf(rows([st('1', -33.87, 151.0, 200), st('2', -33.87, 151.1, 200)]))).toBeNull();
   });
 });
 

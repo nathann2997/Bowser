@@ -36,6 +36,7 @@ export type EventName =
   | 'app.opened'             // the one open event (PostHog's lifecycle events are off): source, cold
   | 'station.opened'         // from: list | map | fill; pinned
   | 'filters.opened'
+  | 'map.cheapest_opened'    // the "Cheapest in view" bar on the map was tapped
   | 'analytics.internal';    // this phone marked (or unmarked) as the owner's/a tester's own
 
 type Severity = 'info' | 'warn' | 'error';
