@@ -2,6 +2,18 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-12 — Web dashboard map: the app's "Cheapest in view"
+
+Owner: "add in the cheapest feature to the map on the web version". As the app's map (`components/station-map.tsx`, `cheapestOf()` in `lib/map.ts`), in `sydney/pipeline/template.html`:
+- **The cheapest station in view is its own tag:** larger, green whatever its third, under the word "Cheapest", with a green outline, and never inside a group. It follows the map as you pan and zoom.
+- **A bar at the top left of the map names it** ("Cheapest in view", price, name, distance when an area is set). Selecting it opens that station's card and brings it to the middle of the map. The bar hides while a card is open.
+- **Each group shows the lowest price inside it** ("from 189.9") on its third's colour, so you can tell which group to open. Left out when it would undercut the Cheapest tag (a group at the edge can hold a station just out of view).
+- **The station's card** carries a "Cheapest in view" badge.
+- **Same rule as the app:** prices over 7 days old don't count; the nearest wins a tie; nothing is marked when fewer than two fresh prices are in view or they're all the same. While a card is open the marked station holds, and catches up when the card closes.
+- **Analytics:** `web.map_cheapest_opened`, no properties (`docs/ANALYTICS_PLAN.md`).
+- **Checked** in headless Chrome, desktop and phone size, light and dark: the marked station is the lowest fresh price in view after loading, setting an area, panning, closing a card, zooming and changing fuel; no group's "from" is below it; no console errors; the earlier scrolling and full screen checks still pass.
+- **Not checked:** on a real phone, Safari or Firefox.
+
 ## 2026-11-12 — Web dashboard: scrolling, overlaps and clarity (design review)
 
 Owner: "review the web page and make sure everything is fluid… all the scrolls work as intended, no overlapping features and everything is easy to understand just like the app". Reviewed in headless Chrome at 360, 390, 768, 1024 and 1366 px wide, light and dark, through every state (filters, a suburb, an open row, all disclosures, map, selected station). All in `sydney/pipeline/template.html`.

@@ -44,6 +44,7 @@ Newest first. Each item has its CHANGELOG entry of the same name for details.
 - **Verdict rule analysis** (2026-10-29, `docs/RULE_ANALYSIS_2026-10.md`). **Next:** a model experiment for sustained wholesale trends.
 - **0.9.0 PostHog analytics** (2026-10-29). **Next:** from a real phone, check one raw event (`$geoip_disable: true`, no `$ip`, a person profile, `app.opened` has a `source`); then build the PostHog dashboard from the 8 metric definitions in `docs/ANALYTICS_PLAN.md`.
 - **Notifications plan** (`docs/NOTIFICATIONS_PLAN.md`, 2026-10-24): proposal, with the decisions marked **(decide)**.
+- **Web map "Cheapest in view"** (2026-11-12): the app's cheapest tag, bar, group "from" prices and card badge, on the web map. **Next:** check on a real phone.
 - **Web dashboard design review** (2026-11-12): scrolling over the map (cooperative gestures + a full screen button), the sticky column overlapping the map, the Filters panel running off screen, and phone fit. **Next:** check on a real phone and in Safari: one finger scrolls the page over the map, two move it, full screen works; owner to say if two-finger map movement is acceptable.
 - **Web dashboard map** (2026-10-28): **Next:** check the live map on a phone.
 - **Premium 95** (2026-10-27): live. **Owner's call:** keep the shared model (the other fuels' 7-day error is up about 0.1c), or fit P95 separately. Device checks are in the CHANGELOG entry.

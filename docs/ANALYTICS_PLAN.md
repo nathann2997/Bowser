@@ -59,7 +59,8 @@ Every event carries: the app version, the OTA `update` id, the channel (preview 
   - `web.fuel_changed` with fuel;
   - `web.view_changed` with view (list or map);
   - `web.area_set` with source (gps or suburb), logged once typing settles on a suburb;
-  - `web.station_pinned` and `web.station_unpinned` with the pin count.
+  - `web.station_pinned` and `web.station_unpinned` with the pin count;
+  - `web.map_cheapest_opened` (added 2026-11-12), when the map's "Cheapest in view" bar is selected. No properties: no station, price or location.
 - **Share page events:**
   - `$pageview` with page: share, found and fuel;
   - `share_page.open_app` (the "Have Bowser? Open it" link);

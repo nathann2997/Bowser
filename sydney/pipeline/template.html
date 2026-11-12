@@ -223,8 +223,26 @@ html.mapfs{overflow:hidden}
 .tag span{display:flex;align-items:center;justify-content:center;gap:3px;padding:1px 6px 2px;font-size:10px;font-weight:700;color:var(--fg2);white-space:nowrap;max-width:84px;overflow:hidden;text-overflow:ellipsis}
 .tag.low b{background:var(--cheap);color:var(--on-tier)} .tag.high b{background:var(--dear);color:var(--on-tier)}
 .tag.old{opacity:.8} .tag.old b{background:var(--calm-bg);color:var(--calm-fg)}
+/* The cheapest station in view: green whatever its third, the word above a bigger price, a green outline */
+.tag.best{border:2px solid var(--cheap)} .tag.best::after{border-top-color:var(--cheap)}
+.tag i{display:none}
+.tag.best i{display:block;font-style:normal;text-transform:uppercase;font-size:9px;font-weight:800;letter-spacing:.6px;line-height:1.2;padding:3px 8px 0;border-radius:8px 8px 0 0;background:var(--cheap);color:var(--on-tier)}
+.tag.best b{font-size:18px;line-height:1.25;border-radius:0;background:var(--cheap);color:var(--on-tier)}
 .tag.pinned,.tag.sel{border-color:var(--fg);border-width:2px} .tag.sel{border-width:3px}
 .tag.pinned::after,.tag.sel::after{border-top-color:var(--fg)}
+/* Under a group's circle: the lowest price inside it, on its third's colour, so you can tell which group to open */
+.from{pointer-events:none;padding:1px 6px;border-radius:9px;border:1px solid var(--bg);font-size:11px;font-weight:800;line-height:1.35;font-variant-numeric:tabular-nums;white-space:nowrap;background:var(--chip);color:var(--on-chip)}
+.from.low{background:var(--cheap);color:var(--on-tier)} .from.high{background:var(--dear);color:var(--on-tier)}
+/* The bar over the map that names the cheapest station in view; selecting it opens that station */
+.bestbar{position:absolute;z-index:45;top:10px;left:10px;max-width:calc(100% - 64px);display:flex;align-items:center;gap:10px;padding:6px 10px 6px 6px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--fg);box-shadow:0 2px 8px rgba(0,0,0,.18);cursor:pointer;font:inherit;text-align:left}
+.bestbar:hover{border-color:var(--cheap)}
+.bestbar b{flex:none;padding:5px 9px;border-radius:8px;background:var(--cheap);color:var(--on-tier);font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+.bestbar .bl{min-width:0;display:flex;flex-direction:column}
+.bestbar .eyebrow{font-size:10px;white-space:nowrap}
+.bestbar .bname{display:flex;font-size:14px;font-weight:700;white-space:nowrap;min-width:0}
+.bestbar .bname span:first-child{overflow:hidden;text-overflow:ellipsis}   /* the name gives way first; the distance always shows */
+.bestbar .bname span+span{color:var(--fg2);flex:none}
+.bestbar::after{content:"\203A";flex:none;color:var(--muted);font-size:20px;font-weight:700;line-height:1}
 .tag svg{width:10px;height:10px;fill:var(--fg)}
 .me{width:14px;height:14px;border-radius:50%;background:var(--tgp);border:2px solid #fff;box-shadow:0 0 0 6px rgba(42,120,214,.25)}
 .pop{display:flex;flex-direction:column;gap:8px}
@@ -297,7 +315,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
         <button class="btn" type="button" id="more" hidden>Show more</button>
       </div>
       <div class="section" id="mapView" hidden>
-        <div class="card mapcard"><div id="map" role="region" aria-label="Map of stations. Prices are buttons; numbered groups split as you zoom in. The list view has every station."></div></div>
+        <div class="card mapcard"><button type="button" class="bestbar" id="bestBar" hidden></button><div id="map" role="region" aria-label="Map of stations. Prices are buttons; numbered groups split as you zoom in. The list view has every station."></div></div>
         <div class="card pop" id="mapSel" aria-live="polite" hidden></div>
         <div class="maplegend"><span aria-hidden="true">Cheaper</span> <i style="background:var(--cheap)"></i><i style="background:var(--chip)"></i><i style="background:var(--dear)"></i> <span aria-hidden="true">Dearer</span><span class="sr">Price colours: green is the cheapest third of the stations in view, amber the middle, red the dearest third.</span> <i style="background:var(--calm-strong);margin-left:10px"></i> Price over 7 days old</div>
       </div>
@@ -949,13 +967,28 @@ function renderFresh(){
 // ---- the map: MapLibre GL with OpenFreeMap tiles (free, no key, no limits), loaded the first time the Map view opens.
 // Mirrors the app's map (app/src/components/station-map.tsx): every station passing the filters, shown as you pan and
 // zoom (no radius), grouped into numbered circles when zoomed out; tags coloured by the cheapest, middle and dearest
-// third of the stations in view; pinned stations always shown. The "you" dot is the page's own location fix.
+// third of the stations in view; pinned stations always shown. The cheapest station in view is always its own, larger
+// tag marked "Cheapest" (never inside a group), and a bar at the top of the map names it; a group shows the lowest
+// price inside it ("from 189.9"). The "you" dot is the page's own location fix.
 const ML = {v:"4.7.1",
   js:"sha512-x8Bt/82VRs91xVTqHDpQ1t8c4qit3QCRbo9BVqnUsyw5yKqzvL4BAgcz7R34BDCiCwx9ypXPTnxPaNnazQz1ag==",
   css:"sha512-6AYkNPc8EvA9WwC0CvbRQHWpK1zV1+QeW+lVBfYqN2zTfG9IfWMRMyUDOw6GdF5US0poI/C/pz8tkiL+nfmYHg=="};
 const OFM = "https://tiles.openfreemap.org/styles/";
 let map = null, mapLoading = null, MD = {rows:[], pinned:[], byI:new Map()}, tags = new Map(), meMk = null, selI = null;
 let tierOf = () => "mid", tierAt = null, mapArea = "", pendingFocus = null, syncQueued = false;
+let bestI = null, froms = new Map();   // the cheapest station in view (index into D.stations); the groups' "from" labels
+/** The station to mark "Cheapest" among the ones in view (cheapestOf() in app/src/lib/map.ts): the lowest price, the
+ *  nearest on a tie, then the first. Prices over 7 days old don't count. Null when fewer than two fresh prices are in
+ *  view, or they're all the same: there's nothing to compare. */
+function cheapestOf(rows){
+  let best = null, max = -Infinity;
+  for (const r of rows) {
+    if (r.old) continue;
+    if (r.price > max) max = r.price;
+    if (!best || r.price < best.price || (r.price === best.price && (r.d ?? Infinity) < (best.d ?? Infinity))) best = r;
+  }
+  return best && max > best.price ? best : null;
+}
 const isDark = () => { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; };
 const mapStyle = () => OFM + (isDark() ? "dark" : "positron");
 
@@ -979,7 +1012,8 @@ function mapFail(){
   if (!MAP_OK) return;
   MAP_OK = false; state.view = "list"; store.set("view", "list"); $("view").hidden = true;
   setFs(false);
-  if (map) { try { map.remove(); } catch {} map = null; tags.clear(); meMk = null; }
+  if (map) { try { map.remove(); } catch {} map = null; tags.clear(); froms.clear(); meMk = null; bestI = null; }
+  $("bestBar").hidden = true;
   $("mapView").hidden = true;
   renderToday();   // the rows and pins lose their "Show on map" buttons
 }
@@ -1004,7 +1038,10 @@ function mapData(){
   });
   return {rows, pinned, byI: new Map([...rows, ...pinned].map(r => [r.i, r]))};
 }
-const geo = rows => ({type:"FeatureCollection", features: rows.map(r => ({type:"Feature", geometry:{type:"Point", coordinates:[r.lo, r.la]}, properties:{i:r.i}}))});
+// The grouped stations: all but the cheapest in view, which is always its own tag. `p` is the price a group's "from"
+// label is taken from (an old price counts as none).
+const NO_PRICE = 1e9;
+const geo = rows => ({type:"FeatureCollection", features: rows.filter(r => r.i !== bestI).map(r => ({type:"Feature", geometry:{type:"Point", coordinates:[r.lo, r.la]}, properties:{i:r.i, p: r.old ? NO_PRICE : r.price}}))});
 function areaBounds(a, km){ const dy = km/111.32, dx = dy/Math.cos(a.la*Math.PI/180); return [[a.lo-dx, a.la-dy], [a.lo+dx, a.la+dy]]; }
 function centreOnArea(){
   const a = areaSet();
@@ -1076,7 +1113,7 @@ function addLayers(){
   if (map.getSource("st")) return;
   // Only tags that would sit on top of each other merge (a 36 px radius, about half a tag), and nothing merges from
   // street level (zoom 13) in, so every station is readable without a wall of overlapping tags on a phone
-  map.addSource("st", {type:"geojson", data: geo(MD.rows), cluster:true, clusterMaxZoom:12, clusterRadius:36});
+  map.addSource("st", {type:"geojson", data: geo(MD.rows), cluster:true, clusterMaxZoom:12, clusterRadius:36, clusterProperties:{min:["min",["get","p"]]}});
   map.addLayer({id:"cl", type:"circle", source:"st", filter:["has","point_count"],
     paint:{"circle-color":css("--fg"), "circle-stroke-color":css("--bg"), "circle-stroke-width":2, "circle-radius":["step",["get","point_count"],17,10,20,50,23]}});
   map.addLayer({id:"cl-n", type:"symbol", source:"st", filter:["has","point_count"],
@@ -1110,14 +1147,41 @@ function syncMap(){
     tierOf = priceTiers([...MD.rows, ...MD.pinned].filter(r => !r.old && inView(r)).map(r => r.price));   // old prices don't set the colours
     tierAt = {z, lat:c.lat, lng:c.lng, W, H};
   }
-  // Tags: the unclustered stations a little past the edges (so they don't pop in), and every pinned one
-  const pad = r => r.lo >= b.getWest()-W*.15 && r.lo <= b.getEast()+W*.15 && r.la >= b.getSouth()-H*.4 && r.la <= b.getNorth()+H*.15;
-  const want = new Map();
-  for (const f of map.querySourceFeatures("st")) {
-    if (f.properties.cluster) continue;
-    const r = MD.byI.get(f.properties.i); if (r && pad(r)) want.set(r.i, r);
+  // The cheapest fresh price in view. It holds while a station's card is open (the bar is hidden then, and the station
+  // you opened as "Cheapest" shouldn't lose the label), and catches up when the card closes.
+  if (selI == null || (bestI != null && !MD.byI.has(bestI))) {
+    const best = cheapestOf([...MD.rows, ...MD.pinned].filter(inView)), was = bestI;
+    bestI = best ? best.i : null;
+    if (bestI !== was) map.getSource("st").setData(geo(MD.rows));   // it leaves the groups; the regrouped map syncs again
   }
+  const best = bestI != null ? MD.byI.get(bestI) : null;
+  // Tags: the unclustered stations a little past the edges (so they don't pop in), the cheapest, and every pinned one
+  const pad = r => r.lo >= b.getWest()-W*.15 && r.lo <= b.getEast()+W*.15 && r.la >= b.getSouth()-H*.4 && r.la <= b.getNorth()+H*.15;
+  const want = new Map(), wantFrom = new Map();
+  for (const f of map.querySourceFeatures("st")) {
+    const q = f.properties;
+    if (q.cluster) {
+      // No "from" when it would undercut the Cheapest tag: a group at the edge can hold a station just out of view
+      if (q.min < NO_PRICE && !(best && q.min < best.price)) { const [lo, la] = f.geometry.coordinates; wantFrom.set(`${lo.toFixed(5)},${la.toFixed(5)}|${q.point_count}`, {lo, la, n:q.point_count, min:q.min}); }
+      continue;
+    }
+    const r = MD.byI.get(q.i); if (r && r.i !== bestI && pad(r)) want.set(r.i, r);
+  }
+  if (best) want.set(best.i, best);
   MD.pinned.forEach(r => want.set(r.i, r));
+  for (const [k, m] of froms) if (!wantFrom.has(k)) { m.remove(); froms.delete(k); }
+  for (const [k, g] of wantFrom) {
+    let m = froms.get(k);
+    if (!m) {
+      const el = document.createElement("div"); el.className = "from"; el.setAttribute("aria-hidden", "true");
+      m = new maplibregl.Marker({element: el, anchor:"top", offset:[0, (g.n < 10 ? 17 : g.n < 50 ? 20 : 23) + 1]}).setLngLat([g.lo, g.la]).addTo(map);
+      froms.set(k, m);
+    }
+    const el = m.getElement(), t = tierOf(g.min);
+    el.textContent = `from ${g.min.toFixed(1)}`;
+    ["low","mid","high"].forEach(c => el.classList.toggle(c, c === t));
+  }
+  bestBar();
   for (const [i, m] of tags) if (!want.has(i)) { m.remove(); tags.delete(i); }
   for (const [i, r] of want) {
     let m = tags.get(i);
@@ -1139,26 +1203,41 @@ function syncMap(){
     if (r) { map.jumpTo({center:[r.lo, r.la], zoom: Math.max(map.getZoom(), 15)}); openPop(r.i); }
   }
 }
+/** The bar over the map: the cheapest station in view, hidden while a station's card is open */
+function bestBar(){
+  const el = $("bestBar"), r = selI == null && bestI != null ? MD.byI.get(bestI) : null;
+  el.hidden = !r; if (!r) return;
+  const name = stationName(r.n), key = `${r.i}|${r.price}|${r.d}`;
+  if (el.dataset.k === key) return;
+  el.dataset.k = key;
+  el.innerHTML = `<b>${r.price.toFixed(1)}</b><span class="bl"><span class="eyebrow">Cheapest in view</span><span class="bname"><span>${esc(name)}</span>${r.d != null ? `<span>&nbsp;· ${r.d.toFixed(1)} km</span>` : ""}</span></span>`;
+  el.setAttribute("aria-label", `Cheapest in view: ${name}, ${r.price.toFixed(1)} cents${r.d != null ? `, ${r.d.toFixed(1)} kilometres away` : ""}. Shows it on the map`);
+}
+$("bestBar").addEventListener("click", () => {
+  const r = bestI != null ? MD.byI.get(bestI) : null; if (!r) return;
+  track("web.map_cheapest_opened");
+  openPop(r.i); map.easeTo({center:[r.lo, r.la], duration:400});   // it may sit at the very edge of the view: bring it to the middle
+});
 const brandLabel = b => b.length > 10 ? b.slice(0, 9).trimEnd() + "…" : b;
 function styleTag(el, r){
-  const t = tierOf(r.price), pinned = isPinned(r.i), sel = selI === r.i;
+  const best = r.i === bestI, t = best ? "low" : tierOf(r.price), pinned = isPinned(r.i), sel = selI === r.i;
   // classList, not className: MapLibre's own maplibregl-marker class is what positions the tag
   ["low","mid","high"].forEach(k => el.classList.toggle(k, k === t));
-  el.classList.toggle("pinned", pinned); el.classList.toggle("sel", sel); el.classList.toggle("old", r.old);
-  const key = `${r.price}|${r.b}|${pinned}|${r.age}`;
+  el.classList.toggle("pinned", pinned); el.classList.toggle("sel", sel); el.classList.toggle("old", r.old && !best); el.classList.toggle("best", best);
+  const key = `${r.price}|${r.b}|${pinned}|${r.age}|${best}`;
   if (el.dataset.k !== key) {
     el.dataset.k = key;
-    el.innerHTML = `<b>${r.price.toFixed(1)}</b><span>${pinned ? PIN_SVG.replace('class="pinmark" ', "") : ""}${esc(brandLabel(r.b))}</span>`;
-    el.setAttribute("aria-label", `${stationName(r.n)}, ${r.price.toFixed(1)} cents${r.old ? `, ${updatedText(r.age).toLowerCase()}` : ""}${pinned ? ", pinned" : ""}`);
+    el.innerHTML = `<i>Cheapest</i><b>${r.price.toFixed(1)}</b><span>${pinned ? PIN_SVG.replace('class="pinmark" ', "") : ""}${esc(brandLabel(r.b))}</span>`;
+    el.setAttribute("aria-label", `${stationName(r.n)}, ${r.price.toFixed(1)} cents${r.old ? `, ${updatedText(r.age).toLowerCase()}` : ""}${pinned ? ", pinned" : ""}${best ? ", cheapest in view" : ""}`);
   }
-  el.style.zIndex = sel ? 30 : pinned ? 20 : r.old ? 9 : t === "low" ? 12 : t === "mid" ? 11 : 10;   // cheaper on top where tags overlap
+  el.style.zIndex = sel ? 30 : best ? 25 : pinned ? 20 : r.old ? 9 : t === "low" ? 12 : t === "mid" ? 11 : 10;   // cheaper on top where tags overlap
 }
 function restyleTags(){ for (const [i, m] of tags) { const r = MD.byI.get(i); if (r) styleTag(m.getElement(), r); } }
 
 /** The selected station, in a card under the map (as the app's card): it can't run off a phone screen or cover tags */
 function openPop(i, refresh = false){
   const r = MD.byI.get(i); if (!r) return;
-  selI = i; restyleTags();
+  selI = i; restyleTags(); bestBar();
   const name = stationName(r.n), med = live[state.fuel].now, gap = r.price - med, stale = r.age != null && r.age > STALE_DAYS;
   const gapTxt = Math.abs(gap) < 0.05 ? "at median" : `${gap < 0 ? "−" : "+"}${Math.abs(gap).toFixed(1)}c vs median`;
   const el = $("mapSel"); el.hidden = false;
@@ -1166,7 +1245,7 @@ function openPop(i, refresh = false){
       <div class="small">${esc(brandSuburb(name, r.b, r.s))}${r.d != null ? ` · ${r.d.toFixed(1)} km` : ""}${r.m ? " · Members" : ""}</div></div>
       <div style="text-align:right"><div class="bignum" style="font-size:22px">${r.price.toFixed(1)}</div><div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}" style="font-weight:600">${gapTxt}</div></div>
       <button type="button" class="x" data-closesel aria-label="Close">✕</button></div>
-    <div><span class="badge t-${ADVICE_TONE[r.adv[0]] || "calm"}">${esc(r.adv[1])}</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${i === bestI ? `<span class="badge" style="background:var(--cheap);color:var(--on-tier)">Cheapest in view</span>` : ""}<span class="badge t-${ADVICE_TONE[r.adv[0]] || "calm"}">${esc(r.adv[1])}</span></div>
     ${r.adv[2] ? `<p class="small" style="color:var(--fg2)">${esc(r.adv[2])}</p>` : ""}
     ${stale ? `<p class="small up">${updatedText(r.age)} · check before driving</p>` : ""}
     <div class="st-actions">${pinBtn(r.i, name, isPinned(r.i))}<a class="link" href="${mapsUrl(r.la, r.lo)}" target="_blank" rel="noopener noreferrer">Directions →</a></div>`;
@@ -1176,6 +1255,7 @@ function closeSel(){
   const back = $("mapSel").contains(document.activeElement) && selI != null ? tags.get(selI)?.getElement() : null;
   $("mapSel").hidden = true;
   if (selI != null) { selI = null; restyleTags(); }
+  if (map) queueSync();   // the cheapest in view catches up, and its bar is back
   back?.focus();
 }
 document.addEventListener("keydown", e => {
