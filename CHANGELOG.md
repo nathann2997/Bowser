@@ -2,6 +2,14 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-12 — Web dashboard: Filters panel no longer has the map showing through it
+
+Owner: "fix this UI up, when clicking the filter button" (the screenshot attached was of another app, so the fault was found by opening the panel on the live page).
+- **What was wrong:** in Map view the panel opens over the top of the map, and the map's price tags, buttons and the new "Cheapest in view" bar drew through it. They have z-index up to 45 against the panel's 5; the bar, added earlier the same day, made it obvious.
+- **Fix (`template.html`):** the map card is its own stacking context (`isolation:isolate`), so nothing inside the map can sit above anything outside it.
+- **Also:** the panel has a "Filters" header with a **Done** button that stays put while the brands scroll (on a phone the only way to close it was to tap outside), and a stronger border and shadow so it stands apart from the list behind it, mainly in dark mode.
+- **Checked** in headless Chrome, phone and desktop size, List and Map view: nothing else is on top of any point of the open panel; full screen and the cheapest feature still pass. **Not checked** on a real phone.
+
 ## 2026-11-12 — Web dashboard map: the app's "Cheapest in view"
 
 Owner: "add in the cheapest feature to the map on the web version". As the app's map (`components/station-map.tsx`, `cheapestOf()` in `lib/map.ts`), in `sydney/pipeline/template.html`:

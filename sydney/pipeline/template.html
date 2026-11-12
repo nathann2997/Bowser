@@ -125,7 +125,8 @@ details.disc[open]>summary::after{content:"\2212"}
 .multi>summary::after{content:"\25BE";color:var(--muted)}
 .multi>summary[aria-pressed="true"]::after{color:var(--bg)}
 .filters{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
-.multi-panel{position:absolute;z-index:5;top:calc(100% + 6px);left:16px;width:min(300px,calc(100% - 32px));max-height:min(420px,60vh);overflow:auto;overscroll-behavior:contain;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.multi-panel{position:absolute;z-index:5;top:calc(100% + 6px);left:16px;width:min(300px,calc(100% - 32px));max-height:min(420px,60vh);overflow:auto;overscroll-behavior:contain;background:var(--surface);border:1px solid var(--calm-strong);border-radius:12px;padding:0 10px 10px;box-shadow:0 16px 40px rgba(0,0,0,.35)}
+.multi-head{position:sticky;top:0;z-index:1;align-self:stretch;display:flex;align-items:center;justify-content:space-between;margin:0 -10px;padding:10px 12px 8px;background:var(--surface);border-bottom:1px solid var(--line);color:var(--fg);font-weight:700}   /* stays put while the brands scroll */
 .multi-actions{display:flex;gap:8px;margin-bottom:8px}
 #brandList label{display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:14px;color:var(--fg)}
 #brandList label span{margin-left:auto;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
@@ -200,7 +201,7 @@ ul.clean b{color:var(--fg)}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 @media (min-width:960px){.grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px}}
 /* the map (MapLibre + OpenFreeMap, loaded when the Map view first opens): price tags as in app/src/components/station-map.tsx */
-.mapcard{padding:0;overflow:hidden;position:relative}
+.mapcard{padding:0;overflow:hidden;position:relative;isolation:isolate}   /* isolate: the map's tags, buttons and bar (z-index up to 45) stack inside the card, so they can't show through the Filters panel when it opens over the map */
 #map{height:max(420px,min(860px,calc(100vh - 150px)));width:100%}
 @media (max-width:560px){#map{height:max(340px,62vh)}}   /* on a phone the selected station's card fits under the map */
 /* In Map view the stations take the full width under the verdict, so the map is as big as the screen allows; the
@@ -293,6 +294,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
           <div class="seg" id="radius" role="group" aria-label="Within"></div>
           <details class="multi" id="filterBox"><summary class="chip" id="filterSum">Filters</summary>
             <div class="multi-panel filters">
+              <div class="multi-head"><span>Filters</span><button type="button" class="link" id="filterDone">Done</button></div>
               <div class="eyebrow">Sort</div>
               <div class="seg" id="sort" role="group" aria-label="Sort"></div>
               <button class="chip" type="button" id="members" aria-pressed="true">Include members-only sites (Costco)</button>
@@ -614,6 +616,7 @@ function brandSummary(){
 $("brandAll").addEventListener("click", () => { brandSel = null; state.shown = PAGE; brandOptions(); renderStations(); });
 $("brandNone").addEventListener("click", () => { brandSel = new Set(); state.shown = PAGE; brandOptions(); renderStations(); });
 document.addEventListener("click", e => { const box = $("filterBox"); if (box.open && !box.contains(e.target)) box.open = false; });
+$("filterDone").addEventListener("click", () => { $("filterBox").open = false; $("filterSum").focus(); });
 
 function segment(el, opts, get, set){
   el.innerHTML = opts.map(([k,l]) => `<button type="button" data-k="${k}">${l}</button>`).join("");
