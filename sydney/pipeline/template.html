@@ -80,6 +80,7 @@ details.disc[open]>summary::after{content:"\2212"}
 .seg button{border:1px solid transparent;background:transparent;color:var(--muted);font-weight:600;font-size:13px;min-height:34px;padding:0 12px;border-radius:999px;cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--surface);border-color:var(--line);color:var(--fg);font-weight:700}
 .seg button:disabled{opacity:.4;cursor:not-allowed}
+.seg.off button[aria-pressed="true"]{background:transparent;border-color:transparent;color:var(--muted);font-weight:600}   /* nothing to choose yet */
 .chip{border:1px solid var(--line);background:var(--surface);color:var(--fg2);font-weight:600;font-size:13px;min-height:34px;padding:0 12px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .chip[aria-pressed="true"]{background:var(--fg);border-color:var(--fg);color:var(--bg)}
 .badge{display:inline-block;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:700;background:var(--t-bg);color:var(--t-fg);white-space:nowrap}
@@ -87,13 +88,19 @@ details.disc[open]>summary::after{content:"\2212"}
 .btn:disabled{opacity:.7;cursor:progress}
 .link{background:none;border:0;padding:0;color:var(--tgp);font-weight:700;cursor:pointer;text-decoration:none;font-size:15px}
 .link:hover{text-decoration:underline}
+/* Fingers need bigger targets than a mouse (the app's rows and chips are 44 pt) */
+@media (pointer:coarse){.seg button,.chip{min-height:40px}.chip-select{min-height:44px}.st-actions .link{padding:9px 0}}
 
 /* Today: hero on the left, stations on the right on wide screens */
 .today{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start}
-@media (min-width:960px){.today{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px}
-  .today>.col{position:sticky;top:16px}}   /* the call stays beside the prices while the list scrolls */
+@media (min-width:960px){.today{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px}}
+/* The call stays beside the prices while the list scrolls. Not in Map view, where the stations sit under it at full
+   width (a sticky column would slide over the map). --colh is the column's height (set below): if it is taller than the
+   window (Why open on a short laptop screen) it sticks by its bottom edge, so none of it is out of reach. */
+@media (min-width:960px) and (min-height:560px){.today:not(.mapmode)>.col{position:sticky;top:min(16px,calc(100vh - var(--colh,0px) - 16px))}}
 .col{display:flex;flex-direction:column;gap:16px;min-width:0}
 .hero{border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:8px;background:var(--t-bg);color:var(--t-fg)}
+.hero-txt,.hero-fc{display:flex;flex-direction:column;gap:8px;min-width:0}
 .hero .median{font-size:13px;font-weight:600}
 .hero h3{color:var(--t-fg);font-size:clamp(34px,4.4vw,42px);line-height:1.12;font-weight:800;letter-spacing:-.6px}
 .hero .deadline{font-weight:700}
@@ -109,30 +116,31 @@ details.disc[open]>summary::after{content:"\2212"}
 .fact b{color:var(--fg);font-variant-numeric:tabular-nums;font-weight:600}
 
 /* stations (components/station-row.tsx) */
-.areabar{display:flex;flex-direction:column;gap:12px;position:relative}   /* anchors the Filters panel on phones */
+.areabar{display:flex;flex-direction:column;gap:12px;position:relative}   /* anchors the Filters panel, which opens under the card */
 .arearow{display:flex;gap:8px;flex-wrap:wrap}
 .arearow input{flex:1 1 200px;min-width:0;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:12px;padding:10px 14px;font-size:15px}
 .ctl-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.multi{position:relative}
 .multi>summary{list-style:none}
 .multi>summary::-webkit-details-marker{display:none}
 .multi>summary::after{content:"\25BE";color:var(--muted)}
 .multi>summary[aria-pressed="true"]::after{color:var(--bg)}
 .filters{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
-.multi-panel{position:absolute;z-index:5;top:calc(100% + 6px);left:0;width:min(300px,86vw);max-height:320px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.multi-panel{position:absolute;z-index:5;top:calc(100% + 6px);left:16px;width:min(300px,calc(100% - 32px));max-height:min(420px,60vh);overflow:auto;overscroll-behavior:contain;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
 .multi-actions{display:flex;gap:8px;margin-bottom:8px}
 #brandList label{display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:14px;color:var(--fg)}
 #brandList label span{margin-left:auto;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
-@media (max-width:560px){.multi{position:static}.multi-panel{left:16px;right:16px;width:auto}}
+@media (max-width:560px){.multi-panel{width:calc(100% - 32px)}.arearow .btn{flex:1 1 100%}}
 .list{padding:0;overflow:hidden}
 .st{border-bottom:1px solid var(--line)}
 .st:last-child{border-bottom:0}
 .st>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:12px 16px}
 .st>summary::-webkit-details-marker{display:none}
+.st>summary::after{content:"";flex:none;width:7px;height:7px;margin:-4px 3px 0 -2px;border:solid var(--muted);border-width:0 2px 2px 0;transform:rotate(45deg);opacity:.75}   /* it opens */
+.st[open]>summary::after{transform:rotate(-135deg);margin-top:4px}
 .st>summary:hover,.st[open]>summary{background:var(--sunk)}
 .st-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.st-name{font-weight:700;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
-.st-name span{overflow:hidden;text-overflow:ellipsis}
+.st-name{font-weight:700;color:var(--fg);display:flex;align-items:center;gap:6px;line-height:1.3}
+.st-name span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}   /* a long name wraps once rather than being cut */
 .pinmark{display:none;flex:none;width:14px;height:14px;fill:var(--muted)}
 .st.is-pinned .pinmark{display:block}
 .st-actions{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:2px}
@@ -174,11 +182,12 @@ details.disc[open]>summary::after{content:"\2212"}
 /* how good is the forecast */
 .tablewrap{overflow-x:auto;padding:4px}
 table{border-collapse:collapse;width:100%;font-size:14px}
-th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 th{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:700}
 td{color:var(--fg)}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 tr:last-child td{border-bottom:0}
+@media (max-width:560px){.tablewrap{padding:0}th,td{padding:8px 4px}th{white-space:normal;letter-spacing:0;font-size:10px;vertical-align:bottom}}   /* five columns fit a phone without sideways scrolling */
 ul.clean{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px}
 ul.clean b{color:var(--fg)}
 .fresh{display:flex;flex-direction:column;gap:8px}
@@ -193,8 +202,19 @@ ul.clean b{color:var(--fg)}
 /* the map (MapLibre + OpenFreeMap, loaded when the Map view first opens): price tags as in app/src/components/station-map.tsx */
 .mapcard{padding:0;overflow:hidden;position:relative}
 #map{height:max(420px,min(860px,calc(100vh - 150px)));width:100%}
-/* In Map view the stations take the full width under the verdict, so the map is as big as the screen allows */
-@media (min-width:960px){.today.mapmode #stations{grid-column:1 / -1}}
+@media (max-width:560px){#map{height:max(340px,62vh)}}   /* on a phone the selected station's card fits under the map */
+/* In Map view the stations take the full width under the verdict, so the map is as big as the screen allows; the
+   verdict card lies flat (words beside the 14-day line) so it fills the row and the map starts higher */
+@media (min-width:960px){.today.mapmode #stations,.today.mapmode>.col{grid-column:1 / -1}
+  .today.mapmode .hero{flex-direction:row;align-items:center;gap:32px}
+  .today.mapmode .hero-txt,.today.mapmode .hero-fc{flex:1 1 0}}
+/* Full screen (the map's expand button): the map, the selected station and the legend fill the window, over the page.
+   Done in CSS, not the browser's Fullscreen API, which iPhones don't have for a page element. */
+html.mapfs{overflow:hidden}
+#mapView.fs{position:fixed;inset:0;z-index:50;background:var(--bg);padding:12px;overflow:auto;overscroll-behavior:contain}
+#mapView.fs .mapcard{flex:1 1 auto;min-height:240px;display:flex;flex-direction:column}
+#mapView.fs #map{flex:1 1 auto;height:auto}
+#mapView.fs .pop,#mapView.fs .maplegend{flex:none}
 .maplegend{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
 .maplegend i{display:inline-block;width:10px;height:10px;border-radius:50%}
 .tag{display:flex;flex-direction:column;align-items:stretch;padding:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;cursor:pointer;font:inherit;min-width:60px;box-shadow:0 1px 4px rgba(0,0,0,.18);margin-bottom:7px}   /* no position: the tag is MapLibre's marker element, which it positions absolutely */
@@ -210,7 +230,9 @@ ul.clean b{color:var(--fg)}
 .pop{display:flex;flex-direction:column;gap:8px}
 .pop .ph{display:flex;gap:12px;align-items:flex-start}
 .pop .x{background:none;border:0;color:var(--muted);font-size:18px;cursor:pointer;padding:0 0 0 4px;line-height:1}
+#map .maplibregl-ctrl-top-right,#map .maplibregl-ctrl-bottom-right,#map .maplibregl-ctrl-bottom-left{z-index:40}   /* the buttons stay above the price tags (z-index up to 30) */
 .maplibregl-ctrl-group button.ctr{font-size:18px;color:#333}
+.maplibregl-ctrl-group button.ctr svg{display:block;margin:auto;width:15px;height:15px;fill:none;stroke:#333;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .pop .pn{font-weight:700;color:var(--fg);font-size:15px}
 .mapnote{padding:16px}
 footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
@@ -255,7 +277,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
             <div class="multi-panel filters">
               <div class="eyebrow">Sort</div>
               <div class="seg" id="sort" role="group" aria-label="Sort"></div>
-              <button class="chip" type="button" id="members" aria-pressed="true">Members-only sites (Costco)</button>
+              <button class="chip" type="button" id="members" aria-pressed="true">Include members-only sites (Costco)</button>
               <button class="chip" type="button" id="old" aria-pressed="false" hidden></button>
               <div class="eyebrow">Brands</div>
               <div class="multi-actions"><button type="button" class="chip" id="brandAll">All</button><button type="button" class="chip" id="brandNone">None</button></div>
@@ -355,6 +377,7 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":
 const $ = (id) => document.getElementById(id);
 const FUELS = [["U91","Unleaded 91"],["E10","E10"],["P95","Premium 95"],["P98","Premium 98"],["DL","Diesel"]];
 const live = {}; D.live.forEach(r => live[r.fuel] = r);
+D.stations.forEach(s => { s.b = String(s.b).replace(/\s+logo$/i, ""); });   // FuelCheck lists one brand as "24Xpress logo"
 const ST = D.stats, CTX = D.ctx;
 // Per-viewer conveniences only (fuel, tank, area, filters); the page works the same without storage
 const store = {
@@ -430,7 +453,7 @@ let state = {
 };
 
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const fmt = (v,d=1) => (v>0?"+":"")+v.toFixed(d);
+const fmt = (v,d=1) => (v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(d);   // a real minus sign, as in the station rows
 const day = (s,k) => new Date(Date.parse(s+"T00:00:00Z")+k*864e5).toISOString().slice(0,10);
 const nice = s => new Date(s+"T00:00:00Z").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
 const daysBetween = (a,b) => Math.round((Date.parse(b)-Date.parse(a))/864e5);
@@ -665,12 +688,15 @@ function renderStations(){
   $("listView").hidden = onMap; $("mapView").hidden = !onMap; $("radius").hidden = onMap;
   document.querySelector(".today").classList.toggle("mapmode", onMap);
   $("sort").querySelector('[data-k="near"]').disabled = !area;
+  // A radius means nothing until there is somewhere to measure from
+  $("radius").classList.toggle("off", !area);
+  $("radius").querySelectorAll("button").forEach(b => { b.disabled = !area; b.title = area ? "" : "Enter a suburb or use your location first"; });
   if (!area && state.sort === "near") { state.sort = "price"; syncSort(); }
   $("members").setAttribute("aria-pressed", String(state.members));
   const {rows, old} = missing ? {rows:[], old:0} : stationRows();
   const oldEl = $("old");
   oldEl.hidden = onMap || (!old && !state.old);   // the map always shows older prices, greyed
-  oldEl.textContent = state.old ? "Hide prices older than 7 days" : `Show ${old} older price${old===1?"":"s"}`;
+  oldEl.textContent = `Include ${old} price${old===1?"":"s"} over 7 days old`;
   oldEl.setAttribute("aria-pressed", String(state.old));
   const tone = outlook(live[f]).tone;
   $("stList").innerHTML = rows.slice(0, state.shown).map(s => stationItem(s, med, tone, "list")).join("")
@@ -719,12 +745,12 @@ function renderHero(){
   const f = state.fuel, r = live[f], o = outlook(r);
   const hero = $("hero"); hero.className = `hero t-${o.tone}`;
   const hz = [1,3,7,14].map(h => `<div><span class="eyebrow">${h} day${h > 1 ? "s" : ""}</span><span class="v">${(r.now + r["d"+h]).toFixed(1)}</span><span class="d">${fmt(r["d"+h])}c</span></div>`).join("");
-  hero.innerHTML = `<div class="median">Sydney median ${r.now.toFixed(1)}c/L</div>
+  hero.innerHTML = `<div class="hero-txt"><div class="median">Sydney median ${r.now.toFixed(1)}c/L</div>
     <h3 id="verdict">${o.head}</h3>
     ${o.deadline ? `<p class="deadline">${o.deadline}</p>` : ""}
-    <p class="detail">${o.detail}</p>
-    <div class="spark" id="spark" role="img" aria-label="Expected Sydney median over 14 days: ${r.now.toFixed(1)}c today to about ${(r.now + r.d14).toFixed(1)}c${o.riseDate ? `, likely rising from ${dayLabel(o.riseDate)}` : ""}"></div>
-    <div class="hz">${hz}</div>`;
+    <p class="detail">${o.detail}</p></div>
+    <div class="hero-fc"><div class="spark" id="spark" role="img" aria-label="Expected Sydney median over 14 days: ${r.now.toFixed(1)}c today to about ${(r.now + r.d14).toFixed(1)}c${o.riseDate ? `, likely rising from ${dayLabel(o.riseDate)}` : ""}"></div>
+    <div class="hz">${hz}</div></div>`;
   sparkline();
 }
 function renderWhy(){
@@ -790,7 +816,10 @@ function renderMain(){
     options:{responsive:true, maintainAspectRatio:false, interaction:{mode:"index",intersect:false}, animation:false,
       plugins:{legend:{display:false}, tooltip:{...tip(), filter:i=>i.raw!==null && !["Forecast high","Forecast low","Dearest 10%"].includes(i.dataset.label),
         callbacks:{title:it=>nice(it[0].label), label:i=>` ${i.dataset.label}: ${i.raw.toFixed(1)}c`}}},
-      scales:{x:{...axis(), grid:{display:false}, ticks:{...axis().ticks, maxRotation:0, autoSkip:false, callback:(v,i)=>{const l=labels[i]; if(span<=100) return l.endsWith("-01")||l.endsWith("-15")?nice(l).replace(/ \d{4}$/,""):null; if(span<=400) return l.endsWith("-01")?new Date(l+"T00:00:00Z").toLocaleDateString("en-AU",{month:"short",timeZone:"UTC"}):null; return l.endsWith("-01-01")?l.slice(0,4):null;}}},
+      scales:{x:{...axis(), grid:{display:false}, ticks:{...axis().ticks, maxRotation:0, autoSkip:false, callback:function(v,i){const l=labels[i], narrow=this.chart.width<520;   // a phone: every second label, so months don't run together
+                if(span<=100) return l.endsWith("-01")||(!narrow&&l.endsWith("-15"))?nice(l).replace(/ \d{4}$/,""):null;
+                if(span<=400) return l.endsWith("-01")&&(!narrow||+l.slice(5,7)%2===1)?MO[+l.slice(5,7)-1]:null;
+                return l.endsWith("-01-01")?l.slice(0,4):null;}}},
               y:{...axis(), ticks:{...axis().ticks, callback:v=>v+"c"}}}}};
   if (charts.main) charts.main.destroy();
   charts.main = new Chart($("main"), cfg);
@@ -855,7 +884,7 @@ function renderBT(){
       {label:"Predicted", data:b.pred, borderColor:css("--retail"), borderWidth:1.75, pointRadius:0, tension:.1}]},
     options:{responsive:true, maintainAspectRatio:false, animation:false, interaction:{mode:"index",intersect:false},
       plugins:{legend:{display:false}, tooltip:{...tip(), callbacks:{title:it=>nice(it[0].label), label:i=>` ${i.dataset.label}: ${fmt(i.raw)}c`}}},
-      scales:{x:{...axis(), grid:{display:false}, ticks:{...axis().ticks, maxRotation:0, autoSkip:false, callback:(v,i)=>{const l=b.dates[i]; return /-(01|04|07|10)-01$/.test(l)?new Date(l+"T00:00:00Z").toLocaleDateString("en-AU",{month:"short",year:"2-digit",timeZone:"UTC"}):null;}}},
+      scales:{x:{...axis(), grid:{display:false}, ticks:{...axis().ticks, maxRotation:0, autoSkip:false, callback:function(v,i){const l=b.dates[i]; return (this.chart.width<520?/-(01|07)-01$/:/-(01|04|07|10)-01$/).test(l)?`${MO[+l.slice(5,7)-1]} ${l.slice(2,4)}`:null;}}},
               y:{...axis(), ticks:{...axis().ticks, callback:v=>fmt(v,0)+"c"}}}}};
   if (charts.bt) charts.bt.destroy();
   charts.bt = new Chart($("bt"), cfg);
@@ -949,6 +978,7 @@ function loadMapLib(){
 function mapFail(){
   if (!MAP_OK) return;
   MAP_OK = false; state.view = "list"; store.set("view", "list"); $("view").hidden = true;
+  setFs(false);
   if (map) { try { map.remove(); } catch {} map = null; tags.clear(); meMk = null; }
   $("mapView").hidden = true;
   renderToday();   // the rows and pins lose their "Show on map" buttons
@@ -982,6 +1012,18 @@ function centreOnArea(){
   else map.easeTo({center:[151.05,-33.85], zoom:9.5, duration:400});
 }
 
+/** The map over the whole window, or back in the page */
+let fsOn = false, fsBtn = null;
+const FS_ICON = {
+  open: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>',
+  close: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4"/></svg>'};
+function setFs(on){
+  fsOn = on;
+  $("mapView").classList.toggle("fs", on); document.documentElement.classList.toggle("mapfs", on);
+  if (fsBtn) { fsBtn.innerHTML = FS_ICON[on ? "close" : "open"]; fsBtn.title = on ? "Exit full screen" : "Full screen"; fsBtn.setAttribute("aria-label", fsBtn.title); fsBtn.setAttribute("aria-pressed", String(on)); }
+  if (map) { try { on ? map.cooperativeGestures.disable() : map.cooperativeGestures.enable(); } catch {} map.resize(); }
+}
+
 async function showMap(){
   try { await loadMapLib(); } catch { mapFail(); return; }
   if (!map) return initMap();
@@ -992,11 +1034,22 @@ async function showMap(){
 }
 function initMap(){
   const a = areaSet(); mapArea = JSON.stringify(a);
-  map = new maplibregl.Map({container:"map", style: mapStyle(), attributionControl:{compact:true},
-    ...(a ? {bounds: areaBounds(a, state.radius), fitBoundsOptions:{padding:24}} : {center:[151.05,-33.85], zoom:9.5}),
-    dragRotate:false, pitchWithRotate:false, touchPitch:false});
+  // cooperativeGestures: the page keeps scrolling when the wheel or a finger passes over the map (Ctrl/⌘ + scroll
+  // zooms, two fingers move it, and MapLibre says so on the map). Full screen (setFs) turns that off: there the wheel
+  // zooms and one finger moves the map.
+  try {
+    map = new maplibregl.Map({container:"map", style: mapStyle(), attributionControl:{compact:true},
+      ...(a ? {bounds: areaBounds(a, state.radius), fitBoundsOptions:{padding:24}} : {center:[151.05,-33.85], zoom:9.5}),
+      dragRotate:false, pitchWithRotate:false, touchPitch:false, cooperativeGestures:true});
+  } catch { map = null; mapFail(); return; }   // no WebGL here (an old or locked-down browser): the list has everything
   map.touchZoomRotate.disableRotation();
   map.addControl(new maplibregl.NavigationControl({showCompass:false}), "top-right");
+  map.addControl({onAdd(){
+    const d = document.createElement("div"); d.className = "maplibregl-ctrl maplibregl-ctrl-group";
+    fsBtn = document.createElement("button"); fsBtn.type = "button"; fsBtn.className = "ctr";
+    fsBtn.addEventListener("click", () => setFs(!fsOn)); d.append(fsBtn); return d;
+  }, onRemove(){ fsBtn = null; }}, "top-right");
+  setFs(false);
   map.addControl({onAdd(){
     const d = document.createElement("div"); d.className = "maplibregl-ctrl maplibregl-ctrl-group";
     const b = document.createElement("button"); b.type = "button"; b.className = "ctr"; b.textContent = "◎";
@@ -1129,13 +1182,14 @@ document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
   if ($("filterBox").open) { $("filterBox").open = false; $("filterSum").focus(); }
   else if (!$("mapSel").hidden) closeSel();
+  else if (fsOn) { setFs(false); fsBtn?.focus(); }
 });
 document.addEventListener("click", e => { if (e.target.closest("[data-closesel]")) closeSel(); });
 
 function setView(v){
   if (v !== state.view) track("web.view_changed", {view: v});
   state.view = v; store.set("view", v); syncView();
-  if (v === "list") closeSel();
+  if (v === "list") { closeSel(); setFs(false); }
   renderStations();
 }
 const syncView = segment($("view"), [["list","List"],["map","Map"]], () => state.view, k => setView(k));
@@ -1161,7 +1215,10 @@ track("$pageview", {
 addEventListener("pagehide", () => track("$pageleave"), {once: true});
 const rerender = () => { renderMain(); renderBT(); if (map) map.setStyle(mapStyle(), {diff:false}); };   // style.load re-adds the clusters
 let heroW = 0;
-if (window.ResizeObserver) new ResizeObserver(() => { const w = $("hero").clientWidth; if (w !== heroW) { heroW = w; sparkline(); } }).observe($("hero"));
+// The 14-day line is drawn to its box's width, which changes with the window and between List and Map view
+if (window.ResizeObserver) new ResizeObserver(() => { const w = $("spark")?.clientWidth || 0; if (w !== heroW) { heroW = w; sparkline(); } }).observe($("hero"));
+const colEl = document.querySelector(".today>.col");
+if (window.ResizeObserver) new ResizeObserver(() => colEl.style.setProperty("--colh", colEl.offsetHeight + "px")).observe(colEl);
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerender);
 new MutationObserver(rerender).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
 </script>

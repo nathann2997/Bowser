@@ -2,6 +2,23 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-12 — Web dashboard: scrolling, overlaps and clarity (design review)
+
+Owner: "review the web page and make sure everything is fluid… all the scrolls work as intended, no overlapping features and everything is easy to understand just like the app". Reviewed in headless Chrome at 360, 390, 768, 1024 and 1366 px wide, light and dark, through every state (filters, a suburb, an open row, all disclosures, map, selected station). All in `sydney/pipeline/template.html`.
+- **Overlap, Map view on desktop (bug):** the "Should I fill up?" column is sticky, and in Map view the stations sit under it at full width, so it slid down over the map and the selected station's card. It is no longer sticky in Map view; there the verdict card lies flat (words beside the 14-day line) across the full width, which also fills the empty half-row beside it.
+- **Scrolling over the map (bug):** the mouse wheel zoomed the map instead of scrolling the page, and on a phone the map filled most of the screen and took every swipe. The map now uses MapLibre's `cooperativeGestures`: the wheel and one finger scroll the page; Ctrl/⌘ + scroll zooms and two fingers move the map, and the map says so. A new **full screen** button (CSS, not the Fullscreen API, which iPhones lack for page elements) opens the map, the selected station and the legend over the whole window, where the wheel zooms and one finger moves it; Esc or the button leaves. On phones the map is 62% of the screen high (was nearly all of it), so the selected station's card fits under it.
+- **Price tags covered the map's buttons:** the zoom, full screen and "back to your area" buttons now sit above the tags.
+- **No WebGL (bug):** creating the map threw and left an empty box. It now falls back to the list with the existing "map couldn't load" note.
+- **Filters panel:** it could run off the left or right edge (in Map view, and on windows about 960 to 1100 px wide). It now opens under the search card, inside it at every width; its list no longer drags the page when it reaches its end; it is taller (up to 420 px or 60% of the screen). The two switches read as what they do: "Include members-only sites (Costco)" and "Include N prices over 7 days old" (was "Members-only sites (Costco)" and "Show N older prices" / "Hide prices older than 7 days").
+- **Radius:** greyed out until there is a suburb or a location, since it did nothing before ("5 km" looked chosen over "Cheapest in Sydney").
+- **Station rows:** a chevron shows they open; a long name wraps to a second line instead of being cut ("U-Go Moorebank Bridges Rd (S…").
+- **Sticky column on short screens:** with "Why we think this" open on a short laptop window its bottom could not be reached until the list ended. It now sticks by its bottom edge when it is taller than the window.
+- **Phones:** the accuracy table fits without sideways scrolling (also at 1024 px); the 1-year chart labels every second month (they ran together: "AugSeptOct") and the 3-month chart the 1st of each month; "Use my location" is full width; chips and segments are 40 px high on touch screens, the fuel and tank selectors 44 px.
+- **Small:** changes use a real minus sign everywhere (the hero showed "-1.0c", the rows "−21.4c"); the brand FuelCheck lists as "24Xpress logo" shows as "24Xpress" (web only; the app and API still carry the raw name).
+- **Checked:** no sideways page scroll or clipped text at any width, for all five fuels; wheel and one-finger swipe over the map scroll the page; full screen on and off (button and Esc) restores the page where it was; no console errors. The share page (`/s/`) had nothing to fix.
+- **Not checked:** on a real phone (touch was emulated), Safari, or Firefox.
+- **Owner's call:** two-finger map movement inside the page is the price of the page scrolling freely. If you would rather one finger moved the map in the page too, remove `cooperativeGestures:true` in `initMap()`.
+
 ## 2026-11-12 — Update prompt on every open, for every version; app updates ship by themselves
 
 Owner: yes to making expo-doctor advisory, and "make sure prompts are always on the app to update".
