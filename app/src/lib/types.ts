@@ -89,9 +89,10 @@ export type Forecast = Stamp & {
   bt: Backtest;
 };
 
-export type AdviceCode = 'now' | 'by' | 'ok' | 'wait' | 'hi' | 'any' | 'chk';
+// 'na' (2026-11-13): a station outside Sydney, where there is no forecast: its price only
+export type AdviceCode = 'now' | 'by' | 'ok' | 'wait' | 'hi' | 'any' | 'chk' | 'na';
 // [price c/L, days since update, advice code, advice label, advice reason]
-export type StationPrice = [number, number | null, AdviceCode, string, string, number?];   // [5]: 7-day forecast price c/L (fc.now + fc.d7), absent if the station files failed
+export type StationPrice = [number, number | null, AdviceCode, string, string, number?];   // [5]: 7-day forecast price c/L (fc.now + fc.d7), absent if the station files failed, and outside Sydney
 
 export type Station = {
   id: string;     // NSW FuelCheck station code, stable across days (key for pins and station/{id}.json)
@@ -102,6 +103,7 @@ export type Station = {
   la: number;
   lo: number;
   m: 0 | 1;       // members only
+  out?: 1;        // outside Sydney (2026-11-13: the list covers all of NSW): prices only, no forecast. Absent in Sydney
   p: Partial<Record<Fuel, StationPrice>>;
 };
 
@@ -146,6 +148,7 @@ export type StationDetail = Stamp & {
   asof: string;
   id: string;
   n: string; b: string; s: string; pc: number; la: number; lo: number; m: 0 | 1;
+  out?: 1;                        // outside Sydney: `fc` is empty and `profile` null
   addr: string | null;
   start: string;                  // ISO date of hist[*][0]
   hist: Partial<Record<Fuel, Series>>;      // end-of-day price c/L per day from start to asof, null = not sold / unknown

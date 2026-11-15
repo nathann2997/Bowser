@@ -15,7 +15,7 @@ export const MAX_ROWS = 10;
 export const TODAY_URI = 'fuelforecast://?src=widget';
 export const stationUri = (id: string) => `fuelforecast://station/${encodeURIComponent(id)}?src=widget`;
 
-const ADVICE_TONE: Record<AdviceCode, Tone> = { now: 'act', by: 'act', wait: 'wait', hi: 'wait', any: 'calm', ok: 'calm', chk: 'calm' };
+const ADVICE_TONE: Record<AdviceCode, Tone> = { now: 'act', by: 'act', wait: 'wait', hi: 'wait', any: 'calm', ok: 'calm', chk: 'calm', na: 'calm' };
 const FUEL_SHORT: Record<Fuel, string> = { U91: 'U91', E10: 'E10', P95: 'P95', P98: 'P98', DL: 'Diesel' };
 
 // ---- the cached snapshot (a compact copy of forecast.json + stations.json kept on the phone for offline renders)

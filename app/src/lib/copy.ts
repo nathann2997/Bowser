@@ -57,14 +57,15 @@ export function jumpRisk(r: LiveRow): { pct: number; label: string; cls: Verdict
 }
 
 /** Station advice code -> colour class, as ADV in the dashboard */
-export const ADVICE_CLS: Record<AdviceCode, VerdictCls> = { now: 'up', by: 'up', hi: 'down', wait: 'down', any: 'flat', ok: 'flat', chk: 'flat' };
+export const ADVICE_CLS: Record<AdviceCode, VerdictCls> = { now: 'up', by: 'up', hi: 'down', wait: 'down', any: 'flat', ok: 'flat', chk: 'flat', na: 'flat' };
 
 /** A station row leaves its advice chip out when it only repeats the Sydney headline (`sydney`: e.g. "Wait" on every
  *  row while the verdict says Wait if you can). It stays when it adds something: a "Fill by" date, Fill now, Check
  *  price, or advice that differs from the headline. */
 export const echoesSydney = (code: AdviceCode, sydney: Tone | undefined) =>
-  // "Skip for now" (hi) and Check price (chk) are about the station itself, so they always show
-  sydney != null && sydney !== 'act' && code !== 'chk' && code !== 'hi' && toneOf(ADVICE_CLS[code]) === sydney;
+  // "Skip for now" (hi) and Check price (chk) are about the station itself, so they always show; so does "Price only"
+  // (na, a station outside Sydney): the Sydney headline isn't about it
+  sydney != null && sydney !== 'act' && code !== 'chk' && code !== 'hi' && code !== 'na' && toneOf(ADVICE_CLS[code]) === sydney;
 
 export const WHEN_NOTE =
   'Each date is the Sydney forecast adjusted for the station: how fast it usually follows a price jump, and whether it follows them at all.';

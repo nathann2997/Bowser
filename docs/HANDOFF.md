@@ -20,7 +20,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - Confirm 2FA on GitHub and both Expo accounts, the Maps key restriction, PostHog "Discard client IP data", and fork PR approval set to "all external contributors".
 
 ## Product decisions (owner)
-- Audience: the owner plus a handful of friends. Sydney only, no accounts.
+- Audience: the owner plus a handful of friends. No accounts. The forecast is Sydney only; from 2026-11-13 the station list and map cover all of NSW (owner: "ensure we include ALL stations"), with stations outside Sydney shown as prices only.
 - 2026-10-21 MVP: the "fill now / wait" signal and 1/3/7/14-day outlook, price history, and a nearest-stations list. A Stations **map** was added at the owner's request on 2026-10-26.
 - Data as early as possible: 5 pipeline runs a day since 0.6.0.
 - Stack: React Native + Expo (TypeScript), EAS Build APKs via an internal distribution link, OTA updates through EAS Update.
@@ -29,6 +29,13 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 
 ## Open work
 Newest first. Each item has its CHANGELOG entry of the same name for details.
+
+- **All NSW stations on the map** (2026-11-13; branch `stations/all-nsw`, PR open, **not merged, not live**). Merging to `main` ships it: the next `daily-forecast` run publishes the wider list and `app-ci` sends the OTA. **Next:**
+  - Merge once `pipeline-ci` and `app-ci` pass on the PR, then read the first `daily-forecast` log line: `snapshot <date>: N Sydney prices, M elsewhere in NSW (K stations in all)`. Nobody has seen the real feed outside Sydney yet (the archive was Sydney-only, and CI uses seven stand-ins), so check the first real `stations.json`: the count of `out: 1` stations, that Wollongong and Gosford search, that `meta.warnings` has no long "implausible prices hidden" list from the new −50/+150c bounds, and the file sizes in `meta.files`.
+  - Device check: the map away from Sydney, a station page outside Sydney (price, chart from one day of history, the "forecast covers Sydney only" card), a pinned station outside Sydney on the widget.
+  - **Owner's call:** rows and station pages outside Sydney still show the gap to the Sydney median, and Today's headline is Sydney's even when your area is elsewhere. A regional median, or hiding the gap there, is not built.
+  - `archive/` grows by about 2.5 times per day (all of NSW, not only Sydney).
+  - `model/fresh-inputs-shadow` (not merged) also edits `update.py`'s `snapshot_rows`: when it merges, keep both changes (it must call the five-value return and use the Sydney `pr`).
 
 - **Update prompts and automatic shipping** (2026-11-12): live. expo-doctor is advisory in `app-ci`, so pushes to `main` ship OTAs (first one: ef6169d0, runtime 0.9.1, with the station-page price fix). The update notice shows on every open. `app-ota-legacy.yml` published the new API address and the new notice to 0.3.0–0.9.0 from the `ota/<version>-update-notice` branches (run 43113185748). **Next:** on a phone, check that the notice comes back after "Later" and that an older install recovers its prices and shows the 0.9.1 prompt. When a future change must reach old versions (for example another address move), commit it to each `ota/` branch and run `app-ota-legacy`.
 - **Repo rename, Bowser 0.9.1** (2026-11-11): done. APK built by `app-ci`, the notice went live at the old address, then the repo was renamed and run 43010272458 published the site at the new one; data-health passed after it. **Next:** device check of 0.9.1 (the Expo patch updates are untested on a phone); the first automatic OTA from `app-ci`; drop the old address from `lib/api.ts` once no install needs it.

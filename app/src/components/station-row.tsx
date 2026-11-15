@@ -20,7 +20,7 @@ import type { StationRow } from '@/lib/geo';
 import type { Tone } from '@/lib/outlook';
 import type { AdviceCode, Fuel, Station } from '@/lib/types';
 
-export const ADVICE_TONE: Record<AdviceCode, Tone> = { now: 'act', by: 'act', wait: 'wait', hi: 'wait', any: 'calm', ok: 'calm', chk: 'calm' };
+export const ADVICE_TONE: Record<AdviceCode, Tone> = { now: 'act', by: 'act', wait: 'wait', hi: 'wait', any: 'calm', ok: 'calm', chk: 'calm', na: 'calm' };
 
 export { STALE_DAYS };
 

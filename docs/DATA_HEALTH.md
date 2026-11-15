@@ -34,9 +34,9 @@ Every check's result is on its run page: Actions → data-health → the run →
 | API_UNREACHABLE / FILE_MISSING / FILE_BAD | critical | rerun | Check Settings → Pages and the last deploy job. |
 | FORECAST_BAD | critical | rerun | The model produced impossible numbers. Check `store/` on the `data` branch (brent/tgp inputs) and read the model step's log in the run. To test a fix, open a PR: `pipeline-ci` reruns the model on a copy of the data. |
 | SCHEMA | critical | – | A pipeline change bumped the API schema. Revert it, or ship an app update first. |
-| STATIONS_FEW | warning or critical | rerun | NSW returned a partial feed. If it persists, compare with fuelcheck.nsw.gov.au. |
+| STATIONS_FEW | warning or critical | rerun | Counts Sydney stations only (the list also has the rest of NSW, `out: 1`). NSW returned a partial feed. If it persists, compare with fuelcheck.nsw.gov.au. |
 | NSW_STALE | warning | rerun | Few prices changed in a day. Check NSW API status; the feed may be lagging. |
-| PRICE_OUTLIER | warning | – | The quarantine didn't hide an absurd price. Check that `export_api.py` ran and that its bounds are right. |
+| PRICE_OUTLIER | warning | – | The quarantine didn't hide an absurd price (Sydney stations: −45 to +80c from the Sydney median; stations outside Sydney: −50 to +150c from their own median). Check that `export_api.py` ran and that its bounds are right. |
 | MEDIAN_JUMP | warning | – | The median moved more than 50c in a day (real hikes reach 39c), or spiked 15c+ and snapped back the next day. Almost always a bad snapshot: compare with fuelcheck.nsw.gov.au. |
 | INPUT_TGP / INPUT_MACRO | warning | – | AIP, EIA or RBA stopped updating, usually because a file or page moved. Read the fetch step's log in the latest daily-forecast run; it prints the error for each source. |
 | STATION_FILES / TRACK / SHARE_PAGE | warning | rerun | A part of the export failed soft. The error text is in the alert and in `meta.warnings`. |
