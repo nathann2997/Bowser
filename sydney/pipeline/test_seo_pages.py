@@ -235,19 +235,27 @@ class Pieces(unittest.TestCase):
             s = station(100 + i, f"Servo Newcastle {i}", "Lowes", "Hamilton", 2303, -32.92 + i * 0.01, 151.75, {"U91": (220.0 + i, 0), "DL": (260.0 + i, 0)}, out=1)
             for f in s["p"]: s["p"][f] = s["p"][f][:2] + ["na", "Price only", "Outside Sydney, where Bowser has no forecast"]
             st.append(s)
+        st.append(station(300, "Ampol Newcastle West", "Ampol", "Newcastle", 2302, -32.925, 151.76, {"U91": (225.0, 0)}, out=1))   # a suburb named like a region
         st.append(station(200, "Closed Servo", "Independent", "Tibooburra", 2880, -29.43, 142.01, {"U91": (250.0, 45)}, out=1))   # nothing for 45 days
         with tempfile.TemporaryDirectory() as out:
             r = sp.build(out, stations, forecast)
             self.assertEqual(r["regions"], 1)
             rd = lambda p: open(os.path.join(out, p), encoding="utf-8").read()
+            sub = rd("fuel-prices/newcastle-2302/index.html")
+            self.assertIn("<h1>Newcastle 2302 fuel prices today</h1>", sub); self.assertIn('href="../../fuel-prices/newcastle/"', sub)
+            titles = {}
+            for d, _, fs in os.walk(out):
+                if "index.html" in fs:
+                    with open(os.path.join(d, "index.html"), encoding="utf-8") as fh: ti = re.search(r"<title>(.*?)</title>", fh.read()).group(1)
+                    self.assertNotIn(ti, titles, f"{d} and {titles.get(ti)}"); titles[ti] = d
             reg = rd("fuel-prices/newcastle/index.html")
             self.assertIn("<h1>Newcastle fuel prices today</h1>", reg); self.assertIn("<b>220.0c/L</b>", reg)
-            self.assertIn("median across 6 stations with a current price is 222.5c", reg); self.assertNotIn('class="verdict', reg)
+            self.assertIn("median across 7 stations with a current price is 223.0c", reg); self.assertNotIn('class="verdict', reg)
             self.assertIn('href="../../fuel-prices/hamilton-2303/"', reg)
             hub = rd("fuel-prices/index.html")
             self.assertIn("<h1>NSW fuel prices today</h1>", hub); self.assertIn('href="../fuel-prices/newcastle/"', hub)
             self.assertIn('"@type":"FAQPage"', hub); self.assertIn("What is the cheapest petrol in Sydney today?", hub)
-            self.assertIn("the Newcastle median of 222.5c", rd("station/servo-newcastle-0-100/index.html"))
+            self.assertIn("the Newcastle median of 223.0c", rd("station/servo-newcastle-0-100/index.html"))
             self.assertIn('href="../../fuel-prices/newcastle/"', rd("fuel-prices/unleaded-91/index.html"))
             # a station silent for over a month keeps its page, but out of search and out of the sitemap
             dead, sm = rd("station/closed-servo-200/index.html"), rd("sitemap.xml")
