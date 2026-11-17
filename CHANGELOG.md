@@ -2,7 +2,14 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
-## 2026-11-17 — Search pages for checkbowser.app (branch `seo/checkbowser`, PR #11, not merged)
+## 2026-11-17 — Search pages live on checkbowser.app
+
+- **Shipped:** PR #11 merged (commit f0f4355); pipeline-ci on `main` passed (run 44010920971); `daily.yml` run 44011072183 built and deployed.
+- **With all NSW stations** (PR #9 merged the same hour): 3,546 pages from 2,387 stations, 1,114 suburbs and 32 brands; the sitemap lists 3,547 addresses. `meta.json` has no warnings.
+- **Checked on the live site:** the dashboard, hub, a suburb, fuel, brand and guide page, `robots.txt`, `sitemap.xml`, the share image and favicon all answer 200; an unknown address gives the 404 page; the dashboard has its new title and canonical; a regional suburb page (Albert 2873) shows prices with the stale-price wording and no Sydney forecast.
+- **Not done:** Search Console (owner), and the hub and index pages still say "Sydney" although they now list all of NSW (`docs/SEO.md`, "Next").
+
+## 2026-11-17 — Search pages for checkbowser.app (PR #11)
 
 Owner: the site is moving to checkbowser.app and should rank for NSW FuelCheck, fuel forecast and fuel price searches, with AdSense later. Plan, keyword map and the owner's checklist: `docs/SEO.md`.
 - **What was wrong:** the whole site was one page drawn by script, titled "Bowser", with no description, canonical address, sitemap or robots file, so a search engine had almost nothing to index and no page matched a suburb, station, fuel or brand search.

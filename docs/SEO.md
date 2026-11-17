@@ -45,7 +45,7 @@ Never lead a page title with "FuelCheck" or call the site "FuelCheck": it risks 
 - **Ready for all NSW:** a station marked `out` (the `stations/all-nsw` branch) gets its page with prices and no forecast wording. When that branch merges, the page count roughly triples without more work, but see "Next" for the wording that should change with it.
 
 ## Owner to do, in order
-1. **Merge PR #11.** The domain is live (DNS, certificate and the app all moved on 2026-11-17), so nothing blocks it. The pages go out with the next pipeline run.
+1. **Done 2026-11-17:** PR #11 is merged and the pages are live (3,546 with all NSW stations).
 2. **Google Search Console:** add `checkbowser.app` as a Domain property (a DNS TXT record at Porkbun), submit `https://checkbowser.app/sitemap.xml`, and request indexing for `/`, `/fuel-prices/` and `/fuel-price-forecast/`. Do the same in Bing Webmaster Tools (it can import from Search Console).
 3. **In PostHog, confirm "Discard client IP data" is on.** The new Privacy page says IP addresses are discarded; that is a project setting, not something the code can do.
 4. **Links.** A new domain has no authority, and links are what Google trusts most. Cheap, honest ones:
