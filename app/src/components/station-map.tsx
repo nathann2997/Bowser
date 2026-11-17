@@ -75,43 +75,18 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
   const inView = useMemo(() => all.filter((r) => inBox(box, r.la, r.lo)), [all, box]);
   const zoom = zoomOf(region, width);
 
-  // Colours: thirds of the stations in view, recomputed only after a real move (a zoom of most of a level, or a pan of
-  // over a third of the screen), so tags don't change colour on a nudge or when a tapped tag is centred
-  const [tierRegion, setTierRegion] = useState<Region>(start);
-  // The cheapest station follows every move of yours, but not the map centring a tapped tag: the station you just
-  // opened as "Cheapest" shouldn't lose the label because the view shifted under it
-  const [bestRegion, setBestRegion] = useState<Region>(start);
-  const ownMove = useRef(false);
-  const onRegion = (r: Region) => {
-    setRegion(r);
-    if (ownMove.current) {
-      ownMove.current = false;
-      return;
-    }
-    setBestRegion(r);
-    const t = tierRegion;
-    const moved =
-      Math.abs(zoomOf(r, width) - zoomOf(t, width)) > 0.75 ||
-      Math.abs(r.latitude - t.latitude) > t.latitudeDelta / 3 ||
-      Math.abs(r.longitude - t.longitude) > t.longitudeDelta / 3;
-    if (moved) setTierRegion(r);
-  };
-  const tierOf = useMemo(() => {
-    const b = bboxOf(tierRegion);
-    return priceTiers(all.filter((r) => !isOld(r) && inBox(b, r.la, r.lo)).map((r) => r.price));   // old prices don't set the colours
-  }, [all, tierRegion]);
+  // Colours (thirds of the stations in view) and the cheapest fresh price, from exactly what's in view after every
+  // settled move, the map centring a tapped tag included. Never held over from an earlier view: a held "Cheapest"
+  // could name a dearer station than one on screen, and hide the cheaper groups' "from" prices.
+  const tierOf = useMemo(
+    () => priceTiers(inView.filter((r) => !isOld(r)).map((r) => r.price)),   // old prices don't set the colours
+    [inView],
+  );
 
   // The cheapest fresh price in view: its own tag (left out of the groups below), and named in the bar over the map
-  const best = useMemo(() => {
-    const b = bboxOf(bestRegion);
-    return cheapestOf(all.filter((r) => inBox(b, r.la, r.lo)), STALE_DAYS);
-  }, [all, bestRegion]);
+  const best = useMemo(() => cheapestOf(inView, STALE_DAYS), [inView]);
   const bestId = best?.id ?? null;
-  // Once the card closes, the bar is back: catch up with whatever the centring move brought into view
-  const close = () => {
-    setSelected(null);
-    setBestRegion(region);
-  };
+  const close = () => setSelected(null);
 
   const index = useMemo(() => {
     // 60 of supercluster's 512 = 30 dp at Google's zoom: only tags that would sit on top of each other merge.
@@ -150,10 +125,7 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
   // A tapped tag is centred in the map above the card, once the card has its height (the map's bottom padding follows it)
   useEffect(() => {
     if (!sel || !cardH) return;
-    ownMove.current = true;
     ref.current?.animateCamera({ center: { latitude: sel.la, longitude: sel.lo } }, { duration: 250 });
-    const t = setTimeout(() => (ownMove.current = false), 800);   // already centred: no move comes to clear it
-    return () => clearTimeout(t);
   }, [selected, cardH]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const zoomInto = useCallback((id: number, la: number, lo: number) => {
@@ -192,7 +164,7 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
           style={StyleSheet.absoluteFill}
           provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
           initialRegion={start}
-          onRegionChangeComplete={onRegion}
+          onRegionChangeComplete={setRegion}
           onPress={(e) => e.nativeEvent.action !== 'marker-press' && close()}
           customMapStyle={dark ? DARK_STYLE : LIGHT_STYLE}
           userInterfaceStyle={dark ? 'dark' : 'light'}

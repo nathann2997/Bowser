@@ -201,7 +201,7 @@ ul.clean b{color:var(--fg)}
 @media (min-width:960px){.folds{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 @media (min-width:960px){.grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px}}
-/* the map (MapLibre + OpenFreeMap, loaded when the Map view first opens): price tags as in app/src/components/station-map.tsx */
+/* the map (MapLibre + OpenFreeMap, loaded when the Map view opens, the default): price tags as in app/src/components/station-map.tsx */
 .mapcard{padding:0;overflow:hidden;position:relative;isolation:isolate}   /* isolate: the map's tags, buttons and bar (z-index up to 45) stack inside the card, so they can't show through the Filters panel when it opens over the map */
 #map{height:max(420px,min(860px,calc(100vh - 150px)));width:100%}
 @media (max-width:560px){#map{height:max(340px,62vh)}}   /* on a phone the selected station's card fits under the map */
@@ -476,7 +476,7 @@ let state = {
   area: savedArea && Number.isFinite(savedArea.la) && Number.isFinite(savedArea.lo) ? savedArea : null,
   radius: RADII.includes(store.get("radius")) ? store.get("radius") : 5,
   sort: "price", members: store.get("members", true) !== false, old: false, range: "1Y", shown: PAGE,
-  view: store.get("view") === "map" ? "map" : "list",
+  view: store.get("view2") === "list" ? "list" : "map",   // the map first; "view2" so everyone starts there once, then their own choice holds
 };
 
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -975,7 +975,7 @@ function renderFresh(){
 }
 
 
-// ---- the map: MapLibre GL with OpenFreeMap tiles (free, no key, no limits), loaded the first time the Map view opens.
+// ---- the map: MapLibre GL with OpenFreeMap tiles (free, no key, no limits), loaded when the Map view opens (the default view).
 // Mirrors the app's map (app/src/components/station-map.tsx): every station passing the filters, shown as you pan and
 // zoom (no radius), grouped into numbered circles when zoomed out; tags coloured by the cheapest, middle and dearest
 // third of the stations in view; pinned stations always shown. The cheapest station in view is always its own, larger
@@ -986,7 +986,7 @@ const ML = {v:"4.7.1",
   css:"sha512-6AYkNPc8EvA9WwC0CvbRQHWpK1zV1+QeW+lVBfYqN2zTfG9IfWMRMyUDOw6GdF5US0poI/C/pz8tkiL+nfmYHg=="};
 const OFM = "https://tiles.openfreemap.org/styles/";
 let map = null, mapLoading = null, MD = {rows:[], pinned:[], byI:new Map()}, tags = new Map(), meMk = null, selI = null;
-let tierOf = () => "mid", tierAt = null, mapArea = "", pendingFocus = null, syncQueued = false;
+let tierOf = () => "mid", mapArea = "", pendingFocus = null, syncQueued = false;
 let bestI = null, froms = new Map();   // the cheapest station in view (index into D.stations); the groups' "from" labels
 /** The station to mark "Cheapest" among the ones in view (cheapestOf() in app/src/lib/map.ts): the lowest price, the
  *  nearest on a tie, then the first. Prices over 7 days old don't count. Null when fewer than two fresh prices are in
@@ -1021,7 +1021,7 @@ function loadMapLib(){
 /** The map library, its style or its tiles couldn't load (a blocked network or host): back to the list for good */
 function mapFail(){
   if (!MAP_OK) return;
-  MAP_OK = false; state.view = "list"; store.set("view", "list"); $("view").hidden = true;
+  MAP_OK = false; state.view = "list"; $("view").hidden = true;   // not saved: a network blip shouldn't keep the list as the default
   setFs(false);
   if (map) { try { map.remove(); } catch {} map = null; tags.clear(); froms.clear(); meMk = null; bestI = null; }
   $("bestBar").hidden = true;
@@ -1130,10 +1130,10 @@ function addLayers(){
   map.addLayer({id:"cl-n", type:"symbol", source:"st", filter:["has","point_count"],
     layout:{"text-field":["get","point_count_abbreviated"], "text-font":["Noto Sans Bold"], "text-size":13, "text-allow-overlap":true},
     paint:{"text-color":css("--bg")}});
-  tierAt = null; queueSync();
+  queueSync();
 }
 function updateMapData(){
-  MD = mapData(); tierAt = null;
+  MD = mapData();
   if (selI != null && !MD.byI.has(selI)) closeSel(); else if (selI != null) openPop(selI, true);   // refresh its price or pin, in place
   map.getSource("st")?.setData(geo(MD.rows));
   meDot(); queueSync();
@@ -1150,20 +1150,19 @@ function queueSync(){ if (!syncQueued) { syncQueued = true; requestAnimationFram
 
 function syncMap(){
   if (!map || !map.getSource("st") || !map.isStyleLoaded()) return;
-  const b = map.getBounds(), z = map.getZoom(), c = map.getCenter();
+  const b = map.getBounds();
   const W = b.getEast() - b.getWest(), H = b.getNorth() - b.getSouth();
   const inView = r => r.lo >= b.getWest() && r.lo <= b.getEast() && r.la >= b.getSouth() && r.la <= b.getNorth();
-  // Colours: re-split only after a real move (most of a zoom level, or a third of the view), not on every nudge
-  if (!tierAt || Math.abs(z - tierAt.z) > .75 || Math.abs(c.lat - tierAt.lat) > tierAt.H/3 || Math.abs(c.lng - tierAt.lng) > tierAt.W/3) {
-    tierOf = priceTiers([...MD.rows, ...MD.pinned].filter(r => !r.old && inView(r)).map(r => r.price));   // old prices don't set the colours
-    tierAt = {z, lat:c.lat, lng:c.lng, W, H};
-  }
-  // The cheapest fresh price in view. It holds while a station's card is open (the bar is hidden then, and the station
-  // you opened as "Cheapest" shouldn't lose the label), and catches up when the card closes.
-  if (selI == null || (bestI != null && !MD.byI.has(bestI))) {
-    const best = cheapestOf([...MD.rows, ...MD.pinned].filter(inView)), was = bestI;
-    bestI = best ? best.i : null;
-    if (bestI !== was) map.getSource("st").setData(geo(MD.rows));   // it leaves the groups; the regrouped map syncs again
+  // Colours and the cheapest fresh price, from exactly what's in view after every move (syncMap runs once a move has
+  // settled). Never held over from an earlier view, not even while a station's card is open: a stale "Cheapest" after
+  // zooming out named a dearer station and hid the cheaper groups' "from" prices.
+  const shown = [...MD.rows, ...MD.pinned].filter(inView);
+  tierOf = priceTiers(shown.filter(r => !r.old).map(r => r.price));   // old prices don't set the colours
+  const cheapest = cheapestOf(shown), was = bestI;
+  bestI = cheapest ? cheapest.i : null;
+  if (bestI !== was) {
+    map.getSource("st").setData(geo(MD.rows));   // it leaves the groups; the regrouped map syncs again
+    if (selI != null) openPop(selI, true);       // the open card's "Cheapest in view" badge follows
   }
   const best = bestI != null ? MD.byI.get(bestI) : null;
   // Tags: the unclustered stations a little past the edges (so they don't pop in), the cheapest, and every pinned one
@@ -1205,7 +1204,7 @@ function syncMap(){
     styleTag(m.getElement(), r);
   }
   if (state.view === "map") {
-    const n = [...MD.rows, ...MD.pinned].filter(inView).length;
+    const n = shown.length;
     $("stCount").textContent = state.area && state.area.missing ? `No NSW suburb matches “${qEl.value}”. Try a postcode.`
       : n ? `${n} station${n === 1 ? "" : "s"} in view` : "No stations in view. Zoom out or change filters.";
   }
@@ -1266,7 +1265,7 @@ function closeSel(){
   const back = $("mapSel").contains(document.activeElement) && selI != null ? tags.get(selI)?.getElement() : null;
   $("mapSel").hidden = true;
   if (selI != null) { selI = null; restyleTags(); }
-  if (map) queueSync();   // the cheapest in view catches up, and its bar is back
+  if (map) queueSync();   // the cheapest-in-view bar is back
   back?.focus();
 }
 document.addEventListener("keydown", e => {
@@ -1279,7 +1278,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-closesel]"
 
 function setView(v){
   if (v !== state.view) track("web.view_changed", {view: v});
-  state.view = v; store.set("view", v); syncView();
+  state.view = v; store.set("view2", v); syncView();
   if (v === "list") { closeSel(); setFs(false); }
   renderStations();
 }

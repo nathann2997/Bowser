@@ -127,7 +127,7 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          if [ -z "$EXPO_TOKEN" ]; then echo "::error::Repo secret EXPO_TOKEN is not set, so nothing was shipped. Create an access token at expo.dev (account nathann97) and add it under Settings → Secrets and variables → Actions."; exit 1; fi
+          if [ -z "$EXPO_TOKEN" ]; then echo "::error::EXPO_TOKEN is not set, so nothing was shipped. It lives in Settings → Environments → release → Environment secrets (a limited Expo token for account nathann97; docs/SECURITY.md)."; exit 1; fi
 
       - name: OTA update to the preview channel
         if: steps.plan.outputs.mode == 'ota'

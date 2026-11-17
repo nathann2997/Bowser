@@ -15,12 +15,12 @@ How Bowser is kept safe, what was reviewed, and what only the owner can do. Last
 - **App:** API files are checked for shape before they're shown or saved; the update notice only opens this project's EAS build pages; deep links only take digit station codes; no cloud backup of on-device data (`allowBackup: false`, from 0.10.0); the widget's images need a per-install token (patch in `app/patches/`).
 - **Monitoring:** `data-health` checks the live API every 30 minutes, including that the old `github.io` address still reaches it.
 
-## Owner-only (not visible to the repo)
-- [ ] 2FA on GitHub, Expo, Porkbun (security key or passkey where offered) and PostHog.
-- [ ] `EXPO_TOKEN`: a robot-user token with the smallest role that can publish, stored as an environment secret of `release` (Settings → Environments → release), not a repo secret.
-- [ ] Porkbun: DNSSEC on; CAA record `0 issue "letsencrypt.org"`; auto-renew, WHOIS privacy and transfer lock on.
+## Owner-only (not visible to the repo) — all done 2026-11-18
+- [x] 2FA on GitHub, Expo, Porkbun (security key or passkey where offered) and PostHog (owner, 2026-11-18).
+- [x] `EXPO_TOKEN`: a limited token, stored only as an environment secret of `release` (Settings → Environments → release); the repo secret and the old token are gone (2026-11-18; a test OTA through it succeeded).
+- [x] Porkbun: DNSSEC on (DS at the .app registry, validates); CAA record `0 issue "letsencrypt.org"`; auto-renew, WHOIS privacy and transfer lock on (2026-11-18). Certificate renewals need that CAA value exactly.
 - [x] PostHog: project setting "Discard client IP data" on (confirmed 2026-11-17; the share page says the IP is never kept).
-- [ ] Google Cloud: the Maps Android key restricted to package `com.nathann2997.fuelforecast` + the EAS signing SHA-1, API "Maps SDK for Android" only, a daily quota and a budget alert.
+- [x] Google Cloud: the Maps Android key restricted to package `com.nathann2997.fuelforecast` + the EAS signing SHA-1, API "Maps SDK for Android" only, a daily quota and a budget alert (owner, 2026-11-18). A new signing key (e.g. Play App Signing) needs its SHA-1 added here or the map goes blank.
 
 ## Accepted, on purpose
 - **Precise location permission** stays: "nearest" and distances need better than Android's ~2 km coarse fix. It is never sent off the phone.

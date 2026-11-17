@@ -11,6 +11,20 @@ Owner: Search Console sitemap submitted, Bing set up; "check everything works an
 - **Privacy page** named Google Fonts, which the 2026-11-17 security review removed from the dashboard. It now says cdnjs delivers the chart and map code, OpenFreeMap the map and its lettering, and the site uses no web fonts.
 - **Checked on a full build** from today's data: 3,520 indexable pages, no two share a title or a description, no title over 70 characters. The test for regions now includes a suburb named like a region and checks every title is unique. All 59 pipeline tests pass.
 
+## 2026-11-18 — Map: "Cheapest" always right when zoomed out; web opens on the map
+
+Owner: zoomed out, the web map marked a 249.9 as "Cheapest" with 238.9 and 239.9 tags on screen; "ensure that the maps data is always correct", and make the map the web's first view.
+- **Cause:** while a station's card was open, the web map held the "Cheapest" station from the earlier view (so the opened station kept its label). Zooming out with the card open left a dearer station marked, and, since groups don't show a "from" price lower than the Cheapest tag, hid the "from" labels of every group with a cheaper station in it. The colours had a similar lag: they were only re-split after most of a zoom level or a third of the screen.
+- **Fix (web `template.html` and app `station-map.tsx`):** the Cheapest tag, the bar, the groups' "from" labels and the colours are worked out from exactly what's in view after every settled move, card open or not (in the app, the map centring a tapped tag included). An open card's "Cheapest in view" badge follows. Replaces the earlier hold rule and the "only after a real move" colour rule.
+- **Web opens on the map:** Map is the default view. It's saved under a new key (`bowser.view2`), so everyone starts on the map once and their own List/Map choice holds after that. A map that fails to load still falls back to the list, but no longer saves List as the default.
+- **Analytics:** `$pageview`'s `view` will mostly read `map` from this release, so view-share numbers break at the deploy date.
+
+## 2026-11-18 — Security: owner's checklist done
+
+- **Done by the owner:** 2FA on GitHub, Expo and Porkbun; a limited Expo token as the `release` environment's `EXPO_TOKEN` (repo secret and old token removed); DNSSEC and a CAA record (`0 issue "letsencrypt.org"`) at Porkbun; the Maps key restricted to the app (package + SHA-1, Maps SDK for Android only) with a daily quota and budget alert. 0.10.0 installed and checked on a phone, widget included.
+- **Checked from here:** CAA served by Porkbun; DS record at the .app registry and answers validated (AD) by 1.1.1.1; `EXPO_TOKEN` only in `release`; a manual OTA through the new token succeeded (app-ci run 44198342476, update `ff51a882`).
+- `docs/SECURITY.md`: checklist ticked.
+
 ## 2026-11-18 — Security: eas-cli's own dependencies patched; 0.10.0 live
 
 - **0.10.0 shipped** (app-ci, build `4ea0abf3`): the update notice points older installs at it. The web hardening (frame check, trimmed CSP, rounded GPS area) is live on checkbowser.app; data-health green.
