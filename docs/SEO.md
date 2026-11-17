@@ -45,20 +45,15 @@ Never lead a page title with "FuelCheck" or call the site "FuelCheck": it risks 
 - **Ready for all NSW:** a station marked `out` (the `stations/all-nsw` branch) gets its page with prices and no forecast wording. When that branch merges, the page count roughly triples without more work, but see "Next" for the wording that should change with it.
 
 ## Owner to do, in order
-1. **Point the domain at GitHub Pages.** Today `checkbowser.app` resolves to Porkbun's parking servers and returns 404.
-   - At Porkbun, replace the records for the root domain with GitHub's: `A` 185.199.108.153, 185.199.109.153, 185.199.110.153, 185.199.111.153 (and `AAAA` 2606:50c0:8000::153 to 8003::153), and set `www` as a `CNAME` to `nathann2997.github.io`.
-   - In the repo: Settings → Pages → Custom domain → `checkbowser.app`, then tick Enforce HTTPS once the certificate is issued (`.app` only works over HTTPS). The site deploys from Actions, so no `CNAME` file is needed.
-   - In GitHub account settings → Pages, verify the domain, so nobody else can claim it.
-   - After this, `nathann2997.github.io/Bowser/…` redirects to the new domain, so installed apps keep working.
-2. **Merge this branch** after step 1 (before it, the canonical addresses point at a domain that doesn't answer).
-3. **Google Search Console:** add `checkbowser.app` as a Domain property (a DNS TXT record at Porkbun), submit `https://checkbowser.app/sitemap.xml`, and request indexing for `/`, `/fuel-prices/` and `/fuel-price-forecast/`. Do the same in Bing Webmaster Tools (it can import from Search Console).
-4. **Tell me when the domain is live** so the app's addresses (`API_BASE`, `SHARE_BASE` in `app/src/lib`) and `health.py` can move to it. They work through the redirect meanwhile.
-5. **Links.** A new domain has no authority, and links are what Google trusts most. Cheap, honest ones:
+1. **Merge PR #11.** The domain is live (DNS, certificate and the app all moved on 2026-11-17), so nothing blocks it. The pages go out with the next pipeline run.
+2. **Google Search Console:** add `checkbowser.app` as a Domain property (a DNS TXT record at Porkbun), submit `https://checkbowser.app/sitemap.xml`, and request indexing for `/`, `/fuel-prices/` and `/fuel-price-forecast/`. Do the same in Bing Webmaster Tools (it can import from Search Console).
+3. **In PostHog, confirm "Discard client IP data" is on.** The new Privacy page says IP addresses are discarded; that is a project setting, not something the code can do.
+4. **Links.** A new domain has no authority, and links are what Google trusts most. Cheap, honest ones:
    - list the site in the NSW FuelCheck API showcase / data.nsw.gov.au "apps using this data" if offered;
    - post the forecast and its track record on r/sydney and r/AusFinance when a price jump is forecast (useful, timely, not spam), and to Whirlpool's motoring forum;
    - pitch local news: "site predicts Sydney's next petrol price jump" is a story every time prices spike; the public track record is the proof;
    - when the app reaches the Play Store, the listing links to the site.
-6. **Decide on a contact address.** The About page points to GitHub issues for now; AdSense reviewers prefer an email (for example hello@checkbowser.app through Porkbun's forwarding).
+5. **Decide on a contact address.** The About page points to GitHub issues for now; AdSense reviewers prefer an email (for example hello@checkbowser.app through Porkbun's forwarding).
 
 ## What to watch
 In Search Console, weekly for the first two months:

@@ -421,7 +421,7 @@ const usage = (() => {
   };
   let on = false, id = null, internal = false;
   try {
-    on = /^(www\.)?checkbowser\.app$|^nathann2997\.github\.io$/.test(location.hostname) && !navigator.globalPrivacyControl && navigator.doNotTrack !== "1" && !!window.fetch;
+    on = ["checkbowser.app", "nathann2997.github.io"].includes(location.hostname) && !navigator.globalPrivacyControl && navigator.doNotTrack !== "1" && !!window.fetch;
     const q = new URLSearchParams(location.search);
     if (q.has("internal")) {
       store.set("internal", q.get("internal") === "1"); q.delete("internal");

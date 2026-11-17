@@ -2,18 +2,18 @@
 
 Working notes so a fresh session can resume. Update before ending a session (or at ~70% context). The full history of every change, with commits, run ids and OTA update groups, is in `CHANGELOG.md`; this file only keeps what's current and what's still open.
 
-## Where things stand (2026-11-12)
+## Where things stand (2026-11-17)
 - **Everything runs on GitHub Actions; nothing is run from a laptop.**
-  - `daily.yml`: the pipeline, 5 runs a day. State lives only on the `data` branch; the output is on GitHub Pages (dashboard at https://nathann2997.github.io/Bowser/, API under `/api/v1/`).
+  - `daily.yml`: the pipeline, 5 runs a day. State lives only on the `data` branch; the output is on GitHub Pages (dashboard at https://checkbowser.app/, API under `/api/v1/`).
   - `data-health.yml`: watches the API and fixes what a rerun fixes (`docs/DATA_HEALTH.md`).
   - `pipeline-ci.yml`: tests a pipeline change on a copy of the data, with no keys.
   - `app-ci.yml`: checks the app, then on `main` ships it: an OTA update for a JS change, or a new APK plus the update notice after a `version` bump.
 - **App:** Bowser **0.9.1** (runtime 0.9.1) on Android. Preview APK: EAS build ad1c55ea, https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/ad1c55ea-4f63-4259-bc3e-9d52b059bbd7, built by `app-ci` (run 42969569188). `app_release.json` points at it. Not yet seen on a phone.
 - **iOS:** compiles (simulator build 46497e9c) but isn't distributed; see the open item below.
-- **Names:** the repo is `nathann2997/Bowser` (renamed 2026-11-11), so the site is https://nathann2997.github.io/Bowser/. The old `…/FuelForecast/` address is gone (404). Still `fuelforecast`, because installed apps depend on them: the Android package, iOS bundle id, Expo slug and URL scheme.
+- **Names:** the repo is `nathann2997/Bowser` (renamed 2026-11-11), and its Pages site is on the custom domain **https://checkbowser.app** (live 2026-11-17, OTA b475ffcb; bought at Porkbun, DNS there; AAAA, SPF `-all` and DMARC `p=reject` in place; see CHANGELOG). `https://nathann2997.github.io/Bowser/` redirects to it and is the app's fallback; data-health warns (`OLD_ADDRESS`) if that redirect stops. The old `…/FuelForecast/` address is gone (404). Still `fuelforecast`, because installed apps depend on them: the Android package, iOS bundle id, Expo slug and URL scheme.
 
 ## Owner to do
-- **checkbowser.app** (2026-11-17, `docs/SEO.md` has the steps): point the domain's DNS at GitHub Pages (it still resolves to Porkbun parking and returns 404), set it as the custom domain in the repo's Pages settings, then merge `seo/checkbowser`, then add the site to Google Search Console and submit `sitemap.xml`.
+- **Search (2026-11-17, `docs/SEO.md`):** merge `seo/checkbowser` (PR #11), then add checkbowser.app to Google Search Console as a Domain property and submit `https://checkbowser.app/sitemap.xml`. In PostHog, confirm "Discard client IP data" is on: the new Privacy page says it is.
 - **Install 0.9.1 and check it on a phone**; testers on older versions now get the prompt by themselves (see the first open item), so sending the link is optional.
 - Add the repo secret `VIC_API_KEY` if the Victorian archive is wanted (optional).
 - Delete the old key files on the laptop, which nothing reads any more: `sydney/pipeline/credentials.py`, `sydney/pipeline/pull_nsw.js`, `fuel-api-credentials.md`. Rotate `NSW_API_KEY`/`NSW_API_SECRET` (set 2026-10-20, never rotated).
@@ -29,7 +29,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - 2026-11-11: nothing runs locally and nothing depends on an AI assistant or a scheduled task outside GitHub.
 
 ## Open work
-- **Search pages** (2026-11-17, branch `seo/checkbowser`, not merged; `docs/SEO.md`). `seo_pages.py` writes 1,283 static pages, the sitemap and robots file inside `export_api.py`. **Next:** merge after the domain is live; then move `API_BASE`/`SHARE_BASE` (app) and `health.py`'s `DEFAULT_BASE` to checkbowser.app; after `stations/all-nsw` merges, reword the hub from "Sydney" to "NSW" and add region pages. AdSense is not set up; the list of what it needs is in `docs/SEO.md`.
+- **Search pages** (2026-11-17, branch `seo/checkbowser`, not merged; `docs/SEO.md`). `seo_pages.py` writes 1,283 static pages, the sitemap and robots file inside `export_api.py`. **Next:** merge PR #11 (the domain is live, so nothing blocks it); after `stations/all-nsw` merges, reword the hub from "Sydney" to "NSW" and add region pages. AdSense is not set up; the list of what it needs is in `docs/SEO.md`.
 Newest first. Each item has its CHANGELOG entry of the same name for details.
 
 - **Update prompts and automatic shipping** (2026-11-12): live. expo-doctor is advisory in `app-ci`, so pushes to `main` ship OTAs (first one: ef6169d0, runtime 0.9.1, with the station-page price fix). The update notice shows on every open. `app-ota-legacy.yml` published the new API address and the new notice to 0.3.0–0.9.0 from the `ota/<version>-update-notice` branches (run 43113185748). **Next:** on a phone, check that the notice comes back after "Later" and that an older install recovers its prices and shows the 0.9.1 prompt. When a future change must reach old versions (for example another address move), commit it to each `ota/` branch and run `app-ota-legacy`.
@@ -90,7 +90,7 @@ Newest first. Each item has its CHANGELOG entry of the same name for details.
 - A change is tested by pushing it: `app-ci` (typecheck, lint, jest, expo-doctor) and `pipeline-ci` (unit tests, then the whole pipeline on a copy of the `data` branch; the built site is a run artifact). Compare that artifact with the live site, ignoring `generated_at`.
 - **Shipping the app:** push to `main`. JS-only → OTA to `preview`. Native change → bump `version` in `app/app.json` and edit `app/release_notes.txt`; the workflow builds the APK, updates `sydney/pipeline/app_release.json` and starts `daily.yml`. It refuses to OTA when native files changed without a bump. eas-cli is pinned in `app-ci.yml`.
 - Keys exist only as GitHub Actions secrets (`NSW_API_KEY`, `NSW_API_SECRET`, `VIC_API_KEY`, `EXPO_TOKEN`) and in the EAS `preview` environment (`GOOGLE_MAPS_ANDROID_API_KEY`, PostHog key and host). There is no credentials file. Third-party actions are blocked in this repo, so workflows use GitHub's own actions and CLIs only.
-- API base: `https://nathann2997.github.io/Bowser/api/v1/`; the file schema is in `sydney/README.md`.
+- API base: `https://checkbowser.app/api/v1/`; the file schema is in `sydney/README.md`.
 - `stations.json` per-fuel tuple: `[price, days since update, advice code, advice label, reason, 7-day forecast price]` (the last is left off on a day the station files failed). Advice codes: now, by, ok, wait, hi, any, chk.
 - The verdict rule is in `template.html` (`verdict()`) and mirrored in `export_api.py`; change both together. The rise date is `market()` in `build.py`, ported to `app/src/lib/outlook.ts`.
 - The data (`store/`, `archive/`) lives only on the `data` branch; `main` holds code and docs. Don't merge `data` into `main`, and only Actions writes to `data`.
