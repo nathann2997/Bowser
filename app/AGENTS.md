@@ -2,6 +2,7 @@
 
 Read `README.md` here first, then `docs/HANDOFF.md` at the repo root for the current status.
 
+- **Google Play (1.0.0):** the Play build is EAS channel `production` (`docs/PLAY_STORE.md`). It never shows the APK update notice (`fromPlay` in `components/update-notice.tsx`). Background location is off (`widget/bg-location.ts`); don't add permissions that need a Play declaration without the owner's say. Keep the privacy page (`sydney/pipeline/seo_pages.py`) and the Data safety answers in step with what the app sends.
 - **Release notes:** when you bump `version`, put one line (up to 300 characters) of "what's new" in `release_notes.txt`; the workflow copies it into the update notice.
 - **Runtime version = `version` in `app.json`** (`runtimeVersion.policy: appVersion`). A JS-only change ships as an OTA update; anything that changes native code (a new native module, a plugin, native config) needs a `version` bump and a new build. Older installs don't get OTAs for a newer runtime.
 - **iOS-only native modules are excluded from Android autolinking** (`expo.autolinking.android.exclude` in `package.json`), so the APK is unaffected. Add any new iOS-only dependency there.

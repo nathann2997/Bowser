@@ -15,14 +15,27 @@
       }
     },
     "production": {
+      "distribution": "store",
+      "environment": "production",
       "channel": "production",
       "uploadSourceMaps": true,
-      "autoIncrement": true
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      }
     },
     "simulator": {
       "extends": "preview",
       "ios": {
         "simulator": true
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
       }
     }
   }

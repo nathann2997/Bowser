@@ -13,6 +13,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - **Names:** the repo is `nathann2997/Bowser` (renamed 2026-11-11), and its Pages site is on the custom domain **https://checkbowser.app** (live 2026-11-17, OTA b475ffcb; bought at Porkbun, DNS there; AAAA, SPF `-all` and DMARC `p=reject` in place; see CHANGELOG). `https://nathann2997.github.io/Bowser/` redirects to it and is the app's fallback; data-health warns (`OLD_ADDRESS`) if that redirect stops. The old `…/FuelForecast/` address is gone (404). Still `fuelforecast`, because installed apps depend on them: the Android package, iOS bundle id, Expo slug and URL scheme.
 
 ## Owner to do
+- **Google Play launch (2026-11-18):** branch `release/google-play` (PR) holds Bowser 1.0.0 for Play. The step-by-step owner list is in the PR and `docs/PLAY_STORE.md` (One-time setup): Play Console account, merge, EAS `production` variables, signing choice, service account, first upload by hand (`ship=play-build`), listing and forms, a 14-day closed test with 12+ testers, production.
 - **Search (`docs/SEO.md`):** Search Console verified with the sitemap submitted, and Bing set up (owner, 2026-11-17/18). Next for the owner: links (`docs/SEO.md`, step 4) and a contact email for AdSense.
 - **Install 0.9.1 and check it on a phone**; testers on older versions now get the prompt by themselves (see the first open item), so sending the link is optional.
 - Add the repo secret `VIC_API_KEY` if the Victorian archive is wanted (optional).
@@ -29,6 +30,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - 2026-11-11: nothing runs locally and nothing depends on an AI assistant or a scheduled task outside GitHub.
 
 ## Open work
+- **Google Play** (2026-11-18, `docs/PLAY_STORE.md`): 1.0.0 drops background location (widget uses the saved area), blocks AD_ID, hides the APK notice in the Play build, adds the `play` CI job (internal track, draft), and the app section of the privacy page. **Next:** after the owner's first `play` run, check the bundle's permissions; once live in production, point `app_release.json` at the Play listing, set `PLAY_PUBLIC`, and carry the new notice to the `ota/` branches (and a new `ota/0.10.0-update-notice`) so old installs move too.
 - **Search pages** (live 2026-11-17, PR #11, `daily.yml` run 44011072183; `docs/SEO.md`). `seo_pages.py` writes about 3,500 static pages, the sitemap and robots file inside `export_api.py`. The hub says NSW, with 23 region pages, `llms.txt` and named AI crawlers in `robots.txt` (2026-11-17 review). **Next:** watch Search Console for "Crawled, currently not indexed" on station pages. AdSense is not set up; the list of what it needs is in `docs/SEO.md`.
 Newest first. Each item has its CHANGELOG entry of the same name for details.
 

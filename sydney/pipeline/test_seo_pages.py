@@ -128,7 +128,7 @@ class Built(unittest.TestCase):
             if path == "404.html": continue                       # its links are root-relative (it is served at any depth)
             here = os.path.dirname(path)
             for href in re.findall(r'href="([^"]+)"', t):
-                if re.match(r"https?:|#", href): continue
+                if re.match(r"https?:|mailto:|#", href): continue
                 target = os.path.normpath(os.path.join(here, href.split("#")[0]))
                 if target in (".", ""): continue                  # the dashboard, written by export_api.py
                 if target in ("favicon.svg", "apple-touch-icon.png"): continue   # copied from static/ by export_api.py

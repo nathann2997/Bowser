@@ -1,8 +1,15 @@
 // "A new version of Bowser is available": shown on every launch and every return to the app while the API's app.json (sydney/pipeline/
 // app_release.json) lists a newer version for this platform than the one installed. Testers sideload APKs, so nothing
-// else tells them; drop this once Bowser is on the Play Store / App Store. Self-contained (no app imports, own colours)
-// on purpose: the same file is added to older versions' code and shipped to them as an OTA update.
+// else tells them. Self-contained (no app imports, own colours) on purpose: the same file is added to older versions'
+// code and shipped to them as an OTA update (expo-updates is in every version).
+//
+// Google Play (1.0.0, 2026-11-18): the Play build (EAS channel `production`) never shows it, because Play updates the
+// app itself and Play doesn't allow an app to send people to install an APK. Sideloaded builds (channel `preview`)
+// keep it, and once Bowser is public on Play, app_release.json can point them at the Play listing (PLAY_URL) instead
+// of an APK, with its own wording. That only upgrades in place when Play signs with the same key as the APKs
+// (docs/PLAY_STORE.md).
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import { useEffect, useState } from 'react';
 import { AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
@@ -10,8 +17,13 @@ type Release = { version: string; url: string; notes?: string };
 export type UpdateAction = 'shown' | 'update' | 'later';
 
 const SEMVER = /^\d+\.\d+\.\d+$/;
-/** Only Bowser's own EAS build pages open from here (same rule as export_api.py) */
+/** Only Bowser's own EAS build pages, or its Google Play listing, open from here (same rule as export_api.py) */
+export const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.nathann2997.fuelforecast';
 const SAFE_URL = /^https:\/\/expo\.dev\/accounts\/nathann97\/projects\/fuel-forecast\/builds\/[0-9a-f-]{36}$/;
+const safeUrl = (u: string) => u === PLAY_URL || SAFE_URL.test(u);
+
+/** The Google Play build: Play keeps it up to date, so it never shows this notice */
+export const fromPlay = (channel: string | null | undefined) => channel === 'production';
 
 /** a > b for x.y.z versions */
 export function newer(a: string, b: string): boolean {
@@ -25,7 +37,7 @@ export function newer(a: string, b: string): boolean {
 export function pendingRelease(json: unknown, os: string, installed: string | undefined): Release | null {
   const r = (json as Record<string, unknown> | null)?.[os] as Partial<Release> | null | undefined;
   if (!r || typeof r.version !== 'string' || typeof r.url !== 'string') return null;
-  if (!SEMVER.test(r.version) || !SAFE_URL.test(r.url) || !installed || !SEMVER.test(installed)) return null;
+  if (!SEMVER.test(r.version) || !safeUrl(r.url) || !installed || !SEMVER.test(installed)) return null;
   if (!newer(r.version, installed)) return null;
   const notes = typeof r.notes === 'string' && r.notes.length <= 300 ? r.notes : undefined;
   return { version: r.version, url: r.url, notes };
@@ -40,7 +52,7 @@ export function UpdateNotice({ releaseUrl, onAction }: {
   const [rel, setRel] = useState<Release | null>(null);
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
+    if (Platform.OS === 'web' || fromPlay(Updates.channel)) return;
     let live = true;
     let ctl: AbortController | null = null;
     let t: ReturnType<typeof setTimeout> | undefined;
@@ -111,7 +123,9 @@ export function UpdateNotice({ releaseUrl, onAction }: {
           {/* Scrolls at large text sizes so the buttons stay on screen */}
           <ScrollView style={{ maxHeight: 220 }}>
             <Text style={[styles.body, { color: c.fg2 }]} maxFontSizeMultiplier={1.6}>
-              {rel.notes ? `${rel.notes}\n\n` : ''}Tap Update, then Install on the page that opens. When it’s downloaded, open the file to install it. Your settings, pinned stations and fills stay as they are.
+              {rel.notes ? `${rel.notes}\n\n` : ''}{rel.url === PLAY_URL
+                ? 'Bowser is now on Google Play. Tap Update, then Update or Install in Google Play. From then on, Google Play keeps Bowser up to date. Your settings, pinned stations and fills stay as they are.'
+                : 'Tap Update, then Install on the page that opens. When it’s downloaded, open the file to install it. Your settings, pinned stations and fills stay as they are.'}
             </Text>
             <Text style={[styles.version, { color: c.fg2 }]} maxFontSizeMultiplier={1.6}>
               Version {Constants.expoConfig?.version} → {rel.version}
