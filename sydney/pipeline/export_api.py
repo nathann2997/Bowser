@@ -267,10 +267,10 @@ except Exception as e:
 # tiles, styles and glyphs come from OpenFreeMap; the only other requests are the page's own api/v1/track.json ('self')
 # and anonymous usage events to PostHog. MapLibre runs its worker from a blob: URL, and there are no frames or form
 # posts. A meta CSP can't set frame-ancestors, so the page's script refuses to run inside another site's frame.
-inline = re.findall(r"<script>(.*?)</script>", html, re.S)
+inline = re.findall(r"<script>(.*?)</script>", html, re.S | re.I)
 # Any inline <script ...> with attributes would be blocked by the CSP: refuse to publish rather than ship a dead page
 # (a JSON-LD block is data, not a script: the browser never runs it, so the CSP doesn't apply to it)
-n_inline = len(re.findall(r"<script(?![^>]*\bsrc=)(?![^>]*application/ld\+json)[^>]*>", html))
+n_inline = len(re.findall(r"<script(?![^>]*\bsrc=)(?![^>]*application/ld\+json)[^>]*>", html, re.I))
 if len(inline) != 1 or n_inline != 1: raise RuntimeError(f"dashboard: expected 1 inline script, found {n_inline}")
 sha = base64.b64encode(hashlib.sha256(inline[0].encode()).digest()).decode()
 # cdnjs is allowed by exact file, not by host: the whole host would let an injected <script src> load any library on it
@@ -293,9 +293,9 @@ open(f"{OUT}/index.html", "w", encoding="utf-8").write(html)   # UTF-8 bytes: wh
 shutil.rmtree(f"{OUT}/s", ignore_errors=True)
 try:
     page = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "share.html"), encoding="utf-8").read()
-    scripts = re.findall(r"<script>(.*?)</script>", page, re.S)
+    scripts = re.findall(r"<script>(.*?)</script>", page, re.S | re.I)
     styles = re.findall(r"<style>(.*?)</style>", page, re.S)
-    if len(scripts) != 1 or len(re.findall(r"<script\b", page)) != 1 or len(styles) != 1 or len(re.findall(r"<style\b", page)) != 1:
+    if len(scripts) != 1 or len(re.findall(r"<script\b", page, re.I)) != 1 or len(styles) != 1 or len(re.findall(r"<style\b", page)) != 1:
         raise RuntimeError("expected exactly one inline <script> and one <style>")
     if re.search(r"\son\w+\s*=|\sstyle\s*=", page): raise RuntimeError("inline handler or style attribute (blocked by the CSP)")
     h = lambda t: base64.b64encode(hashlib.sha256(t.encode()).digest()).decode()
