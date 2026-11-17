@@ -13,6 +13,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - **Names:** the repo is `nathann2997/Bowser` (renamed 2026-11-11), and its Pages site is on the custom domain **https://checkbowser.app** (live 2026-11-17, OTA b475ffcb; bought at Porkbun, DNS there; AAAA, SPF `-all` and DMARC `p=reject` in place; see CHANGELOG). `https://nathann2997.github.io/Bowser/` redirects to it and is the app's fallback; data-health warns (`OLD_ADDRESS`) if that redirect stops. The old `…/FuelForecast/` address is gone (404). Still `fuelforecast`, because installed apps depend on them: the Android package, iOS bundle id, Expo slug and URL scheme.
 
 ## Owner to do
+- **Search (2026-11-17, `docs/SEO.md`):** merge `seo/checkbowser` (PR #11), then add checkbowser.app to Google Search Console as a Domain property and submit `https://checkbowser.app/sitemap.xml`. In PostHog, confirm "Discard client IP data" is on: the new Privacy page says it is.
 - **Install 0.9.1 and check it on a phone**; testers on older versions now get the prompt by themselves (see the first open item), so sending the link is optional.
 - Add the repo secret `VIC_API_KEY` if the Victorian archive is wanted (optional).
 - Delete the old key files on the laptop, which nothing reads any more: `sydney/pipeline/credentials.py`, `sydney/pipeline/pull_nsw.js`, `fuel-api-credentials.md`. Rotate `NSW_API_KEY`/`NSW_API_SECRET` (set 2026-10-20, never rotated).
@@ -28,6 +29,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - 2026-11-11: nothing runs locally and nothing depends on an AI assistant or a scheduled task outside GitHub.
 
 ## Open work
+- **Search pages** (2026-11-17, branch `seo/checkbowser`, not merged; `docs/SEO.md`). `seo_pages.py` writes 1,283 static pages, the sitemap and robots file inside `export_api.py`. **Next:** merge PR #11 (the domain is live, so nothing blocks it); after `stations/all-nsw` merges, reword the hub from "Sydney" to "NSW" and add region pages. AdSense is not set up; the list of what it needs is in `docs/SEO.md`.
 Newest first. Each item has its CHANGELOG entry of the same name for details.
 
 - **All NSW stations on the map** (2026-11-13; branch `stations/all-nsw`, PR open, **not merged, not live**). Merging to `main` ships it: the next `daily-forecast` run publishes the wider list and `app-ci` sends the OTA. **Next:**

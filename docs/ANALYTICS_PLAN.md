@@ -68,6 +68,8 @@ Every event carries: the app version, the OTA `update` id, the channel (preview 
   - `$pageleave`.
 
   With the app's `app.opened` source `share`, this shows whether shared links bring people to Bowser.
+- **Search pages** (added 2026-11-17, `seo_pages.py`): the same tracker rules. One `$pageview` with `page` (hub, fuel, suburb, station, brand, forecast, cycle, fuelcheck, …) and `$referring_domain`; `seo.cta` with `cta` when a main link is used (directions, open the map); `$pageleave`. The address sent is the page type's pattern (`/fuel-prices/:suburb/`, `/station/:station/`), never the real one, so no suburb or station is sent.
+- **Where it sends from** (2026-11-17): `checkbowser.app` as well as `nathann2997.github.io`.
 - **Notice:** both footers say visits are counted anonymously, with no cookies, location or IP address.
 
 ## Owner actions in PostHog

@@ -2,6 +2,27 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-17 — Search pages for checkbowser.app (branch `seo/checkbowser`, PR #11, not merged)
+
+Owner: the site is moving to checkbowser.app and should rank for NSW FuelCheck, fuel forecast and fuel price searches, with AdSense later. Plan, keyword map and the owner's checklist: `docs/SEO.md`.
+- **What was wrong:** the whole site was one page drawn by script, titled "Bowser", with no description, canonical address, sitemap or robots file, so a search engine had almost nothing to index and no page matched a suburb, station, fuel or brand search.
+- **New `seo_pages.py`** (standard library only), run by `export_api.py` on every pipeline run from the same dicts as the JSON API. It writes 1,283 plain HTML pages today:
+  - `/fuel-prices/` (hub), one page per fuel (5) and per suburb (384);
+  - `/station/` and one page per station (864), with a 90-day price chart drawn as inline SVG, the station's own call and cheaper stations within 4 km;
+  - `/brands/` and a page per brand with 3 or more stations (22);
+  - guides: `/fuel-price-forecast/`, `/petrol-price-cycle/`, `/nsw-fuelcheck/`; plus `/about/`, `/privacy/`, `404.html`;
+  - `sitemap.xml` and `robots.txt`.
+- **Every page:** unique title and description with today's price, canonical on checkbowser.app, Open Graph tags and a share image, breadcrumbs, structured data (`GasStation`, `ItemList`, `Article`, `Dataset`, `BreadcrumbList`), FuelCheck attribution and a "not affiliated" line. Links are relative, so the pages also work under `github.io/Bowser/` (except the 404 page, whose links assume the domain root). A name two stations share gets its street in the title, so no two pages share a title or description.
+- **Rules:** a price over 7 days old or at a members-only site never counts as "cheapest"; a station-history price far from the day's Sydney median (a stuck price) is left out of the chart; wholesale (AIP) figures are not printed on these pages; names from the feed are escaped; each page has a hash CSP. A station outside Sydney (`out`, from the `stations/all-nsw` branch) gets prices without forecast wording.
+- **Fails soft:** if the pages can't be built, none is published, `meta.json` `warnings` says why, and the dashboard and API go out as before. `meta.json` gains `pages` (the count).
+- **Dashboard (`template.html`, `export_api.py`):** title "Bowser: Sydney fuel prices today and when to fill up", a description with today's price and call, canonical, share tags, JSON-LD, `lang="en-AU"`, favicon, and footer links to the new pages. Its CSP now allows images from the site itself (the favicon), and the one-inline-script check ignores JSON-LD blocks.
+- **Share page (`share.html`):** `noindex`.
+- **Analytics:** the dashboard and share page count visits on `checkbowser.app` as well as the old address. The new pages send `$pageview` and `$pageleave` with the page type, and a `seo.cta` event for their main links; the address sent is the type's pattern (`/fuel-prices/:suburb/`), never the suburb or station (`docs/ANALYTICS_PLAN.md`).
+- **New static files** (`sydney/pipeline/static/`): `favicon.svg`, `apple-touch-icon.png`, `og.png` (made once with headless Chrome).
+- **QA audit** (independent reviewer, before commit): no blockers; fixed a stale price being called "cheapest today" in suburbs with only old prices, two spellings of one suburb or brand stopping the whole build, odd feed rows (no id, no name, no advice, a 300-character name) doing the same, links to a brand page that wasn't written, duplicate titles, descriptions over 160 characters, the FuelCheck guide's title leading with "NSW FuelCheck", diesel copy its own page contradicted, and a privacy page that left out the leave and click events, the dashboard's events and the third parties the browser contacts.
+- **Tests:** `test_seo_pages.py` (17 tests: every internal link leads to a page, CSP hashes match, one title/description/canonical/h1 per page, escaping, sitemap, stale and members-only rules, outside-Sydney wording). All 50 pipeline tests pass.
+- **Checked** by running the whole pipeline on a copy of the `data` branch as `pipeline-ci` does: 1,283 pages, health checks OK, the dashboard renders with no CSP errors in headless Chrome, pages viewed at desktop and phone width. **Not checked:** on the live domain (the pages aren't deployed until the PR merges), or in Google's Rich Results test.
+- **Not changed:** the app and `health.py` (both moved to checkbowser.app separately, PR #10).
 ## 2026-11-17 — Domain move to checkbowser.app: live
 
 - **Cutover (12:00 AEDT):** DNS at Porkbun (GitHub A records, `www` CNAME, account-level Pages domain verification), custom domain set on Pages right after a pipeline run, Let's Encrypt certificate issued within minutes, Enforce HTTPS on. During those minutes older addresses redirected to a not-yet-secure host, so apps may have shown a load error briefly.
