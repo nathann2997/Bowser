@@ -48,7 +48,7 @@ Every event carries: the app version, the OTA `update` id, the channel (preview 
 
 ## Web: dashboard and share page (2026-11-10)
 - **No library:** a small tracker in `template.html` (`usage`) and `share.html` (`track`) POSTs to PostHog's capture API (`https://us.i.posthog.com/i/v0/e/`). The two copies must stay in step. Both CSPs in `export_api.py` allow that host in `connect-src`, and nothing else was added.
-- **When it sends:** only on the published site (`nathann2997.github.io`), so a copy opened anywhere else sends nothing. Never when the browser has Global Privacy Control or Do Not Track on.
+- **When it sends:** only on the published site (`checkbowser.app`, or `nathann2997.github.io` until the move to that domain is done), so a copy opened anywhere else sends nothing. Browser storage is per site, so web visitors get a new anonymous id once on `checkbowser.app`: expect a one-off jump in new web users (and drop in returning ones) at the move, and re-mark the owner's browsers there with `?internal=1`. Never when the browser has Global Privacy Control or Do Not Track on.
 - **No cookies:** a random id in `localStorage` (`bowser.anon`) counts returning visitors. If storage is blocked, the id lasts for one page load. A session (`bowser.session`, UUIDv7) ends after 30 minutes without an event, as in PostHog's library.
 - **Every event carries:** `$process_person_profile: false` (no person profiles for web visitors), `$geoip_disable: true`, `internal`, `$session_id`, the page address without its query, `$device_type` (Mobile or Desktop by pointer), and `$lib: bowser-web`.
 - **Marking your own browser:** open the dashboard with `?internal=1` once to mark it internal; `?internal=0` clears it.

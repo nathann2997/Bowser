@@ -2,6 +2,30 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-17 — Domain move to checkbowser.app: live
+
+- **Cutover (12:00 AEDT):** DNS at Porkbun (GitHub A records, `www` CNAME, account-level Pages domain verification), custom domain set on Pages right after a pipeline run, Let's Encrypt certificate issued within minutes, Enforce HTTPS on. During those minutes older addresses redirected to a not-yet-secure host, so apps may have shown a load error briefly.
+- **Checked:** `nathann2997.github.io/Bowser/` (site, `api/v1/meta.json`, `app.json`, `s/?id=231&f=U91`) all land on `https://checkbowser.app/` with path and query kept; `www` and `http://` redirect to `https://checkbowser.app/`; certificate CN=checkbowser.app, Let's Encrypt, to 14 Feb 2027 (renewed by GitHub).
+- **Shipped:** PR #10 (app API list, health check, docs). app-ci 442 tests pass; OTA update group `b475ffcb-9f00-4feb-bf90-7634ccd30123` (runtime 0.9.1, android + ios). data-health against the new domain: OK.
+- **DNS complete (14:15 AEDT):** AAAA records (IPv6), SPF `v=spf1 -all` and DMARC `p=reject` added at Porkbun, checked on Porkbun's nameservers; no wildcard. data-health and the pipeline green since the move.
+- **Rollback:** remove the custom domain in Settings → Pages; github.io serves directly and the app falls back to it.
+
+## 2026-11-17 — Domain move to checkbowser.app, step 2: the app, health check and docs use the new address
+
+Merge only once `https://checkbowser.app/api/v1/meta.json` answers over HTTPS (custom domain set on Pages, certificate issued, Enforce HTTPS on).
+- **App (`lib/api.ts`):** the API list is now `checkbowser.app`, then `nathann2997.github.io/Bowser` as the fallback; the dead `…/FuelForecast/` address is gone. If the custom domain is ever taken off, github.io serves the site directly again and the app falls back to it by itself. Share links (`/s/?id=…`), the track-record link, the update notice and the network traces follow the first address. Ships as an OTA (no new APK).
+- **Health check (`health.py`):** checks `https://checkbowser.app` by default, and adds `OLD_ADDRESS` (warning): the old github.io address must still reach the API, since older app versions and links already shared use it (`docs/DATA_HEALTH.md`).
+- **Docs:** README, HANDOFF, `sydney/README.md` and the 0.7 plan give the new address.
+- **Older versions (0.3.0 to 0.9.0) are left on `nathann2997.github.io/Bowser`** on purpose: their `ota/<version>-update-notice` branches have that one address and no fallback, and it works both with the custom domain (GitHub redirects it) and without it (rollback). Moving them to `checkbowser.app` would lose that.
+- **Health check only runs `OLD_ADDRESS`** for the live site and not when the site is already `API_UNREACHABLE`, so a Pages outage raises one alert, not two.
+
+## 2026-11-17 — Domain move to checkbowser.app, step 1: web analytics ready for the new address
+
+The owner bought `checkbowser.app` (Porkbun) to replace `nathann2997.github.io/Bowser/`. Plan: DNS first, then the custom domain on GitHub Pages (old addresses then redirect), then the app's API address by OTA.
+- **Why first:** the web tracker in `template.html` and `share.html` only sent on `nathann2997.github.io`, so it would have gone silent the moment the site moved. It now sends on `checkbowser.app` as well; nothing else changes until the domain is live.
+- **Expect:** web visitors get a new anonymous id once on the new address (browser storage is per site), so new web users jump and returning users drop for a day or two at the move (`docs/ANALYTICS_PLAN.md`). The `?internal=1` mark is per site too: open the dashboard once on `checkbowser.app` with `?internal=1` on each of the owner's browsers.
+- **Not yet:** DNS, the Pages custom domain, the app's API address, the health check and the docs' URLs.
+
 ## 2026-11-13 — All NSW stations on the map and in the lists (pipeline, dashboard, app)
 
 Owner: "Why aren't station in regional NSW available? even central coast and woolongong aren't available. ensure we include ALL stations for the data we have is available on the map". On branch `stations/all-nsw`; **not merged, so not live**.
