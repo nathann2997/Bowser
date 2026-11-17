@@ -82,7 +82,7 @@ The owner bought `checkbowser.app` (Porkbun) to replace `nathann2997.github.io/B
 
 ## 2026-11-13 — All NSW stations on the map and in the lists (pipeline, dashboard, app)
 
-Owner: "Why aren't station in regional NSW available? even central coast and woolongong aren't available. ensure we include ALL stations for the data we have is available on the map". On branch `stations/all-nsw`; **not merged, so not live**.
+Owner: "Why aren't station in regional NSW available? even central coast and woolongong aren't available. ensure we include ALL stations for the data we have is available on the map". Merged as PR #9 (`dfcafbf`), app OTA group `f9830ab5` at runtime 0.9.1; live in the API from `daily-forecast` run 44155647314 on 2026-11-18 (2388 stations, 1525 outside Sydney, no warnings).
 - **Why they were missing:** `update.py` kept only stations whose address ends in a Sydney postcode (2000–2234, 2555–2574, 2740–2786) before anything else ran, so the Central Coast (2250–2263), Wollongong (2500–2530), Newcastle and regional NSW never reached the API. The NSW feed has always carried them.
 - **Now (`update.py`):** every station in the feed goes to `store/stations_today.json` and the daily `archive/` snapshot, with `syd` true for the Sydney ones. Sydney is decided exactly as before, and the daily rows the model is fitted on are built from Sydney prices only, so the forecast, medians and track record don't change.
 - **Stations outside Sydney are prices only (`build.py`, `export_api.py`, `station_api.py`):**
