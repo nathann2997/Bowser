@@ -108,7 +108,7 @@
       return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
     };
     try {
-      on = location.hostname === 'nathann2997.github.io' && !navigator.globalPrivacyControl && navigator.doNotTrack !== '1' && !!window.fetch;
+      on = (location.hostname === 'checkbowser.app' || location.hostname === 'nathann2997.github.io') && !navigator.globalPrivacyControl && navigator.doNotTrack !== '1' && !!window.fetch;
       internal = get('internal', false) === true;
       id = get('anon', null);
       if (typeof id !== 'string') { id = uuid7(); set('anon', id); }

@@ -2,6 +2,13 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-17 — Domain move to checkbowser.app, step 1: web analytics ready for the new address
+
+The owner bought `checkbowser.app` (Porkbun) to replace `nathann2997.github.io/Bowser/`. Plan: DNS first, then the custom domain on GitHub Pages (old addresses then redirect), then the app's API address by OTA.
+- **Why first:** the web tracker in `template.html` and `share.html` only sent on `nathann2997.github.io`, so it would have gone silent the moment the site moved. It now sends on `checkbowser.app` as well; nothing else changes until the domain is live.
+- **Expect:** web visitors get a new anonymous id once on the new address (browser storage is per site), so new web users jump and returning users drop for a day or two at the move (`docs/ANALYTICS_PLAN.md`). The `?internal=1` mark is per site too: open the dashboard once on `checkbowser.app` with `?internal=1` on each of the owner's browsers.
+- **Not yet:** DNS, the Pages custom domain, the app's API address, the health check and the docs' URLs.
+
 ## 2026-11-12 — Web dashboard: Filters panel no longer has the map showing through it
 
 Owner: "fix this UI up, when clicking the filter button" (the screenshot attached was of another app, so the fault was found by opening the panel on the live page).
