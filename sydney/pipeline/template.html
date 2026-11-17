@@ -394,7 +394,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 // Not inside another site's frame (clickjacking): GitHub Pages can't send X-Frame-Options or frame-ancestors
-if (window.top !== window.self) { try { window.top.location.replace(location.href); } catch (e) { document.documentElement.style.display = "none"; } }
+if (window.top !== window.self) { document.documentElement.style.display = "none"; try { window.top.location.replace(location.href); } catch (e) {} }
 const D = __DATA__;
 // Station names, brands, suburbs and advice text come from the NSW API (third-party): escape them before any innerHTML
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);

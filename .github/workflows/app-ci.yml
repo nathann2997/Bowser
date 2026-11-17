@@ -53,11 +53,12 @@ jobs:
       # Reported, not a gate (owner's decision, 2026-11-12): expo-doctor fails whenever Expo releases a patch version,
       # which has nothing to do with the commit being checked and blocked every OTA. Upgrading the packages is a native
       # change, so it goes out with the next APK. Read this step's output before a version bump.
+      # Not advisory: a broken tools/ci lock would also stop the ship job, so it fails here first
+      - name: Install the locked CI tools (eas-cli, expo-doctor)
+        run: npm ci --prefix ../tools/ci --ignore-scripts --no-audit --no-fund
       - name: expo-doctor (advisory)
         continue-on-error: true
-        run: |
-          npm ci --prefix ../tools/ci --ignore-scripts --no-audit --no-fund
-          ../tools/ci/node_modules/.bin/expo-doctor
+        run: ../tools/ci/node_modules/.bin/expo-doctor
 
   ship:
     needs: check

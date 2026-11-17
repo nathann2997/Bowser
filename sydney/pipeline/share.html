@@ -86,7 +86,7 @@
 <script>
 (function () {
   // Not inside another site's frame (clickjacking): GitHub Pages can't send X-Frame-Options or frame-ancestors
-  if (window.top !== window.self) { try { window.top.location.replace(location.href); } catch (e) { document.documentElement.style.display = 'none'; } }
+  if (window.top !== window.self) { document.documentElement.style.display = 'none'; try { window.top.location.replace(location.href); } catch (e) {} }
   // Built with textContent only: nothing from the URL or the API is ever parsed as HTML.
   var FUELS = { U91: 'Unleaded 91', E10: 'E10', P95: 'Premium 95', P98: 'Premium 98', DL: 'Diesel' };
   var SHORT = { U91: 'U91', E10: 'E10', P95: 'P95', P98: 'P98', DL: 'Diesel' };
