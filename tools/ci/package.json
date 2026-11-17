@@ -1,0 +1,9 @@
+{
+  "name": "bowser-ci-tools",
+  "private": true,
+  "description": "CLIs the workflows run (app-ci, app-ota-legacy), locked here so every install is checked against package-lock.json instead of resolved fresh by npx. Move a version on purpose: edit it, regenerate the lock (npm install --package-lock-only --ignore-scripts), and say why in CHANGELOG.md.",
+  "devDependencies": {
+    "eas-cli": "27.1.0",
+    "expo-doctor": "1.21.5"
+  }
+}

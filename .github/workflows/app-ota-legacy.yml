@@ -2,7 +2,7 @@
 # An OTA only reaches installs whose version matches the code it was built from, so each old version has a branch
 # `ota/<version>-update-notice`: that version's last code plus whatever it needs to stay alive (the current update
 # notice, the API's current address). Run this by hand after changing those branches; `main` ships through app-ci.
-# Needs the repo secret EXPO_TOKEN.
+# Needs the secret EXPO_TOKEN (environment `release`, so it only runs from main).
 name: app-ota-legacy
 
 on:
@@ -20,11 +20,9 @@ on:
 permissions:
   contents: read
 
-env:
-  EAS_CLI: eas-cli@27.1.0
-
 jobs:
   ota:
+    environment: release   # holds EXPO_TOKEN; run this workflow from main
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -60,6 +58,16 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npx tsc --noEmit
+      # eas-cli comes locked from main's tools/ci (the old branches don't have it), never resolved fresh by npx
+      - name: Install the locked eas-cli
+        working-directory: .
+        run: |
+          mkdir -p "$RUNNER_TEMP/tools"
+          git -C "$GITHUB_WORKSPACE" fetch -q --depth 1 origin main
+          git -C "$GITHUB_WORKSPACE" show origin/main:tools/ci/package.json > "$RUNNER_TEMP/tools/package.json"
+          git -C "$GITHUB_WORKSPACE" show origin/main:tools/ci/package-lock.json > "$RUNNER_TEMP/tools/package-lock.json"
+          npm ci --prefix "$RUNNER_TEMP/tools" --ignore-scripts --no-audit --no-fund
+          echo "EAS=$RUNNER_TEMP/tools/node_modules/.bin/eas" >> "$GITHUB_ENV"
 
       - name: Publish to the preview channel
         env:
@@ -67,6 +75,6 @@ jobs:
           MESSAGE: ${{ inputs.message }}
           VERSION: ${{ matrix.version }}
         run: |
-          if [ -z "$EXPO_TOKEN" ]; then echo "::error::Repo secret EXPO_TOKEN is not set"; exit 1; fi
-          npx --yes "$EAS_CLI" update --channel preview --environment preview \
+          if [ -z "$EXPO_TOKEN" ]; then echo "::error::Secret EXPO_TOKEN is not set"; exit 1; fi
+          "$EAS" update --channel preview --environment preview \
             --message "$(printf '%s (%s)' "$MESSAGE" "$VERSION" | cut -c1-200)" --non-interactive

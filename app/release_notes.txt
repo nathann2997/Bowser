@@ -1,1 +1,1 @@
-Please install this version: Bowser’s data has moved to a new address, and older versions will stop getting new prices. Also new: the cheapest station in view is marked on the map, and a clearer track record.
+Security and privacy update: your saved places and fills stay on this phone (no cloud backup), the home-screen widget is locked to Bowser, and less is sent in anonymous usage stats.

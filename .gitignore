@@ -19,3 +19,5 @@ sydney/inbox/
 # the pipeline's state lives on the data branch only, never on main
 sydney/store/
 sydney/archive/
+# installed tools (tools/ci is locked by its package-lock.json)
+node_modules/

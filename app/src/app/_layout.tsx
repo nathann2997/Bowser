@@ -48,7 +48,9 @@ const queryClient = new QueryClient({
   // it was online. A 404 (a station or track file that failed soft) is expected; a failed refetch still shows saved data.
   queryCache: new QueryCache({
     onError: (e, q) => !isNotFound(e) && q.state.data === undefined && track('data.fetch_failed', {
-      query: String(q.queryKey[0]), status: e instanceof HttpError ? e.status : 0, online: onlineManager.isOnline(), message: e.message,
+      // The message without a station's code: the stations someone opens would say roughly where they live
+      query: String(q.queryKey[0]), status: e instanceof HttpError ? e.status : 0, online: onlineManager.isOnline(),
+      message: e.message.replace(/station\/[^\s:.]+/g, 'station/…'),
     }, 'warn'),
   }),
 });
