@@ -2,6 +2,12 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-18 — Security: eas-cli's own dependencies patched; 0.10.0 live
+
+- **0.10.0 shipped** (app-ci, build `4ea0abf3`): the update notice points older installs at it. The web hardening (frame check, trimmed CSP, rounded GPS area) is live on checkbowser.app; data-health green.
+- **New Dependabot alerts from `tools/ci`** (the locked eas-cli, which runs next to `EXPO_TOKEN`): `overrides` move node-forge to 1.4.3, nanoid to 3.3.12, joi to 17.13.9 and minimatch 5.1.2 to 5.1.8 (same majors; eas-cli pins the old ones exactly). Checked: `npm ci` on the new lock, `eas --version`, `eas update --help`, `eas build --help`, `expo-doctor --version`. minimatch 9/10 and uuid 7/8 need a new major: dismissed with the reason (`docs/SECURITY.md`).
+- **app-ci now checks PRs that touch `tools/ci`**, so a broken tool lock is caught before main.
+
 ## 2026-11-17 — Security review and fixes (app 0.10.0)
 
 Owner: "review the current set up for vulnerabilities … fix all issues". Reviewed the CI and pipeline, the web pages, the app, the repo settings, the domain and git history (no critical or high findings; no secret ever committed). Fixed:

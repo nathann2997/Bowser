@@ -18,7 +18,9 @@ on:
     branches: [main]
     paths: ["app/**", ".github/workflows/app-ci.yml"]
   pull_request:
-    paths: ["app/**", ".github/workflows/app-ci.yml"]
+    # tools/ci too, so a change to the locked eas-cli is checked before it reaches main (on main it ships nothing by
+    # itself: the next app push uses it)
+    paths: ["app/**", "tools/ci/**", ".github/workflows/app-ci.yml"]
   workflow_dispatch:
     inputs:
       ship:

@@ -1,10 +1,16 @@
 {
   "name": "bowser-ci-tools",
   "private": true,
-  "description": "CLIs the workflows run (app-ci, app-ota-legacy), locked here so every install is checked against package-lock.json instead of resolved fresh by npx. Move a version on purpose: edit it, regenerate the lock (npm install --package-lock-only --ignore-scripts), and say why in CHANGELOG.md. typescript is pinned so its two optional peers (ts-node, @expo/require-utils) agree; without it npm ci rejects the lock.",
+  "description": "CLIs the workflows run (app-ci, app-ota-legacy), locked here so every install is checked against package-lock.json instead of resolved fresh by npx. Move a version on purpose: edit it, regenerate the lock (npm install --package-lock-only --ignore-scripts), and say why in CHANGELOG.md. typescript is pinned so its two optional peers (ts-node, @expo/require-utils) agree; without it npm ci rejects the lock. overrides: patched releases (same major) of packages eas-cli pins exactly, for Dependabot alerts; drop each once eas-cli moves past it.",
   "devDependencies": {
     "eas-cli": "27.1.0",
     "expo-doctor": "1.21.5",
     "typescript": "5.9.3"
+  },
+  "overrides": {
+    "node-forge": "1.4.3",
+    "nanoid": "3.3.12",
+    "joi": "17.13.9",
+    "minimatch@5.1.2": "5.1.8"
   }
 }
