@@ -40,6 +40,7 @@ Every check's result is on its run page: Actions → data-health → the run →
 | MEDIAN_JUMP | warning | – | The median moved more than 50c in a day (real hikes reach 39c), or spiked 15c+ and snapped back the next day. Almost always a bad snapshot: compare with fuelcheck.nsw.gov.au. |
 | INPUT_TGP / INPUT_MACRO | warning | – | AIP, EIA or RBA stopped updating, usually because a file or page moved. Read the fetch step's log in the latest daily-forecast run; it prints the error for each source. |
 | STATION_FILES / TRACK / SHARE_PAGE | warning | rerun | A part of the export failed soft. The error text is in the alert and in `meta.warnings`. |
+| OLD_ADDRESS | warning | – | `nathann2997.github.io/Bowser/` no longer reaches the API, so older app versions get no data. GitHub should redirect it to `checkbowser.app`: check Settings → Pages (custom domain, Enforce HTTPS) and the DNS at Porkbun. |
 | META_WARNING | warning | – | A new warning text from the pipeline. Read it, and add a mapping in `health.py`. |
 | QUARANTINED, HISTORY_LAG | info | – | No alert. Prices hidden automatically, or NSW's monthly file is late. |
 

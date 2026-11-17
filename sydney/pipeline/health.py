@@ -1,7 +1,7 @@
 """Data health check for the published app API: is what users see fresh, complete and plausible?
 
 usage: python health.py [BASE] [--out report.json]
-  BASE  the site root (default: this repo's GitHub Pages site) or a local export dir (export_api.py's OUT)
+  BASE  the site root (default: https://checkbowser.app, plus the old-address check) or a local export dir (export_api.py's OUT)
 
 Checks the API the way the app sees it (cache-busted, so a CDN copy can't hide a fresh deploy) and writes a report:
   {"checked_at", "sydney_now", "base", "ok", "issues": [{code, severity, title, detail, fix, hint}], "facts": {...}}
@@ -15,9 +15,11 @@ from zoneinfo import ZoneInfo
 
 SYD = ZoneInfo("Australia/Sydney")
 from fuels import FUELS
-# The Pages site of the repo the workflow runs in, so a repo rename needs no change here
+# The site's custom domain (GitHub Pages). The repo's own Pages address redirects there, and older app versions still
+# ask that address, so it is checked too (OLD_ADDRESS). A repo rename changes OLD_BASE with no edit here.
+DEFAULT_BASE = "https://checkbowser.app"
 _REPO = os.environ.get("GITHUB_REPOSITORY", "nathann2997/Bowser")
-DEFAULT_BASE = "https://{}.github.io/{}".format(*_REPO.split("/", 1))
+OLD_BASE = "https://{}.github.io/{}".format(*_REPO.split("/", 1))
 
 # Freshness. The first run (05:13) can start late, so today's data is expected from 07:30. Daytime slots are at most 5 h
 # apart (05:13, 10:13, 13:13, 17:13, 21:13), so data older than 5.5 h between 07:30 and 23:30 means a slot was skipped.
@@ -220,9 +222,21 @@ def check(src, now=None):
     return issues, facts
 
 
+def old_address(old=OLD_BASE):
+    """Older app versions read the API at the repo's Pages address, which GitHub redirects to the custom domain"""
+    st, meta = Source(old).get("api/v1/meta.json", tries=2)
+    if st == 200 and isinstance(meta, dict): return []
+    return [issue("OLD_ADDRESS", "warning", "Older app versions can't reach the API",
+                  f"{old}/api/v1/meta.json returned {st or 'no response'}", None,
+                  "GitHub should redirect this address to the custom domain: check Settings → Pages (custom domain, "
+                  "Enforce HTTPS) and the DNS at Porkbun.")]
+
+
 def report(base=DEFAULT_BASE, now=None):
     now = now or dt.datetime.now(dt.timezone.utc)
     issues, facts = check(Source(base), now)
+    # Only for the live site, and not when the site itself is down (the redirect lands there, so it would just repeat it)
+    if base.rstrip("/") == DEFAULT_BASE and not any(i["code"] == "API_UNREACHABLE" for i in issues): issues += old_address()
     order = {"critical": 0, "warning": 1, "info": 2}
     issues.sort(key=lambda i: order[i["severity"]])
     return {"checked_at": now.isoformat(timespec="seconds"), "sydney_now": now.astimezone(SYD).isoformat(timespec="minutes"),

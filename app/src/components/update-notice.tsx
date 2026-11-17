@@ -31,7 +31,7 @@ export function pendingRelease(json: unknown, os: string, installed: string | un
   return { version: r.version, url: r.url, notes };
 }
 
-/** `releaseUrl`: where app.json is; a list is tried in order (the API moved when the repo was renamed) */
+/** `releaseUrl`: where app.json is; a list is tried in order (the custom domain, then the repo's Pages address) */
 export function UpdateNotice({ releaseUrl, onAction }: {
   releaseUrl: string | string[];
   onAction?: (a: UpdateAction, latest: string) => void;
