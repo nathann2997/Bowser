@@ -2,6 +2,14 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-17 — Domain move to checkbowser.app: live
+
+- **Cutover (12:00 AEDT):** DNS at Porkbun (GitHub A records, `www` CNAME, account-level Pages domain verification), custom domain set on Pages right after a pipeline run, Let's Encrypt certificate issued within minutes, Enforce HTTPS on. During those minutes older addresses redirected to a not-yet-secure host, so apps may have shown a load error briefly.
+- **Checked:** `nathann2997.github.io/Bowser/` (site, `api/v1/meta.json`, `app.json`, `s/?id=231&f=U91`) all land on `https://checkbowser.app/` with path and query kept; `www` and `http://` redirect to `https://checkbowser.app/`; certificate CN=checkbowser.app, Let's Encrypt, to 14 Feb 2027 (renewed by GitHub).
+- **Shipped:** PR #10 (app API list, health check, docs). app-ci 442 tests pass; OTA update group `b475ffcb-9f00-4feb-bf90-7634ccd30123` (runtime 0.9.1, android + ios). data-health against the new domain: OK.
+- **Owner to finish at Porkbun:** AAAA records (IPv6), SPF `v=spf1 -all`, DMARC `_dmarc`.
+- **Rollback:** remove the custom domain in Settings → Pages; github.io serves directly and the app falls back to it.
+
 ## 2026-11-17 — Domain move to checkbowser.app, step 2: the app, health check and docs use the new address
 
 Merge only once `https://checkbowser.app/api/v1/meta.json` answers over HTTPS (custom domain set on Pages, certificate issued, Enforce HTTPS on).
