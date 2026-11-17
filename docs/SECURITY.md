@@ -29,3 +29,4 @@ How Bowser is kept safe, what was reviewed, and what only the owner can do. Last
 - **OTA updates aren't signed** (paid plan); covered by the `release` environment, the locked eas-cli and the token's scope.
 - **Dependabot alerts for glob, minimatch and zod**: build and lint tooling only, never in the app; dismissed with that reason until Expo moves them.
 - **tools/ci (eas-cli's own dependencies):** patched releases forced with `overrides` where they stay in the same major (node-forge, nanoid, joi, minimatch 5). minimatch 9/10 and uuid 7/8 are only fixed in a new major that eas-cli's dependencies don't accept: dismissed (glob patterns and ids over our own files, in CI only) until eas-cli moves.
+- **picomatch ReDoS (advisory 2026-11-17, no fix released yet):** in Metro, the Expo CLI, jest and patch-package, matching our own file globs at build time; never in the app. Dismissed until a fix ships.
