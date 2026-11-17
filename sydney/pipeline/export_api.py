@@ -13,6 +13,8 @@ Runs build.py unchanged (so the dashboard HTML is rebuilt too) and reuses the `d
   OUT/api/v1/app.json        the latest app version per platform and where to get it (app_release.json, checked)
   OUT/index.html             the dashboard (build.py's page plus a hash CSP)
   OUT/s/index.html           the share page for the app's Share link (share.html, with a hash CSP)
+  OUT/fuel-prices/ station/ brands/ ...   the search pages: a page per suburb, station, fuel and brand, the guides,
+                             sitemap.xml and robots.txt (seo_pages.py; left out with a meta warning if they fail)
 Every file carries `generated_at` (UTC, when this export ran: the app's "Refreshed" time); the top-level files also carry
 `attribution` and `license_note`, and meta.json has the full licence and source list (LICENSE below). See DATA-LICENSE.md.
 Exits 1 if the output fails sanity checks (nothing should be published then). The per-station files fail soft: if they
@@ -135,7 +137,7 @@ if quarantined:
 
 # per-station files fail soft: on an exception or a failed check, publish everything else without station/ (and
 # stations.json without the 7-day price at p[fuel][5]) and warn
-st_txt = {}
+st_txt, details = {}, {}
 try:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import station_api
@@ -157,13 +159,13 @@ try:
     stations["stations"] = with_fc
 except Exception as e:
     # Published in meta.json: keep it to the error, not the runner's file paths
-    st_txt = {}; warnings.append(re.sub(r"(?<![\w.:/-])(?:/[\w.-]+)+/", "", f"station files unavailable: {type(e).__name__}: {e}")[:500])
+    st_txt, details = {}, {}; warnings.append(re.sub(r"(?<![\w.:/-])(?:/[\w.-]+)+/", "", f"station files unavailable: {type(e).__name__}: {e}")[:500])
     print("!" * 70 + f"\nexport_api: WARNING {warnings[-1]}\n  publishing without station/\n" + "!" * 70)
 
 # track record (track_api.py) fails soft too: today's calls (not on --allow-stale runs, whose data isn't today's) are
 # scored with the saved ones and the replayed backtest, and only saved to store/calls.csv at the very end, once every
 # file has been written; on any error, publish without track.json and warn
-track_txt, new_calls = None, []
+track_txt, new_calls, track = None, [], None
 try:
     if os.path.dirname(os.path.abspath(__file__)) not in sys.path: sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import track_api
@@ -173,7 +175,7 @@ try:
     if t_errs: raise RuntimeError(f"{len(t_errs)} check(s) failed, e.g. {'; '.join(t_errs[:3])}")
     track_txt = json.dumps(track, separators=(",", ":"), allow_nan=False)
 except Exception as e:
-    new_calls = []
+    new_calls, track = [], None
     warnings.append(re.sub(r"(?<![\w.:/-])(?:/[\w.-]+)+/", "", f"track record unavailable: {type(e).__name__}: {e}")[:500])
     print("!" * 70 + f"\nexport_api: WARNING {warnings[-1]}\n  publishing without track.json\n" + "!" * 70)
 
@@ -217,12 +219,37 @@ except Exception as e:
     if os.path.exists(f"{api}/app.json"): os.remove(f"{api}/app.json")
     warnings.append(re.sub(r"(?<![\w.:/-])(?:/[\w.-]+)+/", "", f"app.json not published: {type(e).__name__}: {e}")[:500])
     print(f"::warning::{warnings[-1]} (no update notice in the app)")
+# The search pages (seo_pages.py): plain HTML for every suburb, station, fuel and brand, the guides, sitemap.xml and
+# robots.txt, written from the same dicts as the JSON above. Fails soft: on any error none of them is published (so a
+# search engine never sees a half-built set) and meta.warnings says why; the dashboard and the API are unaffected.
+HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path: sys.path.insert(0, HERE)
+seo_pages, seo_n = None, 0
+try:
+    import seo_pages
+    seo = seo_pages.build(OUT, stations, forecast, history, details, track if track_txt is not None else None, static=f"{HERE}/static")
+    seo_n = seo["pages"]
+    print(f"export_api: search pages {seo}")
+except Exception as e:
+    try:
+        if seo_pages: seo_pages.clear(OUT)
+    except Exception: pass
+    warnings.append(re.sub(r"(?<![\w.:/-])(?:/[\w.-]+)+/", "", f"search pages not published: {type(e).__name__}: {e}")[:500])
+    print(f"::warning::{warnings[-1]}")
 meta = {"schema": SCHEMA, "generated_at": GENERATED_AT, "license": LICENSE,
         "asof": ctx["asof"], "stations_asof": data["snap_asof"], "tgp_last": ctx.get("tgp_last"), "fred_last": ctx.get("fred_last"),
         "history_last": ctx.get("history_last"), "live_model": ctx.get("live_model"), "snapshot_days": ctx.get("snapshot_days"),
-        "warnings": warnings, "files": files}
+        "pages": seo_n, "warnings": warnings, "files": files}
 json.dump(meta, open(f"{api}/meta.json", "w"), indent=1, allow_nan=False)
 html = open(f"{BASE}/out/dashboard.html", encoding="utf-8").read()
+# The dashboard's head for search engines and link previews (title, description with today's price, canonical, Open
+# Graph, JSON-LD) and its footer links to the search pages. Fails soft: the page then keeps its plain <title>.
+try:
+    if not seo_n: raise RuntimeError("the search pages weren't built")
+    if html.count("<title>Bowser</title>") != 1 or html.count("<!--SEO_LINKS-->") != 1: raise RuntimeError("no <title>Bowser</title> or links marker in the template")
+    html = html.replace("<title>Bowser</title>", seo_pages.home_head(stations, forecast), 1).replace("<!--SEO_LINKS-->", seo_pages.home_links(stations, forecast), 1)
+except Exception as e:
+    print(f"::warning::dashboard head for search not added: {type(e).__name__}: {e}")
 # Content-Security-Policy, added here rather than in the template so it can pin the page's own inline script by hash:
 # an injected <script> or on*= handler won't run, and scripts and styles load only from two cdnjs files (Chart.js, and
 # MapLibre for the stations map when it opens, both with SRI) and Google Fonts. The map's tiles, styles and fonts come
@@ -230,7 +257,8 @@ html = open(f"{BASE}/out/dashboard.html", encoding="utf-8").read()
 # to PostHog. MapLibre runs its worker from a blob: URL, and there are no frames or form posts.
 inline = re.findall(r"<script>(.*?)</script>", html, re.S)
 # Any inline <script ...> with attributes would be blocked by the CSP: refuse to publish rather than ship a dead page
-n_inline = len(re.findall(r"<script(?![^>]*\bsrc=)[^>]*>", html))
+# (a JSON-LD block is data, not a script: the browser never runs it, so the CSP doesn't apply to it)
+n_inline = len(re.findall(r"<script(?![^>]*\bsrc=)(?![^>]*application/ld\+json)[^>]*>", html))
 if len(inline) != 1 or n_inline != 1: raise RuntimeError(f"dashboard: expected 1 inline script, found {n_inline}")
 sha = base64.b64encode(hashlib.sha256(inline[0].encode()).digest()).decode()
 # cdnjs is allowed by exact file, not by host: the whole host would let an injected <script src> load any library on it
@@ -241,7 +269,7 @@ if len(chart) != 1 or len(ml_v) != 1: raise RuntimeError("dashboard: can't find 
 ml = f"{CDN}maplibre-gl/{ml_v[0]}/maplibre-gl"
 csp = (f"default-src 'none'; script-src 'sha256-{sha}' {chart[0]} {ml}.js; style-src 'unsafe-inline' "
        f"https://fonts.googleapis.com {ml}.css; font-src https://fonts.gstatic.com; "
-       "img-src data: blob: https://tiles.openfreemap.org; connect-src 'self' https://tiles.openfreemap.org https://us.i.posthog.com; worker-src blob:; "
+       "img-src 'self' data: blob: https://tiles.openfreemap.org; connect-src 'self' https://tiles.openfreemap.org https://us.i.posthog.com; worker-src blob:; "
        "child-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'")
 if html.count("<title>") != 1: raise RuntimeError("dashboard: no <title> to put the CSP after")
 html = html.replace("<title>", f'<meta http-equiv="Content-Security-Policy" content="{csp}">\n<title>', 1)
