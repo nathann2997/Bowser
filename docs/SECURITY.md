@@ -19,7 +19,7 @@ How Bowser is kept safe, what was reviewed, and what only the owner can do. Last
 - [ ] 2FA on GitHub, Expo, Porkbun (security key or passkey where offered) and PostHog.
 - [ ] `EXPO_TOKEN`: a robot-user token with the smallest role that can publish, stored as an environment secret of `release` (Settings → Environments → release), not a repo secret.
 - [ ] Porkbun: DNSSEC on; CAA record `0 issue "letsencrypt.org"`; auto-renew, WHOIS privacy and transfer lock on.
-- [ ] PostHog: project setting "Discard client IP data" on (the share page says the IP is never kept).
+- [x] PostHog: project setting "Discard client IP data" on (confirmed 2026-11-17; the share page says the IP is never kept).
 - [ ] Google Cloud: the Maps Android key restricted to package `com.nathann2997.fuelforecast` + the EAS signing SHA-1, API "Maps SDK for Android" only, a daily quota and a budget alert.
 
 ## Accepted, on purpose
