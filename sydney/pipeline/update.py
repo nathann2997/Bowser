@@ -4,7 +4,8 @@ inbox/ may contain (any subset; newest of each is used):
   nsw_snapshot_*.json   raw response of GET /FuelPriceCheck/v1/fuel/prices
   AIP_TGP_Data_*.xlsx   AIP historical TGP workbook
   brent_audusd_eia_rba.csv  Brent (EIA) and AUD/USD (RBA), under the FRED column ids (fetch.py pull_macro)
-Writes store/daily.csv (adds/replaces snapshot rows), store/tgp.csv, store/fred.csv, store/stations_today.json
+Writes store/daily.csv (adds/replaces snapshot rows; Sydney stations only), store/tgp.csv, store/fred.csv and
+store/stations_today.json (every NSW FuelCheck station, with `syd` true for the Sydney ones the forecast is about)
 """
 import glob, json, os, re, sys
 import numpy as np, pandas as pd
@@ -19,20 +20,28 @@ log = []
 
 # ---- NSW live snapshot -> one daily row per fuel (same definitions as build_history.py)
 def snapshot_rows(j, snap):
-    """Sydney stations, prices and one daily row per fuel from a raw (or archived) NSW snapshot."""
+    """Sydney stations, Sydney prices, the date and one daily row per fuel (Sydney prices only: the model's input)
+    from a raw (or archived) NSW snapshot; then the prices of every station in the feed, Sydney or not (`syd`), for
+    the station list."""
     st = pd.DataFrame(j["stations"]); pr = pd.DataFrame(j["prices"])
-    st["postcode"] = pd.to_numeric(st.address.str.extract(r"NSW\s+(\d{4})\s*$")[0], errors="coerce")
-    st["suburb"] = st.address.str.extract(r",\s*([^,]+?)\s+NSW\s+\d{4}\s*$")[0].str.title()
-    st = st[st.postcode.fillna(0).astype(int).map(is_syd)]
+    addr = st.address.astype(str)
+    # Sydney is decided exactly as before ("NSW <postcode>" at the end of the address, postcode in is_syd), so the
+    # daily rows don't change. Stations elsewhere also take a looser reading (any state, e.g. "ACT 2600").
+    pc = pd.to_numeric(addr.str.extract(r"NSW\s+(\d{4})\s*$")[0], errors="coerce")
+    st["syd"] = pc.fillna(0).astype(int).map(is_syd).astype(bool)
+    st["postcode"] = pc.fillna(pd.to_numeric(addr.str.extract(r"\b[A-Za-z]{2,3}\s+(\d{4})\s*$")[0], errors="coerce"))
+    st["suburb"] = addr.str.extract(r",\s*([^,]+?)\s+NSW\s+\d{4}\s*$")[0].fillna(
+        addr.str.extract(r",\s*([^,]+?)\s+[A-Za-z]{2,3}\s+\d{4}\s*$")[0]).str.title()
     pr["code"] = pr.stationcode.astype(str); st["code"] = st.code.astype(str)
     # Station codes become file names downstream (station_api.py, export_api.py): keep NSW's numeric codes only
     pr = pr[pr.code.str.fullmatch(r"\d+")]; st = st[st.code.str.fullmatch(r"\d+")]
     st["key"] = st.address.str.upper().str.replace(",", " ").str.replace(r"\s+", " ", regex=True).str.strip()
-    pr = pr.merge(st[["code", "name", "brand", "postcode", "suburb", "location", "key"]], on="code")
+    pr = pr.merge(st[["code", "name", "brand", "postcode", "suburb", "location", "key", "syd"]], on="code")
     pr = pr[pr.fueltype.isin(FUELS) & pr.price.between(50, 600)].copy()
     pr["ts"] = pd.to_datetime(pr.lastupdated, dayfirst=True, errors="coerce")
-    asof = pd.Timestamp(re.search(r"(\d{8})", os.path.basename(snap)).group(1)) if re.search(r"(\d{8})", os.path.basename(snap)) else pr.ts.max().normalize()
+    asof = pd.Timestamp(re.search(r"(\d{8})", os.path.basename(snap)).group(1)) if re.search(r"(\d{8})", os.path.basename(snap)) else pr[pr.syd].ts.max().normalize()
     pr["age"] = (asof - pr.ts.dt.normalize()).dt.days
+    allpr = pr; st, pr = st[st.syd], pr[pr.syd].drop(columns="syd")
     rows = []
     for f, g in pr.groupby("fueltype"):
         a = g.price.values; rec, old = g[g.age <= 2].price, g[g.age > 7].price
@@ -42,13 +51,13 @@ def snapshot_rows(j, snap):
                          share_upd_1d=(g.age <= 1).mean(), share_upd_3d=(g.age <= 3).mean(), share_upd_7d=(g.age <= 7).mean(),
                          recent_minus_old=(rec.median() - old.median()) if len(rec) > 5 and len(old) > 5 else np.nan,
                          source="snapshot"))
-    return st, pr, asof, rows
+    return st, pr, asof, rows, allpr
 
 
 snap = newest("nsw_snapshot_*.json")
 if snap:
     j = json.load(open(snap))
-    st, pr, asof, rows = snapshot_rows(j, snap)
+    st, pr, asof, rows, allpr = snapshot_rows(j, snap)
     D = pd.read_csv(f"{STORE}/daily.csv", parse_dates=["date"])
     new = pd.DataFrame(rows).round(3); new["date"] = pd.to_datetime(new.date)
     D = pd.concat([D[~((D.date == asof) & (D.source == "snapshot"))], new]).sort_values(["date", "fuel"])
@@ -69,16 +78,21 @@ if snap:
         D = pd.concat([D, b]).sort_values(["date", "fuel"])
         log.append(f"backfilled {len(b)} fuel-day(s) from archive/: {sorted(set(b.fuel))}")
     D.to_csv(f"{STORE}/daily.csv", index=False)
-    pr["lat"] = pr.location.map(lambda l: (l or {}).get("latitude")); pr["lon"] = pr.location.map(lambda l: (l or {}).get("longitude"))
-    keep = pr[["code", "key", "name", "brand", "postcode", "suburb", "lat", "lon", "fueltype", "price", "age"]]
+    # Today's station list: every station in the feed. Sydney's rows come first and are the same rows as before.
+    allpr = pd.concat([allpr[allpr.syd], allpr[~allpr.syd]]).copy()
+    loc = lambda k: allpr.location.map(lambda l: l.get(k) if isinstance(l, dict) else None)
+    allpr["lat"] = loc("latitude"); allpr["lon"] = loc("longitude")
+    keep = allpr[["code", "key", "name", "brand", "postcode", "suburb", "lat", "lon", "fueltype", "price", "age", "syd"]]
     json.dump({"asof": str(asof.date()), "rows": keep.to_dict(orient="records")}, open(f"{STORE}/stations_today.json", "w"))
-    # station-level archive: today's Sydney stations and prices, gzipped (kept in the repo)
+    # station-level archive: today's stations and prices (all of NSW since 2026-11-13, Sydney only before), gzipped,
+    # kept in the repo. A station outside Sydney has no other price history: station_api.py builds its chart from these.
     os.makedirs(f"{BASE}/archive", exist_ok=True)
-    codes = set(st.code.astype(str))
+    codes = {str(s["code"]) for s in j["stations"] if re.fullmatch(r"\d+", str(s.get("code")))}
     with gzip.open(f"{BASE}/archive/nsw_snapshot_{asof:%Y%m%d}.json.gz", "wt") as fh:
         json.dump({"stations": [s for s in j["stations"] if str(s["code"]) in codes],
                    "prices": [p for p in j["prices"] if str(p["stationcode"]) in codes]}, fh)
-    log.append(f"snapshot {asof.date()}: {len(pr)} Sydney prices")
+    log.append(f"snapshot {asof.date()}: {len(pr)} Sydney prices, {len(allpr) - len(pr)} elsewhere in NSW "
+               f"({allpr.code.nunique()} stations in all)")
 
 # ---- AIP TGP
 x = newest("AIP_TGP_Data_*.xlsx")

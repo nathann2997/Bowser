@@ -49,12 +49,18 @@ jobs:
           gunzip -c "$SNAP" > "state/inbox/$(basename "${SNAP%.gz}")"
           cp state/store/fred.csv state/inbox/brent_audusd_eia_rba.csv
           echo "Snapshot used: $(basename "$SNAP")" >> "$GITHUB_STEP_SUMMARY"
+          # Stand-in stations outside Sydney (Wollongong, an ACT address, one with no postcode, ...), so the run covers
+          # them whatever that snapshot holds
+          python src/sydney/pipeline/ci_outside.py add state/inbox
 
       - name: Update store, model
         run: bash state/pipeline/run_daily.sh "$PWD/state" "$PWD/state/inbox"
 
       - name: Export the API and dashboard
         run: python state/pipeline/export_api.py state site --allow-stale
+
+      - name: Stations outside Sydney are listed, with prices only
+        run: python src/sydney/pipeline/ci_outside.py check site
 
       # Staleness is expected here (the snapshot may be yesterday's), so the report is shown but doesn't fail the run
       - name: Health checks on the result

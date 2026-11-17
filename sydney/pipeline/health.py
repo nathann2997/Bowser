@@ -30,6 +30,7 @@ OVERDUE_H = 5.5
 STATIONS_WARN, STATIONS_CRIT = 780, 600          # about 866 on a normal day; export_api fails below 500
 FRESH_SHARE_MIN = 0.2                            # share of U91 prices updated in the last day (normally 0.4-0.6)
 OUT_LO, OUT_HI = -45, 80                         # c/L from the fuel's median: same as export_api's quarantine
+REG_LO, REG_HI = -50, 150                        # the same for stations outside Sydney, against their own median
 ABS_LO, ABS_HI = 80, 600
 # One-day median moves. Real hikes reach 39c in a day (E10, 10 Dec 2019; U91 34.6c, 3 Jun 2025), so only a move beyond
 # anything seen since 2019, or a 15c+ spike that reverses the next day (never happened for real: a bad snapshot), alerts
@@ -141,13 +142,16 @@ def check(src, now=None):
 
     # ---- stations: count, NSW feed freshness, outliers
     if stations:
-        lst = [s for s in stations.get("stations", []) if isinstance(s, dict)]
-        facts["stations"] = len(lst)
+        every = [s for s in stations.get("stations", []) if isinstance(s, dict)]
+        # The counts, freshness and Sydney bounds below are about Sydney stations, as before the list covered all of
+        # NSW (`out: 1` = outside Sydney, prices only)
+        lst = [s for s in every if not s.get("out")]
+        facts["stations"] = len(lst); facts["stations_outside_sydney"] = len(every) - len(lst)
         if len(lst) < STATIONS_CRIT:
-            issues.append(issue("STATIONS_FEW", "critical", "Most stations are missing", f"{len(lst)} stations (normally about 866)", "rerun",
+            issues.append(issue("STATIONS_FEW", "critical", "Most stations are missing", f"{len(lst)} Sydney stations (normally about 866)", "rerun",
                                 "NSW FuelCheck may have returned a partial feed."))
         elif len(lst) < STATIONS_WARN:
-            issues.append(issue("STATIONS_FEW", "warning", "Fewer stations than usual", f"{len(lst)} stations (normally about 866)", "rerun",
+            issues.append(issue("STATIONS_FEW", "warning", "Fewer stations than usual", f"{len(lst)} Sydney stations (normally about 866)", "rerun",
                                 "NSW FuelCheck may have returned a partial feed."))
         ages = [s["p"]["U91"][1] for s in lst if "U91" in (s.get("p") or {}) and num(s["p"]["U91"][1])]
         share = sum(a <= 1 for a in ages) / len(ages) if ages else 0
@@ -158,17 +162,19 @@ def check(src, now=None):
                                 "The NSW FuelCheck feed may be lagging. If it lasts a day, check api.nsw.gov.au status."))
         out = []
         for fu in FUELS:
-            ps = [(s, s["p"][fu][0]) for s in lst if fu in (s.get("p") or {}) and num(s["p"][fu][0])]
-            if not ps: continue
-            m = statistics.median(p for _, p in ps)
-            out += [f"{s.get('n', '?')} {fu} {p} (median {m:.1f})" for s, p in ps
-                    if not ABS_LO <= p <= ABS_HI or not OUT_LO <= p - m <= OUT_HI]
+            for grp, lo, hi in [(lst, OUT_LO, OUT_HI), ([s for s in every if s.get("out")], REG_LO, REG_HI)]:
+                ps = [(s, s["p"][fu][0]) for s in grp if fu in (s.get("p") or {}) and num(s["p"][fu][0])]
+                if not ps: continue
+                m = statistics.median(p for _, p in ps)
+                rel = grp is lst or len(ps) >= 50      # export_api holds a small group outside Sydney to the absolute bounds only
+                out += [f"{s.get('n', '?')} {fu} {p} (median {m:.1f})" for s, p in ps
+                        if not ABS_LO <= p <= ABS_HI or (rel and not lo <= p - m <= hi)]
         if out:
             issues.append(issue("PRICE_OUTLIER", "warning", "Implausible station prices are being shown",
                                 f"{len(out)}: " + "; ".join(out[:5]), None,
                                 "export_api.py should have hidden these (price quarantine). Check that it ran."))
         # a few per-station files, as the station page and widget fetch them
-        for s in lst[:: max(1, len(lst) // 3)][:3]:
+        for s in every[:: max(1, len(every) // 3)][:3]:
             sid = str(s.get("id", ""))
             if sid.isdigit() and src.get(f"api/v1/station/{sid}.json")[0] == 404:
                 issues.append(issue("STATION_FILES", "warning", "Station pages have no history", f"station/{sid}.json is missing", "rerun"))

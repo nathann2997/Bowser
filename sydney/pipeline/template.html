@@ -505,7 +505,7 @@ function verdict(r){
   return {cls:"flat", head:"No rush either way"};
 }
 const TONE = {up:"act", down:"wait", flat:"calm"};
-const ADVICE_TONE = {now:"act", by:"act", wait:"wait", hi:"wait", any:"calm", ok:"calm", chk:"calm"};
+const ADVICE_TONE = {now:"act", by:"act", wait:"wait", hi:"wait", any:"calm", ok:"calm", chk:"calm", na:"calm"};   // na: outside Sydney, price only
 function path(r, key="d"){
   const xs = [0,1,3,7,14], ys = [0, r[key+"1"], r[key+"3"], r[key+"7"], r[key+"14"]];
   return Array.from({length:15}, (_,h) => { let k = 1; while (xs[k] < h) k++; const t = (h-xs[k-1])/(xs[k]-xs[k-1]); return ys[k-1] + t*(ys[k]-ys[k-1]); });
@@ -546,7 +546,7 @@ tankEl.addEventListener("change", () => { state.tank = +tankEl.value; store.set(
 if (CTX.asof < sydToday()) { $("asofLine").classList.add("late"); $("asofLine").textContent = `Prices as of ${nice(CTX.asof)} · today’s update hasn’t arrived yet`; }
 
 // ---- stations
-const SUBS = {}; D.stations.forEach(s => { const k = s.s+"|"+s.pc; (SUBS[k] = SUBS[k] || {s:s.s, pc:s.pc, la:[], lo:[]}); SUBS[k].la.push(s.la); SUBS[k].lo.push(s.lo); });
+const SUBS = {}; D.stations.forEach(s => { if (!s.pc) return; const k = s.s+"|"+s.pc; (SUBS[k] = SUBS[k] || {s:s.s, pc:s.pc, la:[], lo:[]}); SUBS[k].la.push(s.la); SUBS[k].lo.push(s.lo); });
 const SUBLIST = Object.values(SUBS).map(x => ({s:x.s, pc:x.pc, la:x.la.reduce((a,b)=>a+b,0)/x.la.length, lo:x.lo.reduce((a,b)=>a+b,0)/x.lo.length})).sort((a,b)=>a.s.localeCompare(b.s));
 $("subList").innerHTML = SUBLIST.map(x=>`<option value="${esc(x.s)} ${esc(x.pc)}"></option>`).join("");
 const km = (a,b,c,d) => { const r=Math.PI/180, x=Math.sin((c-a)*r/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin((d-b)*r/2)**2; return 12742*Math.asin(Math.sqrt(x)); };
@@ -569,6 +569,7 @@ function stationRows(){
   D.stations.forEach((s, i) => {
     const p = s.p[f];
     if (!p || p[0] == null || (!state.members && s.m) || (brandSel && !brandSel.has(s.b))) return;
+    if (!a && s.out) return;   // no area set: the list is "Cheapest in Sydney", so stations elsewhere in NSW wait for an area
     rows.push({...s, i, price:p[0], age:p[1], adv:p.slice(2), d: a ? km(a.la, a.lo, s.la, s.lo) : null});
   });
   if (a) rows = rows.filter(s => s.d <= state.radius);
@@ -579,7 +580,7 @@ function stationRows(){
 }
 // A chip that only repeats the Sydney headline is left out ("Wait" on every row on a Wait day); a Fill by date, Fill now,
 // Skip for now and Check price always show (echoesSydney() in app/src/lib/copy.ts)
-const echoesSydney = (code, sydney) => sydney !== "act" && code !== "chk" && code !== "hi" && ADVICE_TONE[code] === sydney;
+const echoesSydney = (code, sydney) => sydney !== "act" && code !== "chk" && code !== "hi" && code !== "na" && ADVICE_TONE[code] === sydney;
 const rowLabel = (name, pinned, s) => `${name}${pinned ? ", pinned" : ""}, ${s.price.toFixed(1)} cents, ${s.adv[1]}`;
 const pinBtn = (i, name, pinned) => `<button type="button" class="chip" data-pin="${i}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(name)}">${pinned ? "Unpin" : "Pin"}</button>`;
 function stationItem(s, med, tone, where = "list"){
@@ -721,7 +722,7 @@ function renderStations(){
   oldEl.setAttribute("aria-pressed", String(state.old));
   const tone = outlook(live[f]).tone;
   $("stList").innerHTML = rows.slice(0, state.shown).map(s => stationItem(s, med, tone, "list")).join("")
-    || `<div class="empty">${missing ? `No Sydney suburb matches “${esc(qEl.value)}”. Try a postcode.` : area ? `No recent prices within ${state.radius} km. Try a wider radius.` : "No stations match these filters."}</div>`;
+    || `<div class="empty">${missing ? `No NSW suburb matches “${esc(qEl.value)}”. Try a postcode.` : area ? `No recent prices within ${state.radius} km. Try a wider radius.` : "No stations match these filters."}</div>`;
   $("more").hidden = rows.length <= state.shown;
   $("more").textContent = `Show more (${rows.length - state.shown} left)`;
   const o = outlook(live[f]);
@@ -881,7 +882,7 @@ function renderInsights(){
 let allBrands = false;
 function brandStats(){
   const f = state.fuel, med = live[f].now, by = {};
-  D.stations.forEach(s => { const p = s.p[f]; if (!p || p[0]==null) return; (by[s.b] = by[s.b] || []).push(p[0]); });
+  D.stations.forEach(s => { const p = s.p[f]; if (!p || p[0]==null || s.out) return; (by[s.b] = by[s.b] || []).push(p[0]); });   // Sydney stations only (s.out: elsewhere in NSW)
   return Object.entries(by).filter(([b,a]) => a.length >= 3).map(([b,a]) => ({brand:b, n:a.length, prem:+(a.reduce((x,y)=>x+y,0)/a.length - med).toFixed(1)})).sort((x,y)=>x.prem-y.prem);
 }
 function renderBrands(){
@@ -1198,7 +1199,7 @@ function syncMap(){
   }
   if (state.view === "map") {
     const n = [...MD.rows, ...MD.pinned].filter(inView).length;
-    $("stCount").textContent = state.area && state.area.missing ? `No Sydney suburb matches “${qEl.value}”. Try a postcode.`
+    $("stCount").textContent = state.area && state.area.missing ? `No NSW suburb matches “${qEl.value}”. Try a postcode.`
       : n ? `${n} station${n === 1 ? "" : "s"} in view` : "No stations in view. Zoom out or change filters.";
   }
   if (pendingFocus != null) {   // from a list row's "Show on map"

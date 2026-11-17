@@ -33,7 +33,7 @@ export function AreaPicker({ suburbs, onDone }: { suburbs: Suburb[]; onDone?: ()
   const submit = () => {
     const p = findSuburb(suburbs, query);
     if (p) pick(p);
-    else if (query.trim()) setMsg(`No Sydney suburb matches “${query.trim()}”. Try a postcode.`);
+    else if (query.trim()) setMsg(`No NSW suburb matches “${query.trim()}”. Try a postcode.`);
   };
   async function gps() {
     setBusy(true);

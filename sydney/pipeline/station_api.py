@@ -15,8 +15,11 @@ hist  End-of-day price per fuel for the last 400 days to `asof` (null = unknown 
       The last price of each day is carried forward: up to 180 days while the station-fuel is seen again later (the events
       are changes, so a quiet spell is a steady price), and up to 30 days after its last change or observation (so a
       closed station or a dropped fuel goes null). Beyond that, null.
+      A station outside Sydney (`out: 1` in stations.json) isn't in the monthly history store, so its chart comes from the
+      daily snapshots alone, for as far back as archive/ holds it (all of NSW is archived from 2026-11-13).
 profile  The station's entry in store/station_profile.json (typ, lag, part, n), or null.
 fc    Per fuel the station sells today: the Sydney forecast for that fuel turned into a forecast for this station.
+      Empty ({}) for a station outside Sydney: the forecast doesn't cover it.
       - Path: build.py's market() interpolates the Sydney expected change d1/d3/d7/d14 (and lo/hi) to a daily path d(h),
         h = 0..14 days.
       - Lag: the station's shift s (days) is the same rule as advise(): round((lag - Sydney median lag) / 24h), clipped to
@@ -64,27 +67,35 @@ def _history_events(ev_dir, since, keys):
     return ev[["key", "fuel", "ts", "price"]], (ev.ts.max().normalize() if len(ev) else None)
 
 
-def _snapshot_events(arch_dir, after, asof, codes):
-    """Events (code, fuel, ts, price) and addresses from archive snapshots dated after `after` up to `asof`."""
+def _snapshot_events(arch_dir, after, asof, codes, extra=frozenset(), since=None):
+    """Events (code, fuel, ts, price) and addresses from archive snapshots dated after `after` up to `asof`.
+    `extra`: codes with no monthly history (stations outside Sydney). For them every snapshot from `since` on counts,
+    including the days up to `after`."""
     rows, addr = [], {}
     snaps = sorted((pd.Timestamp(m.group(1)), f) for f in glob.glob(f"{arch_dir}/nsw_snapshot_*.json.gz")
                    if (m := re.search(r"(\d{8})", os.path.basename(f))))
     snaps = [(day, f) for day, f in snaps if day <= asof]
     for i, (day, f) in enumerate(snaps):
-        if after is not None and day <= after and i < len(snaps) - 1: continue   # covered by history; newest kept for addresses
+        covered = after is not None and day <= after                # the monthly history has this day (for Sydney stations)
+        old = covered and not (extra and (since is None or day >= since))
+        if old and i < len(snaps) - 1: continue                     # nothing needed from it; the newest is kept for addresses
         j = json.load(gzip.open(f, "rt"))
         for s in j.get("stations", []):
             if str(s.get("code")) in codes and s.get("address"): addr[str(s["code"])] = s["address"]
-        if after is not None and day <= after: continue
+        if old: continue
         p = pd.DataFrame(j.get("prices", []))
         if p.empty: continue
         p["code"] = p.stationcode.astype(str)
-        p = p[p.code.isin(codes) & p.fueltype.isin(FUELS) & p.price.between(50, 600)].copy()
+        p = p[p.code.isin(extra if covered else codes) & p.fueltype.isin(FUELS) & p.price.between(50, 600)].copy()
+        if p.empty: continue                                        # e.g. a Sydney-only snapshot from before 2026-11-13
         p["ts"] = pd.to_datetime(p.lastupdated, dayfirst=True, errors="coerce")
-        fetched = min(p.ts.max(), day + pd.Timedelta(hours=23, minutes=59)) if p.ts.notna().any() else day
+        # When the snapshot was taken: the newest update among the Sydney stations, as before the archive covered all
+        # of NSW (so one future-dated price elsewhere can't move it); a snapshot day with none of them uses every row
+        seen = p.ts[~p.code.isin(extra)] if (~p.code.isin(extra) & p.ts.notna()).any() else p.ts
+        fetched = min(seen.max(), day + pd.Timedelta(hours=23, minutes=59)) if seen.notna().any() else day
         fetched = max(fetched, day)
         chg = p[p.ts.notna() & (p.ts <= fetched)]
-        if after is not None: chg = chg[chg.ts.dt.normalize() > after]
+        if after is not None: chg = chg[(chg.ts.dt.normalize() > after) | chg.code.isin(extra)]
         obs = p.assign(ts=fetched)                         # the price as seen when the snapshot was taken
         rows += [chg[["code", "fueltype", "ts", "price"]], obs[["code", "fueltype", "ts", "price"]]]
     ev = pd.concat(rows, ignore_index=True).rename(columns={"fueltype": "fuel"}) if rows else pd.DataFrame(columns=["code", "fuel", "ts", "price"])
@@ -122,7 +133,8 @@ def build(base, G, schema):
         if k: k2c.setdefault(k, []).append(c)
     hev, hist_end = _history_events(f"{base}/store/events", warm, set(k2c))
     hev = hev.assign(code=hev.key.map(k2c)).explode("code")[["code", "fuel", "ts", "price"]]
-    sev, addr = _snapshot_events(f"{base}/archive", hist_end, asof, codes)
+    outside = {i for i, s in zip(ids, data["stations"]) if s.get("out")}
+    sev, addr = _snapshot_events(f"{base}/archive", hist_end, asof, codes, extra=outside, since=warm)
     today = S[S.code.astype(str).isin(codes) & S.fueltype.isin(FUELS)]
     tev = pd.DataFrame({"code": today.code.astype(str), "fuel": today.fueltype, "ts": asof + pd.Timedelta(hours=23, minutes=59, seconds=59),
                         "price": today.price.astype(float)})
@@ -163,7 +175,7 @@ def build(base, G, schema):
         idx = np.clip(hs - shift, 0, 14)
         fc = {}
         for f, pr in s["p"].items():
-            if f not in MK: continue
+            if f not in MK or s.get("out"): continue   # outside Sydney: no forecast
             _, d, J = MK[f]; lo, hi = band[f]
             ds = w * d[idx]; los = ds + np.sqrt(w) * (lo[idx] - d[idx]); his = ds + np.sqrt(w) * (hi[idx] - d[idx])
             row = {"now": pr[0]}
@@ -180,6 +192,7 @@ def build(base, G, schema):
                 hist[f] = [r1(v) for v in M[sid].values]
         out[sid] = {"schema": schema, "asof": str(asof.date()), "id": sid,
                     "n": s["n"], "b": s["b"], "s": s["s"], "pc": s["pc"], "la": s["la"], "lo": s["lo"], "m": s["m"],
+                    **({"out": 1} if s.get("out") else {}),
                     "addr": addr.get(sid), "start": str(start.date()), "hist": hist,
                     "profile": None if prof is None else {"typ": prof.get("typ", {}), "lag": prof.get("lag"), "part": prof.get("part"), "n": prof.get("n", 0)},
                     "fc": fc}
@@ -194,7 +207,9 @@ def check(details, stations):
         if d is None: errs.append(f"station {s['id']}: no file"); continue
         for f, pr in s["p"].items():
             fc = d["fc"].get(f)
-            if fc is None or fc["now"] != pr[0]: errs.append(f"station {s['id']} {f}: fc.now {fc and fc['now']} != {pr[0]}")
+            if s.get("out"):
+                if fc is not None: errs.append(f"station {s['id']} {f}: a forecast outside Sydney")
+            elif fc is None or fc["now"] != pr[0]: errs.append(f"station {s['id']} {f}: fc.now {fc and fc['now']} != {pr[0]}")
             elif list(fc["adv"]) != list(pr[2:5]): errs.append(f"station {s['id']} {f}: adv differs")
             elif any(not isinstance(fc[k], (int, float)) or fc[k] != fc[k] for k in fc if k[0] in "dlh"):
                 errs.append(f"station {s['id']} {f}: non-numeric forecast")

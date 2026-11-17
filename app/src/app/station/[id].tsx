@@ -303,7 +303,13 @@ export default function StationPage() {
                 </Card>
               </Section>
             ) : (
-              <Card><T>No forecast for {fuelName(fuel)} at this station today.</T></Card>
+              <Card>
+                <T>
+                  {(d.out ?? row?.out)
+                    ? 'Bowser’s forecast covers Sydney only, so this station shows its prices without one.'
+                    : `No forecast for ${fuelName(fuel)} at this station today.`}
+                </T>
+              </Card>
             )}
 
             {/* Behaviour */}

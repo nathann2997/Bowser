@@ -17,6 +17,7 @@ describe('advice chips', () => {
     expect(echoesSydney('any', 'wait')).toBe(false);   // differs from the headline
     expect(echoesSydney('chk', 'calm')).toBe(false);   // a stale price is always flagged
     expect(echoesSydney('hi', 'wait')).toBe(false);    // "Skip for now": this station is dear right now
+    expect(echoesSydney('na', 'calm')).toBe(false);    // outside Sydney: "Price only", the headline isn't about it
     expect(echoesSydney('wait', undefined)).toBe(false);
   });
 });

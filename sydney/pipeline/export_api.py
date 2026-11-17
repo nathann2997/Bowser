@@ -4,7 +4,8 @@ usage: python export_api.py BASE [OUT] [--allow-stale]   (OUT defaults to BASE/o
 Runs build.py unchanged (so the dashboard HTML is rebuilt too) and reuses the `data` it assembles, then writes
   OUT/api/v1/meta.json       schema version, generation time, freshness of each source, file sizes
   OUT/api/v1/forecast.json   per-fuel forecast + verdict, model context, consumer stats, brands, backtest
-  OUT/api/v1/stations.json   today's Sydney stations with per-fuel price and "when to fill" advice, suburb centroids
+  OUT/api/v1/stations.json   today's NSW stations with per-fuel price, suburb centroids, and for the Sydney ones "when
+                             to fill" advice (a station outside Sydney has `out: 1` and prices only)
   OUT/api/v1/history.json    daily Sydney median / p10 / p90 per fuel and wholesale TGP since 2019
   OUT/api/v1/track.json      the track record: recent live calls and how they turned out, plus the replayed backtest
                              (see track_api.py; records today's calls in BASE/store/calls.csv)
@@ -74,6 +75,7 @@ ctx = data["ctx"]
 # suburb centroids so a suburb/postcode search can be turned into a radius search on the device
 cent = {}
 for s in data["stations"]:
+    if not s["pc"]: continue   # no postcode in the address: on the map and in radius searches, but not a suburb to search for
     c = cent.setdefault((s["s"], s["pc"]), [0.0, 0.0, 0]); c[0] += s["la"]; c[1] += s["lo"]; c[2] += 1
 suburbs = sorted(({"s": s, "pc": pc, "la": round(a / n, 5), "lo": round(o / n, 5), "n": n} for (s, pc), (a, o, n) in cent.items()),
                  key=lambda x: (x["s"], x["pc"]))
@@ -90,22 +92,27 @@ app_stations = [dict(id=i, **s) for i, s in zip(ids, data["stations"])]
 # shown, it would rank as the cheapest in Sydney, top "Best for you" and the widget. So it's left out of the app's data
 # (new dicts: build.py's `data` and the dashboard are untouched) and reported in meta.warnings. The bounds are well
 # outside anything real: across the stored snapshots the widest gaps are -22c and +37c. health.py checks the same bounds.
+# Stations outside Sydney are held to their own median (they don't follow Sydney's price cycle, so at a Sydney peak or
+# trough they sit far from its median), with wider bounds: remote towns really do charge far more than the coast.
 QUAR_LO, QUAR_HI, QUAR_ABS = -45, 80, (80, 600)
+QUAR_OUT_LO, QUAR_OUT_HI = -50, 150
 quarantined = []
 for f in FUELS:
-    ps = [st["p"][f][0] for st in app_stations if isinstance((st["p"].get(f) or [None])[0], (int, float))]
-    if len(ps) < 50: continue   # too few to know what normal is
-    med = statistics.median(ps)
-    quarantined += [(st["id"], f, st["p"][f][0], round(med, 1), st["n"]) for st in app_stations
-                    if isinstance((st["p"].get(f) or [None])[0], (int, float))
-                    and not (QUAR_ABS[0] <= st["p"][f][0] <= QUAR_ABS[1] and QUAR_LO <= st["p"][f][0] - med <= QUAR_HI)]
+    for out, lo, hi in [(False, QUAR_LO, QUAR_HI), (True, QUAR_OUT_LO, QUAR_OUT_HI)]:
+        grp = [st for st in app_stations if bool(st.get("out")) == out and isinstance((st["p"].get(f) or [None])[0], (int, float))]
+        bad_abs = [st for st in grp if not QUAR_ABS[0] <= st["p"][f][0] <= QUAR_ABS[1]]
+        med = statistics.median(st["p"][f][0] for st in grp) if len(grp) >= 50 else None   # under 50: too few to know what normal is
+        bad_rel = [] if med is None else [st for st in grp if st not in bad_abs and not lo <= st["p"][f][0] - med <= hi]
+        if not out and med is None: continue   # as before: a fuel with under 50 Sydney prices isn't checked
+        quarantined += [(st["id"], f, st["p"][f][0], None if med is None else round(med, 1), st["n"]) for st in bad_abs + bad_rel]
 if quarantined:
     qset = {(i, f) for i, f, *_ in quarantined}
     app_stations = [dict(st, p={f: pr for f, pr in st["p"].items() if (st["id"], f) not in qset}) for st in app_stations]
 stations = {"schema": SCHEMA, "asof": data["snap_asof"], **STAMP,
-            "fields": {"id": "NSW station code (station/{id}.json)", "n": "name", "b": "brand", "s": "suburb", "pc": "postcode", "la": "lat", "lo": "lon", "m": "members only (0/1)",
+            "fields": {"id": "NSW station code (station/{id}.json)", "n": "name", "b": "brand", "s": "suburb", "pc": "postcode (0 = unknown)", "la": "lat", "lo": "lon", "m": "members only (0/1)",
+                       "out": "1 = outside Sydney: prices only, no forecast (advice code na, or chk for an old price; no 7-day price). Absent for a Sydney station",
                        "p": "fuel -> [price c/L, days since update, advice code, advice label, advice reason, "
-                            "7-day forecast price c/L (= station/{id}.json fc.now + fc.d7; absent if station files failed)]"},
+                            "7-day forecast price c/L (= station/{id}.json fc.now + fc.d7; absent if station files failed, and outside Sydney)]"},
             "stations": app_stations, "suburbs": suburbs, "suburb_stats": data["suburbs"]}
 history = {"schema": SCHEMA, **STAMP, "start": data["start"], "hist": data["hist"], "tgp": data["tgp"]}
 
@@ -119,7 +126,8 @@ for r in data["live"]:
         v = r.get(k)
         if not isinstance(v, (int, float)) or v != v: errs.append(f"{r['fuel']}.{k} = {v}")
     if not 100 < r["now"] < 500: errs.append(f"{r['fuel']} now {r['now']}")
-if len(data["stations"]) < 500: errs.append(f"only {len(data['stations'])} stations")
+n_syd = sum(not s.get("out") for s in data["stations"])
+if n_syd < 500: errs.append(f"only {n_syd} Sydney stations")
 if errs:
     print("export_api: FAILED checks:\n  " + "\n  ".join(errs)); sys.exit(1)
 forecast = {"schema": SCHEMA, "asof": ctx["asof"], **STAMP, "live": [dict(r, verdict=verdict(r)) for r in data["live"]],
@@ -149,10 +157,13 @@ try:
     # p[fuel][5]: the 7-day forecast price from the same fc, for the widget (new dicts/lists: build.py's data untouched)
     f7 = lambda fc: round(fc["now"] + fc["d7"], 1) + 0.0
     # index 5 (7-day station forecast) belongs to this script; build.py fills 0-4 only
-    with_fc = [dict(s, p={f: list(pr[:5]) + [f7(details[s["id"]]["fc"][f])] for f, pr in s["p"].items()}) for s in app_stations]
-    bad = [f"{s['id']} {f}" for s in with_fc for f, pr in s["p"].items()
-           if len(pr) != 6 or not isinstance(pr[5], float) or pr[5] != pr[5] or not 50 < pr[5] < 800
-           or pr[5] != f7(json.loads(st_txt[s["id"]])["fc"][f])]
+    # (a station outside Sydney has no forecast: its prices stay at 0-4)
+    with_fc = [s if s.get("out") else dict(s, p={f: list(pr[:5]) + [f7(details[s["id"]]["fc"][f])] for f, pr in s["p"].items()}) for s in app_stations]
+    def wrong(s, f, pr):
+        fc = json.loads(st_txt[s["id"]])["fc"]
+        if s.get("out"): return len(pr) != 5 or fc != {}
+        return len(pr) != 6 or not isinstance(pr[5], float) or pr[5] != pr[5] or not 50 < pr[5] < 800 or pr[5] != f7(fc[f])
+    bad = [f"{s['id']} {f}" for s in with_fc for f, pr in s["p"].items() if wrong(s, f, pr)]
     if bad: raise RuntimeError(f"stations.json 7-day price check failed for {len(bad)}, e.g. {bad[:3]}")
     stations["stations"] = with_fc
 except Exception as e:
@@ -274,6 +285,6 @@ try:
     if new_calls: track_api.append(BASE, new_calls)   # everything is written: today's calls are now on record
 except Exception as e:
     print(f"export_api: WARNING couldn't save today's calls: {type(e).__name__}: {e}")
-print(f"export_api: {ctx['asof']}, {len(data['stations'])} stations, " + ", ".join(f"{k} {v // 1024}KB" for k, v in files.items() if k != "station/count")
+print(f"export_api: {ctx['asof']}, {len(data['stations'])} stations ({n_syd} in Sydney), " + ", ".join(f"{k} {v // 1024}KB" for k, v in files.items() if k != "station/count")
       + (f"; station files {len(sizes)}, p50 {sizes[len(sizes) // 2] // 1024}KB, max {sizes[-1] // 1024}KB" if sizes else "; NO station files")
       + (f"; WARNINGS: {warnings}" if warnings else ""))
