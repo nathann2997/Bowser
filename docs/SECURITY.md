@@ -28,3 +28,4 @@ How Bowser is kept safe, what was reviewed, and what only the owner can do. Last
 - **`style-src 'unsafe-inline'`** on the dashboard (generated inline styles); scripts are hash-pinned, so injected HTML can't run code.
 - **OTA updates aren't signed** (paid plan); covered by the `release` environment, the locked eas-cli and the token's scope.
 - **Dependabot alerts for glob, minimatch and zod**: build and lint tooling only, never in the app; dismissed with that reason until Expo moves them.
+- **tools/ci (eas-cli's own dependencies):** patched releases forced with `overrides` where they stay in the same major (node-forge, nanoid, joi, minimatch 5). minimatch 9/10 and uuid 7/8 are only fixed in a new major that eas-cli's dependencies don't accept: dismissed (glob patterns and ids over our own files, in CI only) until eas-cli moves.
