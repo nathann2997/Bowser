@@ -109,13 +109,13 @@ class Built(unittest.TestCase):
     def test_csp_hashes_match_the_page(self):
         h = lambda s: base64.b64encode(hashlib.sha256(s.encode()).digest()).decode()
         for path, t in self.pages.items():
-            scripts = re.findall(r"<script>(.*?)</script>", t, re.S); styles = re.findall(r"<style>(.*?)</style>", t, re.S)
+            scripts = re.findall(r"<script>(.*?)</script>", t, re.S | re.I); styles = re.findall(r"<style>(.*?)</style>", t, re.S)
             self.assertEqual((len(scripts), len(styles)), (1, 1), path)
             csp = re.search(r'http-equiv="Content-Security-Policy" content="([^"]+)"', t).group(1)
             self.assertIn(f"script-src 'sha256-{h(scripts[0])}'", csp); self.assertIn(f"style-src 'sha256-{h(styles[0])}'", csp)
             # nothing the policy would block: no inline handlers or style attributes, and every other script is JSON-LD
             self.assertIsNone(re.search(r"\son\w+\s*=|\sstyle\s*=", t), path)
-            for tag in re.findall(r"<script[^>]+>", t): self.assertEqual(tag, '<script type="application/ld+json">', path)
+            for tag in re.findall(r"<script[^>]+>", t, re.I): self.assertEqual(tag, '<script type="application/ld+json">', path)
 
     def test_names_from_the_feed_are_escaped(self):
         for path, t in self.pages.items():
@@ -204,7 +204,7 @@ class Pieces(unittest.TestCase):
         self.assertEqual(head.count("<title>"), 1); self.assertTrue(head.startswith("<title>"))
         self.assertIn('<link rel="canonical" href="https://checkbowser.app/">', head)
         self.assertIn("Unleaded 91 is 213.6c/L in Sydney today (17 Nov)", head)
-        self.assertEqual(len(re.findall(r"<script\b", head)), 1); self.assertIn('<script type="application/ld+json">', head)
+        self.assertEqual(len(re.findall(r"<script\b", head, re.I)), 1); self.assertIn('<script type="application/ld+json">', head)
         links = sp.home_links(stations, forecast)
         self.assertIn('href="fuel-prices/parramatta-2150/"', links); self.assertNotIn("<script", links)
 
