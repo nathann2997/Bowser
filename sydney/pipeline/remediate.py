@@ -152,7 +152,10 @@ def gh(*args, check=True):
 
 
 def gather(repo):
-    raw = json.loads(gh("api", f"repos/{repo}/actions/workflows/{WORKFLOW}/runs?per_page=40"))
+    raw = json.loads(gh("api", f"repos/{repo}/actions/workflows/{WORKFLOW}/runs?branch=main&per_page=40"))
+    # Only the pipeline's own runs on main: not fork PRs, not runs started on other branches
+    raw["workflow_runs"] = [r for r in raw.get("workflow_runs", []) if r.get("event") in ("schedule", "workflow_dispatch")
+                            and (r.get("head_repository") or {}).get("full_name") == repo and r.get("head_branch") == "main"]
     runs = [{"id": r["id"], "status": r["status"], "conclusion": r["conclusion"], "event": r["event"], "created_at": r["created_at"],
              "updated_at": r["updated_at"], "html_url": r["html_url"], "actor": (r.get("triggering_actor") or {}).get("login"),
              "actor_type": (r.get("triggering_actor") or {}).get("type")}
@@ -163,7 +166,7 @@ def gather(repo):
     if found:
         i = found[0]
         # Only the monitor's own words count: anyone can comment on a public repo's issue
-        mine = lambda a: str((a or {}).get("login", "")).endswith("[bot]") or (a or {}).get("login") == "github-actions"
+        mine = lambda a: (a or {}).get("login") in ("github-actions[bot]", "github-actions", "app/github-actions")
         texts = ([i.get("body") or ""] if mine(i.get("author")) else []) + [c.get("body") or "" for c in i.get("comments", []) if mine(c.get("author"))]
         last = next((t for t in reversed(texts) if MARK in t), "")
         codes = last.split(MARK, 1)[1].split("-->", 1)[0].strip() if last else ""

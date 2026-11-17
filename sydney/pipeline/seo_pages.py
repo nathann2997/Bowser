@@ -162,6 +162,8 @@ footer{border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direc
 # itself, so the footer's promise ("never your area") holds on these pages too.
 JS = """(function () {
   'use strict';
+  // Not inside another site's frame (clickjacking): GitHub Pages can't send X-Frame-Options or frame-ancestors
+  if (window.top !== window.self) { document.documentElement.style.display = 'none'; try { window.top.location.replace(location.href); } catch (e) {} }
   var on = false, id = null, internal = false, sess = null, root = document.documentElement;
   var get = function (k, d) { try { var v = localStorage.getItem('bowser.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
   var set = function (k, v) { try { localStorage.setItem('bowser.' + k, JSON.stringify(v)); } catch (e) {} };
@@ -173,7 +175,7 @@ JS = """(function () {
     return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
   };
   try {
-    on = /^(www\\.)?checkbowser\\.app$|^nathann2997\\.github\\.io$/.test(location.hostname) && !navigator.globalPrivacyControl && navigator.doNotTrack !== '1' && !!window.fetch;
+    on = /^(www\\.)?checkbowser\\.app$|^nathann2997\\.github\\.io$/.test(location.hostname) && !navigator.globalPrivacyControl && navigator.doNotTrack !== '1' && navigator.doNotTrack !== 'yes' && window.doNotTrack !== '1' && !!window.fetch;
     internal = get('internal', false) === true;
     id = get('anon', null);
     if (typeof id !== 'string') { id = uuid7(); set('anon', id); }

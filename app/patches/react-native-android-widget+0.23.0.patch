@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java
-index 5650d1e..8162ee3 100644
+index 5650d1e..1555499 100644
 --- a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java
 +++ b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java
 @@ -4,6 +4,7 @@ import android.app.PendingIntent;
@@ -251,7 +251,7 @@ index 5650d1e..8162ee3 100644
          ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
          bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream);
 diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetCollectionService.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetCollectionService.java
-index f818d97..c90ed01 100644
+index f818d97..50c5753 100644
 --- a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetCollectionService.java
 +++ b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetCollectionService.java
 @@ -95,8 +95,8 @@ class ListRemoteViewsFactory implements RemoteViewsService.RemoteViewsFactory {
@@ -314,6 +314,91 @@ index f818d97..c90ed01 100644
 +            PendingIntent.FLAG_UPDATE_CURRENT
                  | PendingIntent.FLAG_MUTABLE
          );
+     }
+diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetImageProvider.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetImageProvider.java
+index 0f963f0..86fb3ea 100644
+--- a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetImageProvider.java
++++ b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetImageProvider.java
+@@ -11,6 +11,9 @@ import androidx.annotation.NonNull;
+ import androidx.annotation.Nullable;
+ 
+ import java.io.File;
++import java.nio.charset.StandardCharsets;
++import java.security.MessageDigest;
++import java.security.SecureRandom;
+ import java.io.FileNotFoundException;
+ import java.io.FileOutputStream;
+ import java.io.IOException;
+@@ -29,7 +32,14 @@ public class RNWidgetImageProvider extends ContentProvider {
+             throw new FileNotFoundException("Write access denied. This provider is Read-Only.");
+         }
+ 
+-        String fileName = uri.getLastPathSegment();
++        // Bowser patch: the provider is exported (the launcher draws the widget from it), so every image URI carries this
++        // install's random token and nothing else can guess one (the images show stations near the user)
++        java.util.List<String> segments = uri.getPathSegments();
++        if (segments.size() != 2 || !MessageDigest.isEqual(
++                segments.get(0).getBytes(StandardCharsets.UTF_8), token(getContext()).getBytes(StandardCharsets.UTF_8))) {
++            throw new FileNotFoundException("Access denied.");
++        }
++        String fileName = segments.get(1);
+         if (fileName == null) {
+             throw new FileNotFoundException("Invalid URI: " + uri);
+         }
+@@ -39,7 +49,7 @@ public class RNWidgetImageProvider extends ContentProvider {
+ 
+         // Verify the file exists and is actually inside our folder (Path Traversal check)
+         try {
+-            if (!file.getCanonicalPath().startsWith(folder.getCanonicalPath())) {
++            if (!file.getCanonicalPath().startsWith(folder.getCanonicalPath() + File.separator)) {
+                 throw new FileNotFoundException("Access denied: File is outside widget directory.");
+             }
+         } catch (Exception e) {
+@@ -114,11 +124,45 @@ public class RNWidgetImageProvider extends ContentProvider {
+         return new Uri.Builder()
+             .scheme("content")
+             .authority(authority)
++            .appendPath(token(context))
+             // Add cacheKey since the uri is cached and returns old images
+             .appendPath(fileName + "?cacheKey=" + System.currentTimeMillis())
+             .build();
+     }
+ 
++    private static String cachedToken;
++
++    private static String newToken() {
++        byte[] b = new byte[16];
++        new SecureRandom().nextBytes(b);
++        StringBuilder sb = new StringBuilder();
++        for (byte x : b) sb.append(String.format("%02x", x & 0xff));
++        return sb.toString();
++    }
++
++    /** A random 128-bit token per install, kept next to (not inside) the images folder */
++    private static synchronized String token(Context context) {
++        if (cachedToken != null) return cachedToken;
++        File f = new File(context.getFilesDir(), "widget_images_token");
++        if (f.exists()) {
++            try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
++                byte[] buf = new byte[64];
++                int n = in.read(buf);
++                String t = n > 0 ? new String(buf, 0, n, StandardCharsets.UTF_8).trim() : "";
++                if (t.matches("[0-9a-f]{32}")) return cachedToken = t;
++            } catch (IOException e) {
++                // rewritten below
++            }
++        }
++        String t = newToken();
++        try (FileOutputStream out = new FileOutputStream(f)) {
++            out.write(t.getBytes(StandardCharsets.UTF_8));
++        } catch (IOException e) {
++            // not saved: this token still works until the process restarts, and the widget re-renders then
++        }
++        return cachedToken = t;
++    }
++
+     private static File getFolderWithImages(Context context) {
+         return new File(context.getFilesDir(), "widget_images");
      }
 diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetProvider.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidgetProvider.java
 index 647d8f4..cdd1a82 100644

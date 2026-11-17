@@ -14,7 +14,6 @@ import PostHog from 'posthog-react-native';
 import { useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { API_BASE } from './api';
 import type { Settings } from './settings';
 
 export type EventName =
@@ -47,17 +46,18 @@ type Severity = 'info' | 'warn' | 'error';
  */
 export function configureAnalytics(shareUsage = true) {
   sharing = shareUsage;
-  const apiHost = API_BASE.match(/^https?:\/\/([^/:]+)/)?.[1];
   try {
     Observe.configure({
       // More → Share anonymous usage, read at launch: Observe can't be switched mid-session
       dispatchingEnabled: shareUsage,
       // preview testers and store users apart in the dashboard (dev builds have no channel)
       environment: Updates.channel || (__DEV__ ? 'development' : 'production'),
-      // Per-route render and time-to-interactive (useReady), tagged with the route pattern, e.g. /station/[id]
-      integrations: { 'expo-router': true, 'react-native-reanimated': true },
-      // How long the API files take on real networks; only our host, since each request counts toward the quota
-      networkTraces: apiHost ? { filter: { hosts: [apiHost] } } : false,
+      // Per-route render and time-to-interactive (useReady), tagged with the route pattern, e.g. /station/[id]. The
+      // station's code and the link source are removed (the stations someone opens say roughly where they live)
+      integrations: { 'expo-router': { filteredParams: ['id', 'src'] }, 'react-native-reanimated': true },
+      // Off: a trace records the request's full address, station/<code>.json included, and the filter can only pick
+      // hosts, not paths
+      networkTraces: false,
     });
   } catch {
     // the app works without analytics

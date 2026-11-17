@@ -53,12 +53,32 @@ export const isNotFound = (e: unknown) => e instanceof HttpError && e.status ===
 export const MAX_JSON_BYTES = 25 * 1024 * 1024;
 export const tooBig = (r: Response) => Number(r.headers.get('content-length') ?? 0) > MAX_JSON_BYTES;
 
+const str = (v: unknown) => typeof v === 'string';
+const rows = (v: unknown, ok: (x: Record<string, unknown>) => boolean) =>
+  Array.isArray(v) && v.every((x) => !!x && typeof x === 'object' && ok(x as Record<string, unknown>));
+/**
+ * The fields every screen relies on, checked before anything is shown or saved on the phone: a damaged or tampered
+ * file is an error (the saved copy stays), not a crash or bad data kept for days. Light on purpose: types, not values.
+ */
+export function shapeOk(name: string, j: Record<string, unknown>): boolean {
+  if (name.startsWith('station/')) return str(j.id) && str(j.n);
+  switch (name) {
+    case 'meta': return str(j.asof);
+    case 'forecast': return str(j.asof) && rows(j.live, (r) => str(r.fuel));
+    case 'stations': return str(j.asof) && rows(j.stations, (s) => str(s.id) && str(s.n)) && Array.isArray(j.suburbs);
+    case 'history': return str(j.start) && !!j.hist && typeof j.hist === 'object';
+    case 'track': return str(j.asof);
+    default: return true;
+  }
+}
+
 async function getJson<T extends { schema: number }>(name: string): Promise<T> {
   const r = await apiFetch(`${name}.json`, { headers: { Accept: 'application/json' } });
   if (!r.ok) throw new HttpError(`${name}.json: HTTP ${r.status}`, r.status);
   if (tooBig(r)) throw new Error(`${name}.json: too large`);
   const j = (await r.json()) as T;
   if (j.schema !== SCHEMA) throw new Error(`${name}.json: schema ${j.schema}, app expects ${SCHEMA}. Update the app.`);
+  if (!shapeOk(name, j as unknown as Record<string, unknown>)) throw new Error(`${name}.json: unexpected shape`);
   return j;
 }
 

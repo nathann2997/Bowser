@@ -263,9 +263,10 @@ except Exception as e:
     print(f"::warning::dashboard head for search not added: {type(e).__name__}: {e}")
 # Content-Security-Policy, added here rather than in the template so it can pin the page's own inline script by hash:
 # an injected <script> or on*= handler won't run, and scripts and styles load only from two cdnjs files (Chart.js, and
-# MapLibre for the stations map when it opens, both with SRI) and Google Fonts. The map's tiles, styles and fonts come
-# from OpenFreeMap; the only other requests are the page's own api/v1/track.json ('self') and anonymous usage events
-# to PostHog. MapLibre runs its worker from a blob: URL, and there are no frames or form posts.
+# MapLibre for the stations map when it opens, both with SRI). No web fonts (the page uses the system's). The map's
+# tiles, styles and glyphs come from OpenFreeMap; the only other requests are the page's own api/v1/track.json ('self')
+# and anonymous usage events to PostHog. MapLibre runs its worker from a blob: URL, and there are no frames or form
+# posts. A meta CSP can't set frame-ancestors, so the page's script refuses to run inside another site's frame.
 inline = re.findall(r"<script>(.*?)</script>", html, re.S)
 # Any inline <script ...> with attributes would be blocked by the CSP: refuse to publish rather than ship a dead page
 # (a JSON-LD block is data, not a script: the browser never runs it, so the CSP doesn't apply to it)
@@ -279,7 +280,7 @@ ml_v = re.findall(r'const ML = \{v:"([\d.]+)"', html)
 if len(chart) != 1 or len(ml_v) != 1: raise RuntimeError("dashboard: can't find the Chart.js / MapLibre versions for the CSP")
 ml = f"{CDN}maplibre-gl/{ml_v[0]}/maplibre-gl"
 csp = (f"default-src 'none'; script-src 'sha256-{sha}' {chart[0]} {ml}.js; style-src 'unsafe-inline' "
-       f"https://fonts.googleapis.com {ml}.css; font-src https://fonts.gstatic.com; "
+       f"{ml}.css; font-src 'none'; frame-src 'none'; "
        "img-src 'self' data: blob: https://tiles.openfreemap.org; connect-src 'self' https://tiles.openfreemap.org https://us.i.posthog.com; worker-src blob:; "
        "child-src blob:; base-uri 'none'; form-action 'none'; object-src 'none'")
 if html.count("<title>") != 1: raise RuntimeError("dashboard: no <title> to put the CSP after")
@@ -299,7 +300,7 @@ try:
     if re.search(r"\son\w+\s*=|\sstyle\s*=", page): raise RuntimeError("inline handler or style attribute (blocked by the CSP)")
     h = lambda t: base64.b64encode(hashlib.sha256(t.encode()).digest()).decode()
     share_csp = (f"default-src 'none'; script-src 'sha256-{h(scripts[0])}'; style-src 'sha256-{h(styles[0])}'; "
-                 "connect-src 'self' https://us.i.posthog.com; img-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'")
+                 "connect-src 'self' https://us.i.posthog.com; img-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'")
     # First thing in <head>, so the policy covers every block after it whatever the page's order
     if page.count("<head>") != 1: raise RuntimeError("no <head> to put the CSP in")
     page = page.replace("<head>", f'<head>\n<meta http-equiv="Content-Security-Policy" content="{share_csp}">', 1)

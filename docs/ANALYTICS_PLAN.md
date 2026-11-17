@@ -95,7 +95,7 @@ Bowser has a handful of testers, each opening it a couple of times a week before
 At this size (around 10 installs), per-install timelines and simple funnels matter more than big aggregate charts.
 
 ## What we have today, and why it isn't enough
-- **EAS Observe** (`expo-observe`, since 0.7.0): startup and per-screen load times, JS errors and native crashes, plus our own events (`lib/analytics.ts`, 15 event names).
+- **EAS Observe** (`expo-observe`, since 0.7.0): startup and per-screen load times, JS errors and native crashes, plus our own events (`lib/analytics.ts`, 15 event names). Since 2026-11-17 (security review) screen metrics drop the `id` and `src` route params (the stations someone opens say roughly where they live), network traces are off (they record full request addresses, `station/<code>.json` included, and can only be filtered by host), and `data.fetch_failed` sends its message with the station code removed.
 - **EAS Insights** (`expo-insights`): launches by version and platform.
 
 They're good at "is it fast, is it broken". They can't answer the questions above:

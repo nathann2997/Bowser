@@ -2,6 +2,18 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-17 — Security review and fixes (app 0.10.0)
+
+Owner: "review the current set up for vulnerabilities … fix all issues". Reviewed the CI and pipeline, the web pages, the app, the repo settings, the domain and git history (no critical or high findings; no secret ever committed). Fixed:
+- **CI (the biggest risk: `EXPO_TOKEN` ships code to every phone):** eas-cli and expo-doctor are locked in `tools/ci/package-lock.json` (with typescript pinned, so `npm ci` accepts the lock; the install is its own step in `check`, so a broken lock fails there) instead of fetched fresh by `npx` (a compromised dependency could have read the token); the ship job no longer restores the shared npm cache; `EXPO_TOKEN` jobs run in the new `release` environment (deployments from `main` only); the app version is checked as x.y.z before it's written to job outputs.
+- **Pipeline:** `daily.yml` only runs and saves to `data` from `main`. `data-health` only reacts to this repo's own `daily.yml` runs on `main` (a fork PR could add a workflow with the same name), and `remediate.py` only counts those runs and only the Actions bot's comments.
+- **Repo settings:** `ota/*` added to the no-delete/no-force-push ruleset; Dependabot security updates and CodeQL code scanning on. (Secret scanning's validity checks and generic patterns aren't offered for this repo.)
+- **Web:** the dashboard, share page and search pages refuse to run inside another site's frame (clickjacking; Pages can't send the header); unused Google Fonts hosts removed from the dashboard CSP (`font-src 'none'`, `frame-src 'none'` on both); a GPS area is saved in the browser to 3 decimals (~100 m), and existing saved ones are rounded; brand and fuel lookups can't be broken by names like `constructor`; Do Not Track also read from `window.doNotTrack` and "yes" (search pages too).
+- **App 0.10.0 (JS):** API files are checked for shape before they're shown or saved (`shapeOk`, also in the widget); screen metrics drop the station code and link source; network traces off (they record `station/<code>.json` and can only be filtered by host); `data.fetch_failed` no longer carries a station code.
+- **App 0.10.0 (native, new APK):** no Android cloud backup of on-device data (home location, fills, pins), which the permission text already promised; the widget's image provider (exported so the launcher can draw it) now needs a random per-install token in every image address, so other apps can't read the widget (it shows nearby stations), and its folder check no longer matches look-alike folders; node-forge 1.4.3 (build tooling only).
+- **Kept on purpose, and the owner's own checks** (2FA, Expo robot token in `release`, DNSSEC and CAA at Porkbun, PostHog IP discard, Maps key restrictions): `docs/SECURITY.md`.
+- **Not checked:** the 0.10.0 widget on a real phone (the Java compiles in the EAS build only).
+
 ## 2026-11-17 — Search review: all-NSW wording, region pages, AI crawlers, stale pages out of search
 
 Owner: Search Console property made and verified; "review everything from a technical SEO and content standpoint, apply changes, and ensure we're indexable by AI". Audit run against the live site and today's data (2,387 stations, 1,525 outside Sydney).

@@ -393,6 +393,8 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
+// Not inside another site's frame (clickjacking): GitHub Pages can't send X-Frame-Options or frame-ancestors
+if (window.top !== window.self) { document.documentElement.style.display = "none"; try { window.top.location.replace(location.href); } catch (e) {} }
 const D = __DATA__;
 // Station names, brands, suburbs and advice text come from the NSW API (third-party): escape them before any innerHTML
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
@@ -406,6 +408,9 @@ const store = {
   get(k, d){ try { const v = localStorage.getItem("bowser." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v){ try { localStorage.setItem("bowser." + k, JSON.stringify(v)); } catch {} },
 };
+// A GPS area is kept in this browser to about 100 m (3 decimals), never to the metre; it is never sent anywhere
+const coarse = (a) => a && a.gps && Number.isFinite(a.la) && Number.isFinite(a.lo) ? {...a, la: +a.la.toFixed(3), lo: +a.lo.toFixed(3)} : a;
+try { const a = store.get("area", null); if (a && a.gps) store.set("area", coarse(a)); } catch {}
 // Anonymous usage (docs/ANALYTICS_PLAN.md, "Web"): events go straight to PostHog's capture API, no library and no cookie.
 // Only on the published site (not a copy opened anywhere else), never with Global Privacy Control or Do Not
 // Track on. A random id kept in this browser counts returning visitors. Never sent: the area, location, pinned stations
@@ -421,7 +426,7 @@ const usage = (() => {
   };
   let on = false, id = null, internal = false;
   try {
-    on = ["checkbowser.app", "nathann2997.github.io"].includes(location.hostname) && !navigator.globalPrivacyControl && navigator.doNotTrack !== "1" && !!window.fetch;
+    on = ["checkbowser.app", "nathann2997.github.io"].includes(location.hostname) && !navigator.globalPrivacyControl && ![navigator.doNotTrack, window.doNotTrack].some(v => v === "1" || v === "yes") && !!window.fetch;
     const q = new URLSearchParams(location.search);
     if (q.has("internal")) {
       store.set("internal", q.get("internal") === "1"); q.delete("internal");
@@ -466,7 +471,7 @@ const canStore = (() => { try { localStorage.setItem("bowser.probe", "1"); local
 let pins = [...new Set((Array.isArray(store.get("pins", [])) ? store.get("pins", []) : []).filter(k => typeof k === "string" && k.split("|").length === 4))].slice(0, MAX_PINS);
 const isPinned = i => pins.includes(pinKey(D.stations[i]));
 let state = {
-  fuel: live[store.get("fuel")] ? store.get("fuel") : "U91",
+  fuel: Object.prototype.hasOwnProperty.call(live, store.get("fuel")) ? store.get("fuel") : "U91",
   tank: TANKS.includes(store.get("tank")) ? store.get("tank") : 50,
   area: savedArea && Number.isFinite(savedArea.la) && Number.isFinite(savedArea.lo) ? savedArea : null,
   radius: RADII.includes(store.get("radius")) ? store.get("radius") : 5,
@@ -601,7 +606,7 @@ function stationItem(s, med, tone, where = "list"){
       <a class="link" href="${mapsUrl(s.la, s.lo)}" target="_blank" rel="noopener noreferrer">Directions →</a></div></div></details>`;
 }
 function brandOptions(){
-  const counts = {}; D.stations.forEach(s => { if (s.p[state.fuel]) counts[s.b] = (counts[s.b]||0)+1; });
+  const counts = Object.create(null); D.stations.forEach(s => { if (s.p[state.fuel]) counts[s.b] = (counts[s.b]||0)+1; });
   const list = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   $("brandList").innerHTML = list.map(([b,n]) => `<label><input type="checkbox" value="${esc(b)}" ${!brandSel||brandSel.has(b)?"checked":""}> ${esc(b)}<span>${n}</span></label>`).join("");
   document.querySelectorAll("#brandList input").forEach(cb => cb.addEventListener("change", () => {
@@ -636,7 +641,7 @@ if (state.area && !state.area.gps) qEl.value = state.area.label;
 qEl.addEventListener("input", () => {
   const hit = findSuburb(qEl.value);
   state.area = !qEl.value.trim() ? null : hit || {missing:true};
-  store.set("area", areaSet());
+  store.set("area", coarse(areaSet()));
   state.shown = PAGE; renderToday();
   // Once typing settles on a new suburb (partial words match others on the way); which suburb is never sent
   clearTimeout(areaTimer);
@@ -652,7 +657,7 @@ if (!navigator.geolocation) gpsEl.hidden = true;
 gpsEl.addEventListener("click", () => {
   gpsEl.textContent = "Locating…"; gpsEl.disabled = true;
   navigator.geolocation.getCurrentPosition(p => {
-    state.area = {label:"you", gps:true, la:p.coords.latitude, lo:p.coords.longitude}; store.set("area", state.area);
+    state.area = {label:"you", gps:true, la:p.coords.latitude, lo:p.coords.longitude}; store.set("area", coarse(state.area));
     qEl.value = ""; gpsEl.textContent = "Use my location"; gpsEl.disabled = false; state.shown = PAGE; renderToday();
     track("web.area_set", {source: "gps"});
   }, () => { gpsEl.textContent = "Location unavailable"; gpsEl.disabled = false; setTimeout(() => gpsEl.textContent = "Use my location", 2500); }, {timeout:10000, maximumAge:6e5});
@@ -811,7 +816,7 @@ function renderMain(){
   $("gapNote").textContent = gapDays > 3
     ? `Why the gap: the live NSW feed only gives today’s prices, so daily history comes from NSW's monthly files, published about a month late (latest: ${nice(CTX.history_last)}). The daily refresh adds a point each morning, and fills the gap automatically when NSW publishes each new month.`
     : `History to ${nice(CTX.history_last)} from NSW monthly files, then daily live snapshots.`;
-  $("legend").innerHTML = `<span><i style="background:var(--retail)"></i>${state.fuel === "DL" ? "Diesel" : state.fuel} median</span>
+  $("legend").innerHTML = `<span><i style="background:var(--retail)"></i>${state.fuel === "DL" ? "Diesel" : esc(state.fuel)} median</span>
     <span><i class="band" style="background:var(--band)"></i>Middle 80% of stations</span>
     <span><i style="background:var(--tgp)"></i>Wholesale price</span>
     <span><i style="background:repeating-linear-gradient(90deg,var(--retail) 0 4px,transparent 4px 7px)"></i>Forecast</span>`;
@@ -883,7 +888,7 @@ function renderInsights(){
 
 let allBrands = false;
 function brandStats(){
-  const f = state.fuel, med = live[f].now, by = {};
+  const f = state.fuel, med = live[f].now, by = Object.create(null);
   D.stations.forEach(s => { const p = s.p[f]; if (!p || p[0]==null || s.out) return; (by[s.b] = by[s.b] || []).push(p[0]); });   // Sydney stations only (s.out: elsewhere in NSW)
   return Object.entries(by).filter(([b,a]) => a.length >= 3).map(([b,a]) => ({brand:b, n:a.length, prem:+(a.reduce((x,y)=>x+y,0)/a.length - med).toFixed(1)})).sort((x,y)=>x.prem-y.prem);
 }
@@ -966,7 +971,7 @@ function renderFresh(){
     ["Live Sydney prices", CTX.asof, 1], ["Wholesale prices (AIP)", CTX.tgp_last, 5], ["Oil and exchange rate (EIA, RBA)", CTX.fred_last, 10],
     ["NSW monthly price history", CTX.history_last, 60]];
   $("fresh").innerHTML = items.map(([l,d,ok])=>`<div><span><span class="dot ${age(d)<=ok?"ok":"warn"}"></span>${l}</span><b>${nice(d)}</b></div>`).join("")
-    + `<div><span>Days of station prices saved</span><b>${CTX.snapshot_days}</b></div>`;
+    + `<div><span>Days of station prices saved</span><b>${esc(CTX.snapshot_days)}</b></div>`;
 }
 
 
