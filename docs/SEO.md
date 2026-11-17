@@ -47,9 +47,9 @@ Never lead a page title with "FuelCheck" or call the site "FuelCheck": it risks 
 
 ## Owner to do, in order
 1. **Done 2026-11-17:** PR #11 is merged and the pages are live (3,546 with all NSW stations).
-2. **Google Search Console:** the Domain property is made and verified (2026-11-17). Still to do in it: Sitemaps → submit `sitemap.xml`; then URL inspection → Request indexing for `/`, `/fuel-prices/` and `/fuel-price-forecast/`.
+2. **Google Search Console:** the Domain property is made and verified (2026-11-17). Still to do in it: Sitemaps → submit the full address `https://checkbowser.app/sitemap.xml` (a Domain property rejects a bare `sitemap.xml` as "Invalid sitemap address"); then URL inspection → Request indexing for `/`, `/fuel-prices/` and `/fuel-price-forecast/`.
    - **Bing Webmaster Tools** next (bing.com/webmasters → Import from Google Search Console, two minutes). It matters more than Bing's own share suggests: ChatGPT search and Copilot draw on Bing's index.
-3. **In PostHog, confirm "Discard client IP data" is on.** The new Privacy page says IP addresses are discarded; that is a project setting, not something the code can do.
+3. **Done 2026-11-17:** the owner confirmed "Discard client IP data" is on in PostHog, as the Privacy page says.
 4. **Links.** A new domain has no authority, and links are what Google trusts most. Cheap, honest ones:
    - list the site in the NSW FuelCheck API showcase / data.nsw.gov.au "apps using this data" if offered;
    - post the forecast and its track record on r/sydney and r/AusFinance when a price jump is forecast (useful, timely, not spam), and to Whirlpool's motoring forum;
