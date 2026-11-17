@@ -2,6 +2,12 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-18 — Security: owner's checklist done
+
+- **Done by the owner:** 2FA on GitHub, Expo and Porkbun; a limited Expo token as the `release` environment's `EXPO_TOKEN` (repo secret and old token removed); DNSSEC and a CAA record (`0 issue "letsencrypt.org"`) at Porkbun; the Maps key restricted to the app (package + SHA-1, Maps SDK for Android only) with a daily quota and budget alert. 0.10.0 installed and checked on a phone, widget included.
+- **Checked from here:** CAA served by Porkbun; DS record at the .app registry and answers validated (AD) by 1.1.1.1; `EXPO_TOKEN` only in `release`; a manual OTA through the new token succeeded (app-ci run 44198342476, update `ff51a882`).
+- `docs/SECURITY.md`: checklist ticked.
+
 ## 2026-11-18 — Security: eas-cli's own dependencies patched; 0.10.0 live
 
 - **0.10.0 shipped** (app-ci, build `4ea0abf3`): the update notice points older installs at it. The web hardening (frame check, trimmed CSP, rounded GPS area) is live on checkbowser.app; data-health green.
