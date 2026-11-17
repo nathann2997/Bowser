@@ -2,6 +2,20 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-17 — Search review: all-NSW wording, region pages, AI crawlers, stale pages out of search
+
+Owner: Search Console property made and verified; "review everything from a technical SEO and content standpoint, apply changes, and ensure we're indexable by AI". Audit run against the live site and today's data (2,387 stations, 1,525 outside Sydney).
+- **Dashboard was empty to anything that doesn't run script** (most AI crawlers, and Google's first pass): its footer now carries today's Sydney median and cheapest station for each fuel, the call and the week's outlook as plain text, next to the links (`home_links`).
+- **AI assistants:** `robots.txt` names the AI and search crawlers (GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, Claude-SearchBot, Claude-User, PerplexityBot, Google-Extended, Applebot-Extended, Bingbot and others) with the same rules as everyone. They were already allowed; naming them makes that explicit. New `/llms.txt`: what Bowser is, today's numbers, the main pages, the page patterns, the JSON files and how to credit the data.
+- **All-NSW wording:** the hub is now "NSW fuel prices today" and the station index "NSW service stations" (both said "Sydney" while listing the whole state). The hub leads with Sydney's median and call, then a table of regions.
+- **23 region pages** (`/fuel-prices/newcastle/`, `central-coast`, `wollongong`, `canberra-and-queanbeyan`, …; `REGIONS` in `seo_pages.py`): a station outside Sydney joins the nearest centre within its radius (about half of them do; the rest keep their suburb pages). A page has the region's median, its 20 cheapest stations, its suburbs, and the gap to Sydney; no forecast wording. Each fuel page gains a table of regional medians, and a regional station page compares its price with its region's median.
+- **Brand pages were comparing an all-NSW average with the Sydney median.** They now give the NSW average, then the brand's Sydney stations against the Sydney median.
+- **Stale pages:** a station with nothing reported for over 30 days (35 today) keeps its page but is `noindex` and out of the sitemap; so is a suburb whose stations are all like that (17 today).
+- **Quick answers** on the hub (cheapest petrol in Sydney today, will prices go up this week, where the prices come from) with `FAQPage` data; guides' `Article` data has `datePublished`; ACT postcodes are labelled ACT, not NSW.
+- **QA audit** (independent, before commit): no blockers; fixed a region with only stale prices being linked but not written, the region lead counting stations without a price, brand descriptions promising a call the page lacked, two untrue lines in `llms.txt`, and a claim that prices outside Sydney don't follow its cycle, which wasn't verified and is now gone. Regions widened or added so Lake Macquarie, Kiama, Murwillumbah, the Southern Highlands, Taree and Forster, and Lithgow are covered. Known and left: Hume (ACT) shares postcode 2620 with Queanbeyan and is labelled NSW.
+- **Tests:** 2 new (regions, stale pages, robots, `llms.txt`, the dashboard text); all 59 pipeline tests pass.
+- **Result on today's data:** 3,517 indexable pages (3,546 before, less 52 stale, plus 23 regions).
+
 ## 2026-11-17 — Search pages live on checkbowser.app
 
 - **Shipped:** PR #11 merged (commit f0f4355); pipeline-ci on `main` passed (run 44010920971); `daily.yml` run 44011072183 built and deployed.

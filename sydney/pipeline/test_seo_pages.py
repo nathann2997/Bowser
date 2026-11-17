@@ -98,7 +98,7 @@ class Built(unittest.TestCase):
             self.assertTrue(t.startswith("<!doctype html>\n<html lang=\"en-AU\""), path)
             self.assertEqual(t.count("<title>"), 1, path); self.assertEqual(t.count("<h1>"), 1, path)
             self.assertEqual(len(re.findall(r'<meta name="description" content="[^"]{50,}">', t)), 1, path) if path != "404.html" else None
-            if path == "404.html":
+            if path == "404.html" or 'content="noindex"' in t:
                 self.assertIn('<meta name="robots" content="noindex">', t); self.assertNotIn('rel="canonical"', t); continue
             want = "https://checkbowser.app/" + path[:-len("index.html")].replace(os.sep, "/")
             self.assertIn(f'<link rel="canonical" href="{want}">', t, path)
@@ -227,6 +227,45 @@ class Pieces(unittest.TestCase):
             self.assertTrue(all(len(n) < 120 for n in os.listdir(f"{out}/station")))
             for href in re.findall(r'href="([^"]+)"', sp.home_links(stations, forecast)):
                 self.assertTrue(os.path.exists(os.path.join(out, href, "index.html")), href)
+
+    def test_regions_dead_pages_and_ai_files(self):
+        stations, forecast, *_ = sample()
+        st = stations["stations"]
+        for i in range(6):                                        # six stations around Newcastle, outside Sydney
+            s = station(100 + i, f"Servo Newcastle {i}", "Lowes", "Hamilton", 2303, -32.92 + i * 0.01, 151.75, {"U91": (220.0 + i, 0), "DL": (260.0 + i, 0)}, out=1)
+            for f in s["p"]: s["p"][f] = s["p"][f][:2] + ["na", "Price only", "Outside Sydney, where Bowser has no forecast"]
+            st.append(s)
+        st.append(station(200, "Closed Servo", "Independent", "Tibooburra", 2880, -29.43, 142.01, {"U91": (250.0, 45)}, out=1))   # nothing for 45 days
+        with tempfile.TemporaryDirectory() as out:
+            r = sp.build(out, stations, forecast)
+            self.assertEqual(r["regions"], 1)
+            rd = lambda p: open(os.path.join(out, p), encoding="utf-8").read()
+            reg = rd("fuel-prices/newcastle/index.html")
+            self.assertIn("<h1>Newcastle fuel prices today</h1>", reg); self.assertIn("<b>220.0c/L</b>", reg)
+            self.assertIn("median across 6 stations with a current price is 222.5c", reg); self.assertNotIn('class="verdict', reg)
+            self.assertIn('href="../../fuel-prices/hamilton-2303/"', reg)
+            hub = rd("fuel-prices/index.html")
+            self.assertIn("<h1>NSW fuel prices today</h1>", hub); self.assertIn('href="../fuel-prices/newcastle/"', hub)
+            self.assertIn('"@type":"FAQPage"', hub); self.assertIn("What is the cheapest petrol in Sydney today?", hub)
+            self.assertIn("the Newcastle median of 222.5c", rd("station/servo-newcastle-0-100/index.html"))
+            self.assertIn('href="../../fuel-prices/newcastle/"', rd("fuel-prices/unleaded-91/index.html"))
+            # a station silent for over a month keeps its page, but out of search and out of the sitemap
+            dead, sm = rd("station/closed-servo-200/index.html"), rd("sitemap.xml")
+            self.assertIn('<meta name="robots" content="noindex">', dead); self.assertNotIn('rel="canonical"', dead)
+            self.assertNotIn("closed-servo-200", sm); self.assertNotIn("tibooburra-2880", sm); self.assertIn("fuel-prices/newcastle/", sm)
+            robots = rd("robots.txt")
+            for bot in ("GPTBot", "OAI-SearchBot", "ClaudeBot", "PerplexityBot", "Google-Extended"): self.assertIn(f"User-agent: {bot}\n", robots)
+            self.assertEqual(robots.count("Disallow:"), 2); self.assertNotIn("Disallow: /\n", robots)
+            llms = rd("llms.txt")
+            self.assertTrue(llms.startswith("# Bowser\n")); self.assertIn("Sydney Unleaded 91: median 213.6 cents per litre", llms)
+            self.assertIn("(https://checkbowser.app/fuel-prices/newcastle/)", llms); self.assertNotIn("<", llms)
+            sp.clear(out); self.assertEqual(os.listdir(out), [])
+
+    def test_home_links_carry_todays_numbers_as_text(self):
+        stations, forecast, *_ = sample()
+        links = sp.home_links(stations, forecast)
+        self.assertIn("Sydney fuel prices on Tuesday 17 November 2026", links); self.assertIn("Unleaded 91 213.6c/L (cheapest 199.9c at 7-Eleven Granville)", links)
+        self.assertIn("Wait if you can", links)
 
     def test_bad_input_raises_and_clear_removes(self):
         stations, forecast, *_ = sample()
