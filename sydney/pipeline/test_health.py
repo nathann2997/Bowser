@@ -92,6 +92,15 @@ class HealthChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             self.assertEqual(codes(health.report(t, NOON)), ["API_UNREACHABLE"])
 
+    def test_old_address(self):
+        """Older apps read the repo's Pages address (redirected by GitHub): checked only for the live site"""
+        with tempfile.TemporaryDirectory() as t:
+            self.assertEqual(health.old_address(site(t)), [])
+        with tempfile.TemporaryDirectory() as t:
+            self.assertEqual([i["code"] for i in health.old_address(t)], ["OLD_ADDRESS"])
+            self.assertEqual(health.old_address(t)[0]["severity"], "warning")
+        self.assertNotIn("OLD_ADDRESS", codes(self.run_on()))   # a local or other base skips it
+
     def test_quarantine_info_alone_is_ok(self):
         self.assertTrue(self.run_on(warnings=["implausible prices hidden: A U91 23.9"])["ok"])
 

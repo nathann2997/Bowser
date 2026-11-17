@@ -2,6 +2,15 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-17 — Domain move to checkbowser.app, step 2: the app, health check and docs use the new address
+
+Merge only once `https://checkbowser.app/api/v1/meta.json` answers over HTTPS (custom domain set on Pages, certificate issued, Enforce HTTPS on).
+- **App (`lib/api.ts`):** the API list is now `checkbowser.app`, then `nathann2997.github.io/Bowser` as the fallback; the dead `…/FuelForecast/` address is gone. If the custom domain is ever taken off, github.io serves the site directly again and the app falls back to it by itself. Share links (`/s/?id=…`), the track-record link, the update notice and the network traces follow the first address. Ships as an OTA (no new APK).
+- **Health check (`health.py`):** checks `https://checkbowser.app` by default, and adds `OLD_ADDRESS` (warning): the old github.io address must still reach the API, since older app versions and links already shared use it (`docs/DATA_HEALTH.md`).
+- **Docs:** README, HANDOFF, `sydney/README.md` and the 0.7 plan give the new address.
+- **Older versions (0.3.0 to 0.9.0) are left on `nathann2997.github.io/Bowser`** on purpose: their `ota/<version>-update-notice` branches have that one address and no fallback, and it works both with the custom domain (GitHub redirects it) and without it (rollback). Moving them to `checkbowser.app` would lose that.
+- **Health check only runs `OLD_ADDRESS`** for the live site and not when the site is already `API_UNREACHABLE`, so a Pages outage raises one alert, not two.
+
 ## 2026-11-17 — Domain move to checkbowser.app, step 1: web analytics ready for the new address
 
 The owner bought `checkbowser.app` (Porkbun) to replace `nathann2997.github.io/Bowser/`. Plan: DNS first, then the custom domain on GitHub Pages (old addresses then redirect), then the app's API address by OTA.

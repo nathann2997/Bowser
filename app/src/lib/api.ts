@@ -2,10 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 
 import type { Forecast, History, Meta, StationDetail, Stations, Track } from './types';
 
-// The API is the GitHub Pages site of the repo, so its address follows the repo's name. The repo was renamed from
-// FuelForecast to Bowser (2026-11): the new address comes first, and the old one is kept as a fallback so this code
-// works on either side of the rename. EXPO_PUBLIC_API_BASE points a build at another copy of the API instead.
-const BASES = ['https://nathann2997.github.io/Bowser/api/v1', 'https://nathann2997.github.io/FuelForecast/api/v1'];
+// The API is the repo's GitHub Pages site, on its custom domain checkbowser.app (2026-11). The repo's own Pages address
+// redirects there, and is the fallback: if the custom domain is ever taken off (or its DNS breaks), that address serves
+// the site directly again. (The pre-rename …/FuelForecast/ address is gone.) EXPO_PUBLIC_API_BASE points a build at
+// another copy of the API instead.
+const BASES = ['https://checkbowser.app/api/v1', 'https://nathann2997.github.io/Bowser/api/v1'];
 export const API_BASES = process.env.EXPO_PUBLIC_API_BASE ? [process.env.EXPO_PUBLIC_API_BASE] : BASES;
 /** The address for links people share and for labels; fetches go through apiFetch() */
 export const API_BASE = API_BASES[0];
