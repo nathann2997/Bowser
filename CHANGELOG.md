@@ -2,6 +2,15 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-18 — Search follow-up: live check, region/suburb title clashes, Privacy page
+
+Owner: Search Console sitemap submitted, Bing set up; "check everything works and if any other changes need to be done".
+- **Live check:** crawled `https://checkbowser.app/sitemap.xml` (3,521 addresses, no duplicates): every non-station page plus 250 random stations (1,417 pages) and 600 further internal links. All answer 200 (one 503 on a retry was GitHub, transient); canonicals match their address; no indexed page is `noindex`; all JSON-LD parses. `robots.txt`, `llms.txt`, the share image and icons load; an unknown address gives the 404 page. `http://`, `www` and the old `nathann2997.github.io/Bowser/` addresses redirect (301) to the same path on `https://checkbowser.app/`. The dashboard, a region page and Privacy load in headless Chrome with no security-policy or script errors. The pipeline has run on schedule since the review, with no `meta.json` warnings.
+- **Six region pages shared their title with a suburb page** today (the Bathurst region and Bathurst 2795; Broken Hill, Coffs Harbour and others), so the two competed for the same search. Every suburb named like a region (18 today) now carries its postcode in its title, heading, breadcrumb and the links to it ("Bathurst 2795 fuel prices today"), so the region page is the one for "bathurst fuel prices". Suburbs that share a name with another suburb (South Hurstville 2220 and 2221) get the same treatment. The ACT suburb Griffith 2603 is told apart from the Griffith region the same way.
+- **Two stations shared a title** once a long name was cut (Shell Reddy Express Sutton Forest, nos. 39 and 42): a title too long for the street name now uses the station number instead.
+- **Privacy page** named Google Fonts, which the 2026-11-17 security review removed from the dashboard. It now says cdnjs delivers the chart and map code, OpenFreeMap the map and its lettering, and the site uses no web fonts.
+- **Checked on a full build** from today's data: 3,520 indexable pages, no two share a title or a description, no title over 70 characters. The test for regions now includes a suburb named like a region and checks every title is unique. All 59 pipeline tests pass.
+
 ## 2026-11-18 — Security: eas-cli's own dependencies patched; 0.10.0 live
 
 - **0.10.0 shipped** (app-ci, build `4ea0abf3`): the update notice points older installs at it. The web hardening (frame check, trimmed CSP, rounded GPS area) is live on checkbowser.app; data-health green.

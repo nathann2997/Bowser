@@ -286,7 +286,10 @@ class Site:
         self.sub_url = {k: f"fuel-prices/{slug(k[0])}-{k[1]}/" for k in self.subs}
         names = {}
         for k in self.subs: names[k[0]] = names.get(k[0], 0) + 1
-        self.sub_label = {k: k[0] if names[k[0]] == 1 else f"{k[0]} {k[1]}" for k in self.subs}   # South Hurstville has two postcodes
+        # A suburb gets its postcode in its title and heading when another suburb has its name (South Hurstville has two
+        # postcodes) or a region page does (Bathurst 2795 beside the Bathurst region): no two pages share a title
+        regs = {n.lower() for n, *_ in REGIONS}
+        self.sub_label = {k: k[0] if names[k[0]] == 1 and k[0].lower() not in regs else f"{k[0]} {k[1]}" for k in self.subs}
         self.sub_at = {k: (sum(s["la"] for s in v) / len(v), sum(s["lo"] for s in v) / len(v)) for k, v in self.subs.items()}
         self.brands = {}
         for s in self.st: self.brands.setdefault(s["brand"], []).append(s)
@@ -491,7 +494,7 @@ class Site:
         else:
             lead = f"The cheapest {NAME[f0]} in {esc(name)} today is <b>{c1(top['p'][f0][0])}c/L</b> at {link}" + (" (members only)" if top.get("m") else "") + (f", {vm}." if vm else ".")
         lead += f" {esc(name)} has {stations_n} reporting prices to NSW FuelCheck." if n > 1 else ""
-        body = [f"<h1>{esc(name)} fuel prices today</h1>", f'<p class="lead">{lead}</p>', self.fuel_cards(pool, up, True)]
+        body = [f"<h1>{esc(label)} fuel prices today</h1>", f'<p class="lead">{lead}</p>', self.fuel_cards(pool, up, True)]
         if not out_syd: body.append(self.verdict_card(f0 if f0 in self.live else "U91"))
         body += [f"<h2>Petrol and diesel prices in {esc(name)} {pc}</h2>", self.price_table(pool, where=False, up=up)]
         at = self.sub_at[key]
@@ -525,7 +528,7 @@ class Site:
                "itemListElement": [{"@type": "ListItem", "position": i + 1, "name": s["name"], "url": f"{self.site}/{s['url']}"}
                                    for i, s in enumerate(sorted(pool, key=lambda s: s["name"]))]}]
         self.page(path, "suburb", "/fuel-prices/:suburb/", title, desc, "\n".join(b for b in body if b),
-                  crumbs=[("Fuel prices", "fuel-prices/"), (name, path)], ld=ld, priority=0.7, index=not all(self.dead(s) for s in pool))
+                  crumbs=[("Fuel prices", "fuel-prices/"), (label, path)], ld=ld, priority=0.7, index=not all(self.dead(s) for s in pool))
 
     def station_chart(self, s, f):
         """90 days of this station's price for fuel f against the Sydney median, plus a sentence on the range."""
@@ -569,12 +572,14 @@ class Site:
         where = s["sub"][0] if s["sub"] else s["s"]
         title = f"{s['label']} fuel prices today: {SHORT[f0] if f0 != 'DL' else 'diesel'} {c1(p0[0])}c | Bowser"
         if len(title) > 65: title = f"{s['label']} fuel prices today | Bowser"
-        if len(title) > 70: title = f"{s['label'][:45].rstrip()}… fuel prices | Bowser"
+        if len(title) > 70:   # too long with the street: the station number keeps it unique where a cut street name wouldn't
+            short = s["label"] if s["label"] == s["name"] else f"{s['name']} (no. {s['id']})"
+            title = f"{short} fuel prices | Bowser" if len(short) <= 48 else f"{s['name'][:36].rstrip()}… no. {s['id']} fuel prices | Bowser"
         listed = ", ".join(f"{SHORT[f] if f != 'DL' else 'diesel'} {c1(s['p'][f][0])}c" for f in FUELS if f in s["p"])
         call = "" if s.get("out") or not p0[3] else f" Bowser says: {p0[3].lower()}."
         desc = clip(f"{s['label']} fuel prices for {self.sday}: {listed}.{call}" + (" Today’s prices as reported to NSW FuelCheck." if s.get("out") else " With price history and a 7-day forecast."))
         addr = d.get("addr") if isinstance(d.get("addr"), str) else None
-        sub_link = f'<a href="{up}{esc(self.sub_url[s["sub"]])}">{esc(s["sub"][0])}</a>' if s["sub"] else esc(where)
+        sub_link = f'<a href="{up}{esc(self.sub_url[s["sub"]])}">{esc(self.sub_label[s["sub"]])}</a>' if s["sub"] else esc(where)
         brand_link = f'<a href="{up}{esc(self.brand_url[s["brand"]])}">{esc(s["brand"])}</a>' if s["brand"] in self.brand_url else esc(s["brand"])
         vm = self.vs_median(s, f0)
         lead = f"{esc(NAME[f0])} is <b>{c1(p0[0])}c/L</b> at {esc(s['name'])} today" + (f", {vm}." if vm else ".")
@@ -635,7 +640,7 @@ class Site:
                      f"<p>The cheapest {esc(NAME[f0])} within 4 km" + (f": {n_cheaper} of these {'is' if n_cheaper == 1 else 'are'} cheaper than here today." if n_cheaper else ". None of them beats this station today.") + "</p>",
                      self.price_table(pick, sort=f0, up=up)]
         more = []
-        if s["sub"]: more.append(f'<li><a href="{up}{esc(self.sub_url[s["sub"]])}">All fuel prices in {esc(s["sub"][0])}</a></li>')
+        if s["sub"]: more.append(f'<li><a href="{up}{esc(self.sub_url[s["sub"]])}">All fuel prices in {esc(self.sub_label[s["sub"]])}</a></li>')
         if s["brand"] in self.brand_url: more.append(f'<li><a href="{up}{esc(self.brand_url[s["brand"]])}">{esc(s["brand"])} fuel prices</a></li>')
         if s.get("region") in self.regions: more.append(f'<li><a href="{up}{esc(self.region_url[s["region"]])}">{esc(s["region"])} fuel prices</a></li>')
         if f0 in self.live: more.append(f'<li><a href="{up}fuel-prices/{FSLUG[f0]}/">Cheapest {esc(NAME[f0])} in Sydney today</a></li>')
@@ -646,7 +651,7 @@ class Site:
               "geo": {"@type": "GeoCoordinates", "latitude": s["la"], "longitude": s["lo"]},
               "address": {"@type": "PostalAddress", **({"streetAddress": m.group(1)} if m else {}), "addressLocality": where,
                           "addressRegion": state_of(s.get("pc")), **({"postalCode": str(s["pc"])} if s.get("pc") else {}), "addressCountry": "AU"}}
-        crumbs = [("Fuel prices", "fuel-prices/")] + ([(s["sub"][0], self.sub_url[s["sub"]])] if s["sub"] else [("Stations", "station/")]) + [(s["name"], s["url"])]
+        crumbs = [("Fuel prices", "fuel-prices/")] + ([(self.sub_label[s["sub"]], self.sub_url[s["sub"]])] if s["sub"] else [("Stations", "station/")]) + [(s["name"], s["url"])]
         self.page(s["url"], "station", "/station/:station/", title, desc, "\n".join(b for b in body if b), crumbs=crumbs, ld=[ld], priority=0.5,
                   index=not self.dead(s))
 
@@ -700,7 +705,7 @@ class Site:
         subs.sort()
         if subs:
             body += [f"<h2>Cheapest suburbs for {esc(nm)} today</h2>", '<ul class="cols">' + "".join(
-                f'<li><a href="{up}{esc(self.sub_url[k])}">{esc(k[0])}</a> from {c1(p)}c</li>' for p, k in subs[:30]) + "</ul>"]
+                f'<li><a href="{up}{esc(self.sub_url[k])}">{esc(self.sub_label[k])}</a> from {c1(p)}c</li>' for p, k in subs[:30]) + "</ul>"]
         rows = sorted((m, n) for n, pool in self.regions.items() if (m := self.median(pool, f)) is not None)
         if rows:
             body += [f"<h2>{esc(nm)} prices outside Sydney</h2>",
@@ -1043,7 +1048,7 @@ class Site:
                 "<ul><li><b>GitHub Pages</b> hosts the site.</li>"
                 "<li><b>PostHog</b> stores the anonymous events described above.</li>"
                 "<li><b>OpenFreeMap</b> supplies the map: when you open or move the map on the dashboard, your browser fetches the map tiles for the area shown.</li>"
-                "<li><b>Cloudflare (cdnjs)</b> and <b>Google Fonts</b> deliver the chart and map code and the map’s lettering on the dashboard.</li>"
+                "<li><b>Cloudflare (cdnjs)</b> delivers the chart and map code on the dashboard; OpenFreeMap also supplies the map’s lettering. The site uses no web fonts.</li>"
                 "<li><b>Google Maps</b> opens only if you follow a Directions link.</li></ul>",
                 "<h2>Changes</h2>",
                 f"<p>If this changes, for example if the site starts to carry advertising, this page will be updated first. Last updated {esc(self.day)}.</p>",
