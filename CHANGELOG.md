@@ -2,6 +2,10 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-18 — Contact address: checkbowser@gmail.com
+
+- Owner: the About and Privacy contact is now checkbowser@gmail.com (`CONTACT_EMAIL` in `seo_pages.py`), replacing nathann97@gmail.com. Use the same address as the Play listing's contact email.
+
 ## 2026-11-18 — No links to the source code
 
 Owner: "get rid of any links to the github so that no one is able to find the source code … keep this build private".
