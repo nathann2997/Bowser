@@ -50,10 +50,10 @@ REGION_MIN = 5
 AI_BOTS = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-SearchBot", "Claude-User", "PerplexityBot", "Perplexity-User",
            "Google-Extended", "Applebot-Extended", "Amazonbot", "meta-externalagent", "CCBot", "Bingbot", "DuckAssistBot"]
 state_of = lambda pc: "ACT" if isinstance(pc, int) and (2600 <= pc <= 2618 or 2900 <= pc <= 2920) else "NSW"
-REPO = "https://github.com/nathann2997/Bowser"
-# The privacy and support address shown on /privacy/ and /about/ (Google Play requires a contact). Empty until a mailbox
-# or forwarding exists for it: checkbowser.app has SPF -all and DMARC reject, so it can't receive mail yet.
-CONTACT_EMAIL = ""
+# The privacy and support address shown on /privacy/ and /about/ (Google Play requires a contact in the privacy policy).
+# The owner's choice (2026-11-18). No page links to the code repository: the owner wants the source kept private.
+CONTACT_EMAIL = "nathann97@gmail.com"
+CONTACT = f'<a href="mailto:{html.escape(CONTACT_EMAIL, quote=True)}">{html.escape(CONTACT_EMAIL)}</a>'
 
 esc = lambda v: html.escape(str(v), quote=True)
 num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and v == v
@@ -165,7 +165,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direc
 # itself, so the footer's promise ("never your area") holds on these pages too.
 JS = """(function () {
   'use strict';
-  // Not inside another site's frame (clickjacking): GitHub Pages can't send X-Frame-Options or frame-ancestors
+  // Not inside another site's frame (clickjacking): the host can't send X-Frame-Options or frame-ancestors
   if (window.top !== window.self) { document.documentElement.style.display = 'none'; try { window.top.location.replace(location.href); } catch (e) {} }
   var on = false, id = null, internal = false, sess = null, root = document.documentElement;
   var get = function (k, d) { try { var v = localStorage.getItem('bowser.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
@@ -178,7 +178,7 @@ JS = """(function () {
     return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
   };
   try {
-    on = /^(www\\.)?checkbowser\\.app$|^nathann2997\\.github\\.io$/.test(location.hostname) && !navigator.globalPrivacyControl && navigator.doNotTrack !== '1' && navigator.doNotTrack !== 'yes' && window.doNotTrack !== '1' && !!window.fetch;
+    on = /^(www\\.)?checkbowser\\.app$/.test(location.hostname) && !navigator.globalPrivacyControl && navigator.doNotTrack !== '1' && navigator.doNotTrack !== 'yes' && window.doNotTrack !== '1' && !!window.fetch;
     internal = get('internal', false) === true;
     id = get('anon', null);
     if (typeof id !== 'string') { id = uuid7(); set('anon', id); }
@@ -1026,8 +1026,7 @@ class Site:
                 "<p>Prices are the stations’ own reports, read several times a day, so they can be a few hours old; always check the board before you fill. "
                 "Forecasts are estimates for planning, not financial advice, and every call Bowser makes is scored in public a week later.</p>",
                 "<h2>Contact</h2>",
-                f'<p>Found a wrong price or a bug, or have a question? <a href="{REPO}/issues" rel="noopener">Open an issue on GitHub</a>, where the code is public'
-                + (f', or email <a href="mailto:{esc(CONTACT_EMAIL)}">{esc(CONTACT_EMAIL)}</a>' if CONTACT_EMAIL else "") + ".</p>"]
+                f"<p>Found a wrong price or a bug, or have a question? Email {CONTACT}.</p>"]
         self.page("about/", "about", "/about/", "About Bowser: Sydney fuel prices and when to fill up",
                   "Bowser is an independent, free site and app that uses NSW FuelCheck prices to tell Sydney drivers when to fill up and where fuel is cheapest.",
                   "\n".join(body), crumbs=[("About", "about/")], priority=0.3)
@@ -1092,8 +1091,7 @@ class Site:
                 "<p>Bowser is meant for drivers and is not directed at children.</p>",
                 "<h2>Changes</h2>",
                 f"<p>If this changes, for example if the site starts to carry advertising, this page will be updated first. Last updated {esc(self.day)}.</p>",
-                f'<h2 id="contact">Contact</h2><p>Questions or requests about privacy: <a href="{REPO}/issues" rel="noopener">open an issue on GitHub</a>'
-                + (f' or email <a href="mailto:{esc(CONTACT_EMAIL)}">{esc(CONTACT_EMAIL)}</a>' if CONTACT_EMAIL else "") + ".</p>"]
+                f'<h2 id="contact">Contact</h2><p>Questions or requests about privacy, including deleting usage data: email {CONTACT}.</p>']
         self.page("privacy/", "privacy", "/privacy/", "Privacy | Bowser",
                   "Bowser’s privacy policy for the website and the Android app: no accounts, no cookies, no advertising, and your location stays on your phone. What is counted anonymously and how to turn it off.",
                   "\n".join(body), crumbs=[("Privacy", "privacy/")], priority=0.2)

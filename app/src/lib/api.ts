@@ -2,43 +2,49 @@ import { useQuery } from '@tanstack/react-query';
 
 import type { Forecast, History, Meta, StationDetail, Stations, Track } from './types';
 
-// The API is the repo's GitHub Pages site, on its custom domain checkbowser.app (2026-11). The repo's own Pages address
-// redirects there, and is the fallback: if the custom domain is ever taken off (or its DNS breaks), that address serves
-// the site directly again. (The pre-rename …/FuelForecast/ address is gone.) EXPO_PUBLIC_API_BASE points a build at
-// another copy of the API instead.
-const BASES = ['https://checkbowser.app/api/v1', 'https://nathann2997.github.io/Bowser/api/v1'];
+// The API is on checkbowser.app. Up to 1.0.0 the app also carried the host's own address as a fallback; it was taken
+// out on 2026-11-18 because the owner wants nothing in the app to point at the source code. apiFetch still tries
+// several bases in order, should a second address ever be added. EXPO_PUBLIC_API_BASE points a build at another copy
+// of the API instead.
+const BASES = ['https://checkbowser.app/api/v1'];
 export const API_BASES = process.env.EXPO_PUBLIC_API_BASE ? [process.env.EXPO_PUBLIC_API_BASE] : BASES;
 /** The address for links people share and for labels; fetches go through apiFetch() */
 export const API_BASE = API_BASES[0];
 
-let good = -1;   // the base that last answered OK, tried first
-/** Test hook: forget which base answered */
-export const resetApiBase = () => { good = -1; };
-
 /**
- * fetch() of an API file, from whichever base serves it. The base that last worked is asked first; if it fails, the
- * others are tried in order. With none OK, the first HTTP response is returned (so a 404 still reads as a 404), or
- * the first network error is thrown.
+ * A fetch over `bases`: the base that last answered OK is asked first; if it fails, the others are tried in order. With
+ * none OK, the first HTTP response is returned (so a 404 still reads as a 404), or the first network error is thrown.
  */
-export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const order = good >= 0 ? [good, ...API_BASES.map((_, i) => i).filter((i) => i !== good)] : API_BASES.map((_, i) => i);
-  let bad: Response | undefined;
-  let err: unknown;
-  for (const i of order) {
-    try {
-      const r = await fetch(`${API_BASES[i]}/${path}`, init);
-      if (r.ok) {
-        good = i;
-        return r;
+export function baseFetcher(bases: readonly string[]) {
+  let good = -1;   // the base that last answered OK, tried first
+  const get = async (path: string, init?: RequestInit): Promise<Response> => {
+    const order = good >= 0 ? [good, ...bases.map((_, i) => i).filter((i) => i !== good)] : bases.map((_, i) => i);
+    let bad: Response | undefined;
+    let err: unknown;
+    for (const i of order) {
+      try {
+        const r = await fetch(`${bases[i]}/${path}`, init);
+        if (r.ok) {
+          good = i;
+          return r;
+        }
+        bad ??= r;
+      } catch (e) {
+        err ??= e;
       }
-      bad ??= r;
-    } catch (e) {
-      err ??= e;
     }
-  }
-  if (bad) return bad;
-  throw err;
+    if (bad) return bad;
+    throw err;
+  };
+  return { get, reset: () => { good = -1; } };
 }
+
+const api = baseFetcher(API_BASES);
+/** Test hook: forget which base answered */
+export const resetApiBase = () => api.reset();
+
+/** fetch() of an API file from whichever base serves it (baseFetcher) */
+export const apiFetch = (path: string, init?: RequestInit): Promise<Response> => api.get(path, init);
 const SCHEMA = 1;
 
 /** A non-OK HTTP response; `status` lets callers treat a missing file (404) differently from a network error */
