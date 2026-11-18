@@ -51,6 +51,9 @@ AI_BOTS = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-Searc
            "Google-Extended", "Applebot-Extended", "Amazonbot", "meta-externalagent", "CCBot", "Bingbot", "DuckAssistBot"]
 state_of = lambda pc: "ACT" if isinstance(pc, int) and (2600 <= pc <= 2618 or 2900 <= pc <= 2920) else "NSW"
 REPO = "https://github.com/nathann2997/Bowser"
+# The privacy and support address shown on /privacy/ and /about/ (Google Play requires a contact). Empty until a mailbox
+# or forwarding exists for it: checkbowser.app has SPF -all and DMARC reject, so it can't receive mail yet.
+CONTACT_EMAIL = ""
 
 esc = lambda v: html.escape(str(v), quote=True)
 num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and v == v
@@ -1023,13 +1026,15 @@ class Site:
                 "<p>Prices are the stations’ own reports, read several times a day, so they can be a few hours old; always check the board before you fill. "
                 "Forecasts are estimates for planning, not financial advice, and every call Bowser makes is scored in public a week later.</p>",
                 "<h2>Contact</h2>",
-                f'<p>Found a wrong price or a bug, or have a question? <a href="{REPO}/issues" rel="noopener">Open an issue on GitHub</a>, where the code is public.</p>']
+                f'<p>Found a wrong price or a bug, or have a question? <a href="{REPO}/issues" rel="noopener">Open an issue on GitHub</a>, where the code is public'
+                + (f', or email <a href="mailto:{esc(CONTACT_EMAIL)}">{esc(CONTACT_EMAIL)}</a>' if CONTACT_EMAIL else "") + ".</p>"]
         self.page("about/", "about", "/about/", "About Bowser: Sydney fuel prices and when to fill up",
                   "Bowser is an independent, free site and app that uses NSW FuelCheck prices to tell Sydney drivers when to fill up and where fuel is cheapest.",
                   "\n".join(body), crumbs=[("About", "about/")], priority=0.3)
         body = ["<h1>Privacy</h1>",
-                '<p class="lead">Bowser has no accounts, no cookies and no advertising. It counts visits anonymously, and this page says what is sent and to whom.</p>',
-                "<h2>What is counted</h2>",
+                '<p class="lead">Bowser has no accounts, no cookies and no advertising, on this site or in the app. It counts use anonymously, and this page says what is sent and to whom.</p>',
+                '<p>Jump to: <a href="#site">the website</a> · <a href="#app">the Bowser app</a> · <a href="#contact">contact</a></p>',
+                '<h2 id="site">What the website counts</h2>',
                 "<p>When you open a page, leave it, or use one of its main buttons (such as Directions or Open the map), Bowser records an anonymous event. On the price pages it carries "
                 "the kind of page (for example “a suburb page”, not which suburb), whether you’re on a phone or a computer, and the website that sent you here. "
                 "On the dashboard it also records which fuel you chose, whether you switched between the list and the map, whether you set an area (not which area), "
@@ -1050,11 +1055,47 @@ class Site:
                 "<li><b>OpenFreeMap</b> supplies the map: when you open or move the map on the dashboard, your browser fetches the map tiles for the area shown.</li>"
                 "<li><b>Cloudflare (cdnjs)</b> delivers the chart and map code on the dashboard; OpenFreeMap also supplies the map’s lettering. The site uses no web fonts.</li>"
                 "<li><b>Google Maps</b> opens only if you follow a Directions link.</li></ul>",
+                # The app (Android on Google Play; iOS when it ships). Keep in step with app/src/lib/analytics.ts, lib/location.ts,
+                # lib/alerts.ts and the More screen: Play's Data safety form (docs/PLAY_STORE.md) gives the same answers.
+                '<h2 id="app">In the Bowser app</h2>',
+                "<p>The app works without an account and keeps what you set up on your phone.</p>",
+                "<h3>Your location</h3>"
+                "<p>If you allow it, the app uses your phone’s location to sort stations by distance and to show where you are on the Stations map. "
+                "Distances are worked out on the phone. Your location is never sent to Bowser, to its analytics or to anyone else by Bowser. "
+                "The app only reads your location while you are using it. The home-screen widget lists stations near the area saved in the app, "
+                "and if you set that area with “Use my location”, the widget uses the position the app took then.</p>",
+                "<h3>What stays on your phone</h3>"
+                "<p>Your area, fuel, pinned stations, logged fills, discounts and settings are stored only on your phone. They are left out of "
+                "phone backups, and uninstalling Bowser deletes them. Price-rise alerts are scheduled on the phone itself: there is no notification server "
+                "and no notification token.</p>",
+                "<h3>Anonymous usage and crash reports</h3>"
+                "<p>Unless you turn it off, the app sends anonymous events about how it is used: that it was opened, which kind of screen you visited, "
+                "and which main features you used (for example pinning a station, logging a fill, opening directions or changing the fuel). "
+                "They never include your location, your area, the stations you pin or what you paid. A random number made when you install the app "
+                "groups an install’s events; it isn’t linked to your name, email, phone number or advertising ID. "
+                "The events go to <b>PostHog</b>, which is set to discard IP addresses, and to <b>Expo</b> (EAS Observe), the service that builds "
+                "and updates the app, along with crash reports and the app’s loading times.</p>"
+                "<p>To stop them, turn off <b>More → Share anonymous usage</b>. Usage events stop straight away; crash reports stop once the app has been "
+                "fully closed and opened again.</p>",
+                "<h3>Other services the app contacts</h3>"
+                "<ul><li><b>checkbowser.app</b> (GitHub Pages) for prices and forecasts. Requests carry no location; opening a station downloads that station’s price file, as a web page would.</li>"
+                "<li><b>Expo</b> (EAS Update), to check for and download app updates.</li>"
+                "<li><b>Google Maps</b> draws the Stations map on Android, so Google receives the area shown on the map and the usual technical details "
+                "of the request, under <a href=\"https://policies.google.com/privacy\" rel=\"noopener\">Google’s privacy policy</a>. On iPhone the map is Apple Maps.</li>"
+                "<li>Your maps app, if you tap Directions.</li>"
+                "<li><b>Google Play</b>, which installs and updates the app under Google’s own terms.</li></ul>"
+                "<p>Each sees your IP address, as any internet request does.</p>",
+                "<h3>Deleting your data</h3>"
+                "<p>Uninstalling Bowser deletes everything it stored on your phone. Bowser holds nothing that identifies you, so there is no account to close. "
+                "If you would like the anonymous usage events from your install deleted, ask through the contact below and say roughly when you used the app.</p>",
+                "<h3>Children</h3>"
+                "<p>Bowser is meant for drivers and is not directed at children.</p>",
                 "<h2>Changes</h2>",
                 f"<p>If this changes, for example if the site starts to carry advertising, this page will be updated first. Last updated {esc(self.day)}.</p>",
-                f'<p>Questions: <a href="{REPO}/issues" rel="noopener">open an issue on GitHub</a>.</p>']
+                f'<h2 id="contact">Contact</h2><p>Questions or requests about privacy: <a href="{REPO}/issues" rel="noopener">open an issue on GitHub</a>'
+                + (f' or email <a href="mailto:{esc(CONTACT_EMAIL)}">{esc(CONTACT_EMAIL)}</a>' if CONTACT_EMAIL else "") + ".</p>"]
         self.page("privacy/", "privacy", "/privacy/", "Privacy | Bowser",
-                  "Bowser’s privacy policy: no accounts, no cookies and no advertising. What is counted anonymously, which services your browser contacts, and how to turn counting off.",
+                  "Bowser’s privacy policy for the website and the Android app: no accounts, no cookies, no advertising, and your location stays on your phone. What is counted anonymously and how to turn it off.",
                   "\n".join(body), crumbs=[("Privacy", "privacy/")], priority=0.2)
         body = ["<h1>That page isn’t here</h1>", '<p class="lead">The station or suburb may have changed its name, or the link is out of date.</p>',
                 '<div class="row"><a class="btn" href="/fuel-prices/">Fuel prices by suburb</a><a href="/">Open the live map</a></div>']

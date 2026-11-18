@@ -3,6 +3,7 @@
 // No foreground service, no continuous updates and no GPS wake-ups: a last-known read on periodic redraws.
 import * as Location from 'expo-location';
 
+import { WIDGET_BG_LOCATION } from './bg-location';
 import { clearFix, readFix, readPrefs, saveFix } from './data';
 import type { WidgetFix } from './logic';
 
@@ -11,6 +12,8 @@ import type { WidgetFix } from './logic';
 export const LAST_KNOWN = { maxAge: 30 * 60 * 1000, requiredAccuracy: 3000 };
 
 export async function backgroundGranted(): Promise<boolean> {
+  // Off (bg-location.ts): never granted, so the stored fix is cleared and the widget uses the saved area
+  if (!WIDGET_BG_LOCATION) return false;
   try {
     return (await Location.getBackgroundPermissionsAsync()).status === 'granted';
   } catch {

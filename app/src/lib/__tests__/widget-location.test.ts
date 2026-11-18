@@ -1,5 +1,7 @@
 // The widget's live location: origin resolution (pure) and the headless handler's location paths (periodic last-known
 // read, no GPS wake-ups, permission denied, typed suburb, the ⟳ button gone). expo-location is mocked.
+// Background location is off from 1.0.0 (widget/bg-location.ts); most cases switch it on, so the code stays tested
+// for the day it comes back, and 'background location off' checks what ships.
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { buildWidgetTree } from 'react-native-android-widget/src/api/build-widget-tree';
@@ -27,6 +29,12 @@ jest.mock('@/lib/storage', () => ({
   },
 }));
 jest.mock('react-native-android-widget/src/NativeAndroidWidget', () => ({ __esModule: true, default: {} }));
+const mockFlag = { on: true };
+jest.mock('../../widget/bg-location', () => ({
+  get WIDGET_BG_LOCATION() {
+    return mockFlag.on;
+  },
+}));
 
 type Pos = { coords: { latitude: number; longitude: number }; timestamp: number } | null;
 const mockLoc = {
@@ -82,6 +90,7 @@ beforeEach(() => {
   mockStore.set(CACHE_KEY, JSON.stringify(SNAP));
   mockStore.set(`widget.mode.${ID}`, 'nearest');
   settings({ label: 'your location', ...PARRA, gps: true });
+  mockFlag.on = true;
   mockLoc.bg = 'granted';
   mockLoc.last = null;
   mockLoc.current = () => Promise.resolve(null);
@@ -121,6 +130,20 @@ describe('resolveOrigin', () => {
     expect(buildModel(snap, prefs, [], F.asof, 10, 'nearest').caption).toBe('Near you');
     expect(buildModel(snap, prefs, [], F.asof, 10, 'cheapest').caption).toBe('Near you');
     expect(buildModel(snap, { ...prefs, home: { label: 'Parramatta 2150', ...PARRA } }, [], F.asof, 10, 'cheapest').caption).toBe('Near Parramatta 2150');
+  });
+});
+
+describe('background location off (what ships from 1.0.0)', () => {
+  it('never asks for or reads the position, deletes an old fix and lists stations near the saved area', async () => {
+    mockFlag.on = false;
+    mockLoc.last = pos(BONDI);
+    mockStore.set(FIX_KEY, JSON.stringify({ ...BONDI, at: Date.now() }));   // left from a version that had it
+    const render = await run({});
+    const nodes = drawn(render.mock.calls[0][0]);
+    expect(mockLoc.calls.bg + mockLoc.calls.last + mockLoc.calls.current).toBe(0);
+    expect(mockStore.has(FIX_KEY)).toBe(false);
+    expect(rowIds(nodes)).toEqual(['p1', 'p2']);
+    expect(texts(nodes)).not.toContain('Near you');
   });
 });
 

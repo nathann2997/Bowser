@@ -210,14 +210,16 @@ if st_txt:
 # The latest app release (app_release.json, edited by hand after each native build): apps older than it show
 # "Bowser X is available" (app/src/components/update-notice.tsx, which applies the same URL rule). Each platform is
 # checked on its own and fails soft: a bad entry is published as null (no notice there) with a warning.
-REL_URL = re.compile(r"https://expo\.dev/accounts/nathann97/projects/fuel-forecast/builds/[0-9a-f-]{36}", re.ASCII)
+# Either an EAS build page (sideloaded APKs) or, once Bowser is public there, its Google Play listing.
+REL_URL = re.compile(r"https://expo\.dev/accounts/nathann97/projects/fuel-forecast/builds/[0-9a-f-]{36}"
+                     r"|https://play\.google\.com/store/apps/details\?id=com\.nathann2997\.fuelforecast", re.ASCII)
 def release(os_name, r):
     if r is None: return None
     ok = (isinstance(r, dict) and isinstance(r.get("version"), str) and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", r["version"])
           and isinstance(r.get("url"), str) and REL_URL.fullmatch(r["url"])
           and (r.get("notes") is None or (isinstance(r["notes"], str) and len(r["notes"]) <= 300)))
     if not ok:
-        warnings.append(f"app.json: {os_name} release ignored (needs an x.y.z version, a fuel-forecast EAS build url, notes up to 300 characters)")
+        warnings.append(f"app.json: {os_name} release ignored (needs an x.y.z version, a fuel-forecast EAS build or Google Play url, notes up to 300 characters)")
         print(f"::warning::{warnings[-1]}")
         return None
     return {"version": r["version"], "url": r["url"], **({"notes": r["notes"]} if r.get("notes") else {})}

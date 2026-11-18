@@ -1,1 +1,1 @@
-Security and privacy update: your saved places and fills stay on this phone (no cloud backup), the home-screen widget is locked to Bowser, and less is sent in anonymous usage stats.
+Bowser 1.0, ready for Google Play: the widget now lists stations near the area saved in Bowser instead of reading your location in the background, and More links to the privacy policy.

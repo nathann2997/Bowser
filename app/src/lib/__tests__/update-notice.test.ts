@@ -1,7 +1,9 @@
 // The update notice only shows for a newer, well-formed release with an EAS link.
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 
-import { newer, pendingRelease } from '@/components/update-notice';
+import { PLAY_URL, fromPlay, newer, pendingRelease } from '@/components/update-notice';
+
+jest.mock('expo-updates', () => ({ channel: 'preview' }));
 
 const URL = 'https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/9e1d7d49-b7ba-470c-bb1d-350d1d90d33e';
 
@@ -29,6 +31,12 @@ describe('pendingRelease', () => {
     expect(pendingRelease(app, 'web', '0.1.0')).toBeNull();
   });
 
+  it('accepts the Google Play listing, and nothing else on play.google.com', () => {
+    expect(pendingRelease({ android: { version: '1.0.0', url: PLAY_URL } }, 'android', '0.10.0')?.url).toBe(PLAY_URL);
+    expect(pendingRelease({ android: { version: '1.0.0', url: 'https://play.google.com/store/apps/details?id=com.evil' } }, 'android', '0.10.0')).toBeNull();
+    expect(pendingRelease({ android: { version: '1.0.0', url: `${PLAY_URL}&x=1` } }, 'android', '0.10.0')).toBeNull();
+  });
+
   it('ignores bad versions, non-EAS links and junk', () => {
     expect(pendingRelease({ android: { version: '0.8', url: URL } }, 'android', '0.7.0')).toBeNull();
     expect(pendingRelease({ android: { version: '0.8.0', url: 'https://evil.example/app.apk' } }, 'android', '0.7.0')).toBeNull();
@@ -41,5 +49,14 @@ describe('pendingRelease', () => {
 
   it('drops over-long notes', () => {
     expect(pendingRelease({ android: { version: '0.8.0', url: URL, notes: 'x'.repeat(301) } }, 'android', '0.7.0')?.notes).toBeUndefined();
+  });
+});
+
+describe('fromPlay', () => {
+  it('is the production channel only: the Play build never shows the notice', () => {
+    expect(fromPlay('production')).toBe(true);
+    expect(fromPlay('preview')).toBe(false);
+    expect(fromPlay(null)).toBe(false);
+    expect(fromPlay(undefined)).toBe(false);
   });
 });

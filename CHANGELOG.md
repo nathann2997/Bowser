@@ -2,6 +2,17 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-18 — Google Play: Bowser 1.0.0 (branch `release/google-play`, not merged)
+
+Owner: "build out all the changes needed for us to go live" on Google Play. Details and every Play Console answer: `docs/PLAY_STORE.md`.
+- **No background location (native, 1.0.0):** `ACCESS_BACKGROUND_LOCATION` blocked and `isAndroidBackgroundLocationEnabled` off. One flag (`widget/bg-location.ts`) makes the widget's background reads report "not granted", so the stored fix is deleted and the widget lists stations near the saved area (a GPS area keeps its fix), as on iOS; More's Widget location section is hidden. Play refuses background location for a widget like this without a declaration and video. Tests keep the old path covered with the flag mocked on, plus a case for what ships.
+- **No advertising ID:** `com.google.android.gms.permission.AD_ID` blocked (Bowser has no ads), so Play's Advertising ID answer is "No".
+- **Update notice:** never shown in the Play build (EAS channel `production`: Play updates it, and Play doesn't allow pointing people at an APK). It and `export_api.py` now also accept the Play listing as the release link, with its own wording, for moving sideloaded installs over once Bowser is public.
+- **CI (`app-ci`):** new `play` job, which builds the production app bundle and submits it to Play's internal track as a draft (`eas.json` `submit.production`). Run it by hand (`ship=play` or `play-build`), or automatically after a `version` bump once the repo variable `PLAY_RELEASE` is `true`, when JS pushes also OTA to `production`. The notice job stops once `PLAY_PUBLIC` is `true`. `eas.json` production: `app-bundle`, `environment: production`, `distribution: store`.
+- **Privacy page:** now covers the app as well (location on the phone, local-only alerts, PostHog and Expo with the opt-out, Google Maps SDK, Expo updates, Play, deletion, children) and has a contact section (`CONTACT_EMAIL` in `seo_pages.py`, empty until a mailbox exists). More → About links to it.
+- **Store graphics:** `docs/play/icon-512.png` and `docs/play/feature-graphic.jpg` (1024×500 lockup on charcoal, no tagline).
+- QA (subagent audit): typecheck, lint, 447 app tests and the pipeline's page tests passed. Fixed from it: the page-link test now skips `mailto:` links, the contact address is escaped in `href`, and the privacy page and More say usage events go to Expo as well as PostHog.
+- `release_notes.txt` for 1.0.0. **Not checked:** a 1.0.0 build on a phone; the bundle's merged permissions (owner checks them in Play Console).
 ## 2026-11-18 — Search follow-up: live check, region/suburb title clashes, Privacy page
 
 Owner: Search Console sitemap submitted, Bing set up; "check everything works and if any other changes need to be done".

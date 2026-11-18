@@ -5,7 +5,14 @@
 #             - `version` in app.json up  -> EAS Build (Android preview APK), waits for it
 #             - native files changed but `version` not bumped -> fails, nothing ships (an OTA could crash old installs)
 #   notice  after a build: points sydney/pipeline/app_release.json at the new APK (older installs then show the
-#           "new version" notice), commits it to main and starts daily-forecast to publish it
+#           "new version" notice), commits it to main and starts daily-forecast to publish it. Skipped once the repo
+#           variable PLAY_PUBLIC is 'true' (app_release.json then points sideloaded installs at the Play listing)
+#   play    Google Play (docs/PLAY_STORE.md): builds the production app bundle (EAS channel `production`) and submits
+#           it to Play's internal testing track as a draft, which the owner rolls out in Play Console. Runs after a
+#           `version` bump once the repo variable PLAY_RELEASE is 'true' (then JS-only changes also go out as an OTA
+#           to the production channel), or by hand: ship=play (build and submit) or ship=play-build (build only, for a
+#           manual upload). Needs the EAS `production` environment variables and, to submit, a Google service account
+#           key assigned to the app in EAS (Expo stores it; nothing new in GitHub).
 # Needs the secret EXPO_TOKEN (an Expo access token for the account that owns the project), used only by the ship job,
 # which runs in the GitHub environment `release` (deployments from main only). The EAS `preview` environment holds the
 # app's own keys (Maps, PostHog). Third-party actions are not allowed in this repo, so EAS is called through eas-cli,
@@ -26,7 +33,7 @@ on:
       ship:
         description: "What to ship from main (auto = an OTA update)"
         type: choice
-        options: [auto, ota, build, nothing]
+        options: [auto, ota, build, play, play-build, nothing]
         default: auto
 
 permissions:
@@ -96,6 +103,7 @@ jobs:
           echo "$NEW" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::app.json version is not x.y.z: $NEW"; exit 1; }
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
           MODE="$WANT"
+          # play / play-build: the play job does the work (it needs the ship job only for the plan and the token check)
           if [ "$WANT" = "auto" ]; then
             MODE=ota
             # A manual run has no "before": it re-ships the JS as an OTA unless told to build
@@ -138,6 +146,16 @@ jobs:
           "$EAS" update --channel preview --environment preview --upload-source-maps \
             --message "$(printf '%s' "$MESSAGE" | head -1 | cut -c1-200)" --non-interactive
 
+      # The Play build's channel. Same JS, built with the production environment's keys. Only once Play is switched on.
+      - name: OTA update to the production channel (Google Play)
+        if: steps.plan.outputs.mode == 'ota' && vars.PLAY_RELEASE == 'true'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          MESSAGE: ${{ github.event.head_commit.message || 'Manual OTA' }}
+        run: |
+          "$EAS" update --channel production --environment production --upload-source-maps \
+            --message "$(printf '%s' "$MESSAGE" | head -1 | cut -c1-200)" --non-interactive
+
       - name: Build the Android preview APK
         id: build
         if: steps.plan.outputs.mode == 'build'
@@ -153,7 +171,7 @@ jobs:
   # Runs no third-party code: git, node's standard library and gh only. The token is passed to the push alone.
   notice:
     needs: ship
-    if: needs.ship.outputs.mode == 'build' && needs.ship.outputs.build_id != ''
+    if: needs.ship.outputs.mode == 'build' && needs.ship.outputs.build_id != '' && vars.PLAY_PUBLIC != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -189,3 +207,61 @@ jobs:
           echo "::add-mask::$AUTH"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH" push -q origin HEAD:main
           gh workflow run daily.yml --repo "$GITHUB_REPOSITORY"
+
+  # Google Play. After the preview APK in the same run, so the bundle's versionCode (autoIncrement, counted by EAS) is
+  # above that APK's: Play can then upgrade a sideloaded install in place (same signing key, see docs/PLAY_STORE.md).
+  # A later preview build reuses the counter's value without adding one, so it can equal the last Play bundle's.
+  # Also runs after a manual ship=build once PLAY_RELEASE is on. Submits as a draft to the internal track (app/eas.json submit.production); nothing reaches
+  # anyone until the owner rolls it out in Play Console.
+  play:
+    needs: ship
+    if: >-
+      needs.ship.outputs.mode == 'play' || needs.ship.outputs.mode == 'play-build' ||
+      (needs.ship.outputs.mode == 'build' && vars.PLAY_RELEASE == 'true')
+    environment: release   # holds EXPO_TOKEN; deployments from main only
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: app-play
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Install the locked eas-cli
+        run: |
+          npm ci --prefix ../tools/ci --ignore-scripts --no-audit --no-fund
+          echo "EAS=$GITHUB_WORKSPACE/tools/ci/node_modules/.bin/eas" >> "$GITHUB_ENV"
+
+      - name: Build the Android app bundle (production)
+        id: build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          # Fails in app.config.js if the EAS production environment has no GOOGLE_MAPS_ANDROID_API_KEY
+          "$EAS" build -p android --profile production --non-interactive --wait --json > "$RUNNER_TEMP/build.json"
+          ID=$(node -e 'const b=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))[0]; if(b.status!=="FINISHED") {console.error("build status: "+b.status); process.exit(1)} process.stdout.write(b.id)' "$RUNNER_TEMP/build.json")
+          echo "$ID" | grep -qE '^[0-9a-f-]{36}$' || { echo "::error::unexpected build id: $ID"; exit 1; }
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "Play bundle (.aab): https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/$ID" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Submit to Google Play (internal testing, draft)
+        if: needs.ship.outputs.mode != 'play-build'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          BUILD_ID: ${{ steps.build.outputs.id }}
+        run: |
+          # Uses the service account key assigned to com.nathann2997.fuelforecast in EAS (expo.dev → Credentials)
+          "$EAS" submit -p android --profile production --id "$BUILD_ID" --non-interactive || {
+            echo "::error::Submitting to Google Play failed. The bundle is built (link in the summary): upload it by hand in Play Console, or check the service account key in EAS and its access in Play Console (docs/PLAY_STORE.md)."
+            exit 1; }
+          echo "Submitted to Play's internal track as a draft: roll it out in Play Console → Test and release → Internal testing." >> "$GITHUB_STEP_SUMMARY"

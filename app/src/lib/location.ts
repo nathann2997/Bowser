@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 
+import { WIDGET_BG_LOCATION } from '@/widget/bg-location';
 import { requestWidgetRefresh } from '@/widget/sync';
 
 import type { Place } from './geo';
@@ -73,7 +74,8 @@ export function subscribeFixLive(l: () => void) {
   };
 }
 
-// ---- Background location, for the Android home-screen widget ("Allow all the time"). Android only for now.
+// ---- Background location, for the Android home-screen widget ("Allow all the time"). Android only, and off from
+// 1.0.0 (widget/bg-location.ts): reported as unsupported, so More hides the Widget location section.
 export type BgLocation = {
   status: 'granted' | 'denied' | 'undetermined' | 'unsupported';
   canAskAgain: boolean;
@@ -81,7 +83,7 @@ export type BgLocation = {
 };
 
 const UNSUPPORTED: BgLocation = { status: 'unsupported', canAskAgain: false };
-const bgSupported = () => Platform.OS === 'android';
+const bgSupported = () => Platform.OS === 'android' && WIDGET_BG_LOCATION;
 const asBg = (r: { status: string; canAskAgain: boolean }): BgLocation => ({
   status: r.status === 'granted' ? 'granted' : r.status === 'denied' ? 'denied' : 'undetermined',
   canAskAgain: r.canAskAgain,

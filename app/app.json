@@ -2,7 +2,7 @@
   "expo": {
     "name": "Bowser",
     "slug": "fuel-forecast",
-    "version": "0.10.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "fuelforecast",
@@ -27,7 +27,9 @@
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "com.google.android.gms.permission.AD_ID"
       ],
       "allowBackup": false
     },
@@ -58,7 +60,7 @@
         {
           "locationWhenInUsePermission": "Your location sorts nearby fuel stations by distance and puts you on the Stations map. Bowser never sends it anywhere. The map provider sees the area you're viewing, as with any map.",
           "locationAlwaysAndWhenInUsePermission": "Bowser's widget uses your location to list the stations nearest to you. Bowser never sends it anywhere.",
-          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": false
         }
       ],

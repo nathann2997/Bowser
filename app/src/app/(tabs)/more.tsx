@@ -28,6 +28,8 @@ const MODEL = [
 
 const CC_BY_SA = 'https://creativecommons.org/licenses/by-sa/3.0/au/';
 const FUELCHECK_DATA = 'https://data.nsw.gov.au/data/dataset/fuel-check';
+// Google Play asks for the privacy policy to be reachable inside the app, not only on the listing
+const PRIVACY = 'https://checkbowser.app/privacy/';
 
 const TANKS = [['40', '40 L'], ['50', '50 L'], ['60', '60 L'], ['70', '70 L'], ['80', '80 L']] as const;
 
@@ -203,10 +205,13 @@ export default function More() {
           <Switch value={s.analytics} onValueChange={(v) => setSettings({ analytics: v })} accessibilityLabel="Share anonymous usage and crash reports" />
         </View>
         <T kind="small">
-          Usage and crash reports help find and fix problems. Usage is linked to this install, not to you, and goes to PostHog; crash
-          reports go to Expo. They never include your location, your area or what you paid.
+          Usage and crash reports help find and fix problems. Usage is linked to this install, not to you, and goes to PostHog and Expo;
+          crash reports go to Expo. They never include your location, your area or what you paid.
           {s.analytics ? '' : ' Usage sharing has stopped. Crash reports stop once Bowser has been fully closed and opened again.'}
         </T>
+        <Pressable onPress={() => Linking.openURL(PRIVACY).catch(() => {})} accessibilityRole="link" hitSlop={8}>
+          <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>Privacy policy</T>
+        </Pressable>
       </Section>
     </Screen>
   );
