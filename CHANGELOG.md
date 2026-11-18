@@ -2,6 +2,11 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-18 — Web: tank size moves into the savings sentence
+
+Owner: "what is the need for the tank size filter?" … "change it". It never filtered anything: it only turns cents into dollars ("saves about $4 on a 50 L tank", and Shop around). Next to the fuel picker in the header it looked like a filter.
+- The header now has the fuel picker only. The tank size is a picker inside the verdict's savings sentence ("…saves about $4 on a [50 L ▾] tank"), shown only when there's a dollar figure. The saved size (`bowser.tank`) still holds; Shop around uses it (50 L by default).
+
 ## 2026-11-18 — Contact address: checkbowser@gmail.com
 
 - Owner: the About and Privacy contact is now checkbowser@gmail.com (`CONTACT_EMAIL` in `seo_pages.py`), replacing nathann97@gmail.com. Use the same address as the Play listing's contact email.

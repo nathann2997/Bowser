@@ -55,7 +55,7 @@ button,input,select{font:inherit}
 @media (min-width:720px){.wrap{padding-inline:32px}}
 :focus-visible{outline:2px solid var(--tgp);outline-offset:2px}
 
-/* header: wordmark, then the fuel and tank chips (the app's header chip) */
+/* header: wordmark, then the fuel chip (the app's header chip; the tank size is in the hero's savings sentence) */
 header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .brandline{display:flex;flex-direction:column;gap:8px}
 .brandline svg{display:block;height:26px;width:120px}
@@ -106,6 +106,11 @@ details.disc[open]>summary::after{content:"\2212"}
 .hero h3{color:var(--t-fg);font-size:clamp(34px,4.4vw,42px);line-height:1.12;font-weight:800;letter-spacing:-.6px}
 .hero .deadline{font-weight:700}
 .hero .detail{opacity:.92}
+/* The tank size sits inside the savings sentence ("saves about $4 on a [50 L] tank"): it only sets the dollar figures, so it shouldn't look like a filter */
+.tank-pick{appearance:none;-webkit-appearance:none;font:inherit;font-weight:700;color:inherit;background:transparent;border:0;border-bottom:1.5px dotted currentColor;border-radius:0;padding:0 13px 0 1px;margin:0;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 7px) 55%,calc(100% - 3px) 55%;background-size:4px 4px;background-repeat:no-repeat}
+.tank-pick:hover{border-bottom-style:solid}
+.tank-pick option{color:var(--fg);background:var(--surface)}
 .spark{height:132px;margin-top:4px;position:relative}
 .spark svg{position:absolute;inset:0;display:block;overflow:visible}
 .hz{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
@@ -272,7 +277,6 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
     </div>
     <div class="controls">
       <select class="chip-select" id="fuel" aria-label="Fuel"></select>
-      <select class="chip-select" id="tank" aria-label="Tank size"></select>
     </div>
   </header>
 
@@ -525,6 +529,8 @@ function riseDay(r){   // market() in build.py
   if (k <= 14) J = Math.min(J ?? 99, k);
   return J;
 }
+/** The tank size, as a picker inside the savings sentence */
+const tankPick = () => `<select class="tank-pick" data-tank aria-label="Tank size for the savings">${TANKS.map(t => `<option value="${t}"${t === state.tank ? " selected" : ""}>${t} L</option>`).join("")}</select>`;
 const dollars = (cents, L) => { const v = Math.abs(cents)*L/100; return v >= 10 ? `$${v.toFixed(0)}` : `$${v.toFixed(2)}`; };
 function outlook(r){
   const v = verdict(r), tone = TONE[v.cls], J = riseDay(r), L = state.tank;
@@ -532,11 +538,11 @@ function outlook(r){
   const risk = riseDate ? ` Some chance of a jump from ${dayLabel(riseDate)}.` : "";
   let detail;
   if (tone === "act") detail = r.d14 >= 3
-    ? `About ${r.d14.toFixed(0)}c higher by ${end}. Filling ${J == null ? "soon" : "before then"} saves about ${dollars(r.d14, L)} on a ${L} L tank.`
+    ? `About ${r.d14.toFixed(0)}c higher by ${end}. Filling ${J == null ? "soon" : "before then"} saves about ${dollars(r.d14, L)} on a ${tankPick()} tank.`
     : `Fill up before then. Over two weeks the average move is about ${r.d14 >= 0 ? "+" : ""}${r.d14.toFixed(0)}c.`;
-  else if (r.d7 <= -2) detail = `About ${Math.abs(r.d7).toFixed(0)}c lower by ${dayLabel(day(CTX.asof, 7))}. Waiting saves about ${dollars(r.d7, L)} on a ${L} L tank.${risk}`;
+  else if (r.d7 <= -2) detail = `About ${Math.abs(r.d7).toFixed(0)}c lower by ${dayLabel(day(CTX.asof, 7))}. Waiting saves about ${dollars(r.d7, L)} on a ${tankPick()} tank.${risk}`;
   else if (tone === "wait") detail = `Prices should ease over the next few days.${risk}`;
-  else if (r.d14 >= 3) detail = `About ${r.d14.toFixed(0)}c higher by ${end}. Filling soon saves about ${dollars(r.d14, L)} on a ${L} L tank.${risk}`;
+  else if (r.d14 >= 3) detail = `About ${r.d14.toFixed(0)}c higher by ${end}. Filling soon saves about ${dollars(r.d14, L)} on a ${tankPick()} tank.${risk}`;
   else detail = `Steady for the next two weeks. Fill up whenever suits.${risk}`;
   const deadline = tone !== "act" || J == null ? null : J <= 1 ? "Prices likely to rise from tomorrow" : `Prices likely to rise from ${dayLabel(riseDate)}`;
   return {tone, head:v.head, J, riseDate, deadline, detail};
@@ -544,12 +550,18 @@ function outlook(r){
 
 // ---- header
 $("asofLine").textContent = `Sydney · Prices as of ${nice(CTX.asof)}`;
-const fuelEl = $("fuel"), tankEl = $("tank");
+const fuelEl = $("fuel");
 fuelEl.innerHTML = FUELS.map(([k,l]) => `<option value="${k}">${l}</option>`).join("");
-tankEl.innerHTML = TANKS.map(t => `<option value="${t}">${t} L tank</option>`).join("");
-fuelEl.value = state.fuel; tankEl.value = state.tank;
+fuelEl.value = state.fuel;
 fuelEl.addEventListener("change", () => { state.fuel = fuelEl.value; store.set("fuel", state.fuel); state.shown = PAGE; render(); track("web.fuel_changed", {fuel: state.fuel}); });
-tankEl.addEventListener("change", () => { state.tank = +tankEl.value; store.set("tank", state.tank); renderHero(); renderInsights(); });
+document.addEventListener("change", e => {   // the hero is redrawn, so its tank picker is reached by delegation
+  const el = e.target.closest?.("[data-tank]"); if (!el) return;
+  state.tank = +el.value; store.set("tank", state.tank);
+  const hero = $("hero"); hero.removeAttribute("aria-live");   // only the dollar figure changed: don't re-read the whole verdict
+  renderHero(); renderInsights();
+  setTimeout(() => hero.setAttribute("aria-live", "polite"), 0);
+  $("hero").querySelector("[data-tank]")?.focus();   // the redraw replaced it: keep keyboard focus
+});
 if (CTX.asof < sydToday()) { $("asofLine").classList.add("late"); $("asofLine").textContent = `Prices as of ${nice(CTX.asof)} · today’s update hasn’t arrived yet`; }
 
 // ---- stations
