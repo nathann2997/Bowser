@@ -1,8 +1,8 @@
 {
   "android": {
-    "version": "0.10.0",
-    "url": "https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/4ea0abf3-5956-40a2-a935-b9efc36fcc6d",
-    "notes": "Security and privacy update: your saved places and fills stay on this phone (no cloud backup), the home-screen widget is locked to Bowser, and less is sent in anonymous usage stats."
+    "version": "1.0.0",
+    "url": "https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/429cfe06-7041-48da-a7eb-e30da3aa84ed",
+    "notes": "Bowser 1.0, ready for Google Play: the widget now lists stations near the area saved in Bowser instead of reading your location in the background, and More links to the privacy policy."
   },
   "ios": null
 }
