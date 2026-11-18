@@ -52,7 +52,7 @@ AI_BOTS = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-Searc
 state_of = lambda pc: "ACT" if isinstance(pc, int) and (2600 <= pc <= 2618 or 2900 <= pc <= 2920) else "NSW"
 # The privacy and support address shown on /privacy/ and /about/ (Google Play requires a contact in the privacy policy).
 # The owner's choice (2026-11-18). No page links to the code repository: the owner wants the source kept private.
-CONTACT_EMAIL = "nathann97@gmail.com"
+CONTACT_EMAIL = "checkbowser@gmail.com"
 CONTACT = f'<a href="mailto:{html.escape(CONTACT_EMAIL, quote=True)}">{html.escape(CONTACT_EMAIL)}</a>'
 
 esc = lambda v: html.escape(str(v), quote=True)
