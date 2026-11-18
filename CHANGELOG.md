@@ -2,6 +2,13 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-18 — No links to the source code
+
+Owner: "get rid of any links to the github so that no one is able to find the source code … keep this build private".
+- **Site:** About and Privacy no longer link to GitHub issues ("where the code is public"); the contact is now nathann97@gmail.com (`CONTACT_EMAIL`, the owner's choice), which the privacy policy needs for Google Play. The dashboard, share page and search pages no longer name `nathann2997.github.io` in their analytics host check (that address only redirects here), and their comments say "the host". The privacy page still says the site is hosted on GitHub Pages, without a link: it's a service visitors' browsers contact, so the policy has to name it.
+- **App (JS, OTA):** the API's fallback address `nathann2997.github.io/Bowser` is gone; the app reads checkbowser.app only. The multi-address logic is kept as `baseFetcher` and tested over stand-in addresses. Versions up to 1.0.0 still carry the old address, and the Play bundle built before this (app-ci run 44211004927) does too, so the owner rebuilds it (`ship=play-build`) before the first upload.
+- **Not done:** the repository itself is still public, which is the real exposure. The plan to make it private is in `docs/HANDOFF.md`.
+
 ## 2026-11-18 — Google Play: Bowser 1.0.0 (branch `release/google-play`, not merged)
 
 Owner: "build out all the changes needed for us to go live" on Google Play. Details and every Play Console answer: `docs/PLAY_STORE.md`.
