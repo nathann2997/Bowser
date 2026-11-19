@@ -175,6 +175,7 @@ describe('station names', () => {
     expect(stationName('APEX PETROLEUM (WEST RYDE)')).toBe('Apex Petroleum (West Ryde)');
     expect(stationName('JACK & CO NORTHWOOD')).toBe('Jack & Co Northwood');
     expect(stationName("O'CONNELL FUEL")).toBe("O'Connell Fuel");
+    expect(stationName("YOGI'S PLACE SERVICE STATION")).toBe("Yogi's Place Service Station");
     expect(stationName('Shell Reddy  Express Parklea')).toBe('Shell Reddy Express Parklea');
   });
   it('drops the brand when the name already starts with it', () => {

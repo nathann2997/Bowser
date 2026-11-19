@@ -77,7 +77,9 @@ def station_name(n):
     """As title() in share.html and stationName() in the app: an ALL-CAPS name in title case, known acronyms kept."""
     n = re.sub(r"\s+", " ", re.sub(r"\s*\(members only\)", "", str(n), flags=re.I)).strip()
     if re.search(r"[a-z]", n) or not re.search(r"[A-Z]{4}", n): return n
-    cap = lambda w: re.sub(r"(^|[-'’(])([a-z])", lambda m: m.group(1) + m.group(2).upper(), w.lower())
+    # a capital after - or (, and after an apostrophe only in O'Connell-style names (not "Yogi's")
+    cap = lambda w: re.sub(r"^([A-Z]['’])([a-z])", lambda m: m.group(1) + m.group(2).upper(),
+                           re.sub(r"(^|[-(])([a-z])", lambda m: m.group(1) + m.group(2).upper(), w.lower()))
     return " ".join(w if w in ACRONYMS else cap(w) for w in n.split(" "))
 
 
@@ -261,7 +263,7 @@ class Site:
         self.live = {r["fuel"]: r for r in forecast["live"]}
         self.stats, self.fc_asof = forecast.get("stats") or {}, forecast.get("asof") or self.asof
         self.history, self.details, self.track = history or {}, details or {}, track or {}
-        self.urls = []                                    # (path, sitemap priority)
+        self.urls = []                                    # (path, sitemap priority, lastmod)
         rows = [s for s in stations["stations"] if usable(s)]
         sub = clean_suburbs(rows)
         # Two spellings of one suburb or brand ("ST MARYS", "St Marys") are one page: the first spelling seen names it
@@ -323,6 +325,13 @@ class Site:
     fresh = staticmethod(lambda s, f: f in s["p"] and not (num(s["p"][f][1]) and s["p"][f][1] > STALE))
     dead = staticmethod(lambda s: all(num(p[1]) and p[1] > DEAD for p in s["p"].values()))   # nothing reported for a month
 
+    def changed(self, pool):
+        """The day the newest price among `pool` was reported (asof less its age in days): a sitemap lastmod for pages
+        outside Sydney, whose content moves only with their prices. Sydney pages carry the day's forecast call, so they keep asof."""
+        ages = [p[1] for s in pool for p in s["p"].values() if num(p[1]) and p[1] >= 0]
+        if not ages: return self.asof
+        return (dt.date.fromisoformat(self.asof) - dt.timedelta(days=int(min(ages)))).isoformat()
+
     def median(self, pool, f):
         """The middle fresh price for fuel f among `pool` (members-only sites left out), or None under 3 prices."""
         ps = [s["p"][f][0] for s in pool if self.fresh(s, f) and not s.get("m")]
@@ -377,7 +386,7 @@ class Site:
                 f'<b>{esc(v.get("head", "No call today"))}</b><span>{esc(self.outlook(f))}</span></div>')
 
     # ---- the page shell
-    def page(self, path, kind, pattern, title, desc, body, crumbs=(), ld=(), priority=0.5, index=True, root=None):
+    def page(self, path, kind, pattern, title, desc, body, crumbs=(), ld=(), priority=0.5, index=True, root=None, lastmod=None):
         """Write OUT/path/index.html (path '' is not ours: the dashboard). crumbs: [(label, path)] below Home."""
         depth = path.strip("/").count("/") + 1 if path else 0
         up = ("../" * depth or "./") if root is None else root
@@ -437,7 +446,7 @@ class Site:
         dest = os.path.join(self.out, path, "index.html") if not path.endswith(".html") else os.path.join(self.out, path)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         with open(dest, "w", encoding="utf-8") as fh: fh.write(doc)
-        if index: self.urls.append((path, priority))
+        if index: self.urls.append((path, priority, lastmod or self.asof))
 
     # ---- shared pieces
     def price_table(self, pool, fuels=FUELS, sort=None, limit=None, where=True, up=""):
@@ -534,7 +543,8 @@ class Site:
                "itemListElement": [{"@type": "ListItem", "position": i + 1, "name": s["name"], "url": f"{self.site}/{s['url']}"}
                                    for i, s in enumerate(sorted(pool, key=lambda s: s["name"]))]}]
         self.page(path, "suburb", "/fuel-prices/:suburb/", title, desc, "\n".join(b for b in body if b),
-                  crumbs=[("Fuel prices", "fuel-prices/"), (label, path)], ld=ld, priority=0.7, index=not all(self.dead(s) for s in pool))
+                  crumbs=[("Fuel prices", "fuel-prices/"), (label, path)], ld=ld, priority=0.7, index=not all(self.dead(s) for s in pool),
+                  lastmod=self.changed(pool) if out_syd else None)
 
     def station_chart(self, s, f):
         """90 days of this station's price for fuel f against the Sydney median, plus a sentence on the range."""
@@ -659,7 +669,7 @@ class Site:
                           "addressRegion": state_of(s.get("pc")), **({"postalCode": str(s["pc"])} if s.get("pc") else {}), "addressCountry": "AU"}}
         crumbs = [("Fuel prices", "fuel-prices/")] + ([(self.sub_label[s["sub"]], self.sub_url[s["sub"]])] if s["sub"] else [("Stations", "station/")]) + [(s["name"], s["url"])]
         self.page(s["url"], "station", "/station/:station/", title, desc, "\n".join(b for b in body if b), crumbs=crumbs, ld=[ld], priority=0.5,
-                  index=not self.dead(s))
+                  index=not self.dead(s), lastmod=self.changed([s]) if s.get("out") else None)
 
     def fuel(self, f):
         up = "../../"; r = self.live[f]; nm = NAME[f]; path = f"fuel-prices/{FSLUG[f]}/"
@@ -1111,10 +1121,10 @@ class Site:
         with open(os.path.join(self.out, "robots.txt"), "w", encoding="utf-8") as fh:
             fh.write("# Everyone is welcome, search engines and AI assistants alike. Prices are CC BY-SA 3.0 AU: credit NSW FuelCheck and Bowser.\n"
                      f"User-agent: *\n{rules}\n" + "".join(f"User-agent: {b}\n" for b in AI_BOTS) + f"{rules}\nSitemap: {self.site}/sitemap.xml\n")
-        rows = [("", 1.0)] + self.urls
+        rows = [("", 1.0, self.asof)] + self.urls
         with open(os.path.join(self.out, "sitemap.xml"), "w", encoding="utf-8") as fh:
             fh.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-                     + "".join(f"<url><loc>{esc(self.site + '/' + p)}</loc><lastmod>{self.asof}</lastmod><priority>{pr:.1f}</priority></url>\n" for p, pr in rows)
+                     + "".join(f"<url><loc>{esc(self.site + '/' + p)}</loc><lastmod>{lm}</lastmod><priority>{pr:.1f}</priority></url>\n" for p, pr, lm in rows)
                      + "</urlset>\n")
         u = self.site; md = lambda s: re.sub(r"\S+://\S+|[\[\]\n\r<>()]", " ", str(s))[:80]   # feed text can't add a link or break one
         syd = [s for s in self.st if not s.get("out")]
@@ -1238,6 +1248,6 @@ def build(out, stations, forecast, history=None, details=None, track=None, site=
     if static:
         for f in STATIC:
             if os.path.exists(os.path.join(static, f)): shutil.copyfile(os.path.join(static, f), os.path.join(out, f))
-    seen = [p for p, _ in S.urls]
+    seen = [u[0] for u in S.urls]
     if len(set(seen)) != len(seen): raise ValueError("search pages: two pages share an address")
     return {"pages": len(seen), "stations": len(S.st), "suburbs": len(S.subs), "brands": len(S.brand_url), "regions": len(S.regions)}

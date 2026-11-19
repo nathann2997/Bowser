@@ -143,7 +143,7 @@ class Built(unittest.TestCase):
         self.assertEqual(len(locs), len(set(locs))); self.assertEqual(len(locs), self.report["pages"] + 1)
         for loc in locs[1:]:
             self.assertIn(os.path.join(loc[len("https://checkbowser.app/"):].replace("/", os.sep), "index.html"), self.pages, loc)
-        self.assertTrue(all(u.find("s:lastmod", ns).text == ASOF for u in root.findall("s:url", ns)))
+        self.assertTrue(all(u.find("s:lastmod", ns).text == ASOF for u in root.findall("s:url", ns)))   # all Sydney here
         with open(os.path.join(self.out, "robots.txt")) as fh: robots = fh.read()
         self.assertIn("Sitemap: https://checkbowser.app/sitemap.xml", robots); self.assertNotIn("Disallow: /\n", robots)
 
@@ -193,6 +193,9 @@ class Pieces(unittest.TestCase):
         self.assertEqual(sp.station_name("BP NORTH MANLY"), "BP North Manly")
         self.assertEqual(sp.station_name("Shell Reddy  Express Wattle Grove"), "Shell Reddy Express Wattle Grove")
         self.assertEqual(sp.station_name("Costco Auburn (Members only)"), "Costco Auburn")
+        self.assertEqual(sp.station_name("YOGI'S PLACE SERVICE STATION"), "Yogi's Place Service Station")
+        self.assertEqual(sp.station_name("O'CONNELL FUEL D'ARCY ST"), "O'Connell Fuel D'Arcy ST")
+        self.assertEqual(sp.station_name("Yogi's Place"), "Yogi's Place")
 
     def test_slug(self):
         self.assertEqual(sp.slug("St Mary's & King’s Cross"), "st-marys-and-kings-cross")
@@ -235,7 +238,7 @@ class Pieces(unittest.TestCase):
             s = station(100 + i, f"Servo Newcastle {i}", "Lowes", "Hamilton", 2303, -32.92 + i * 0.01, 151.75, {"U91": (220.0 + i, 0), "DL": (260.0 + i, 0)}, out=1)
             for f in s["p"]: s["p"][f] = s["p"][f][:2] + ["na", "Price only", "Outside Sydney, where Bowser has no forecast"]
             st.append(s)
-        st.append(station(300, "Ampol Newcastle West", "Ampol", "Newcastle", 2302, -32.925, 151.76, {"U91": (225.0, 0)}, out=1))   # a suburb named like a region
+        st.append(station(300, "Ampol Newcastle West", "Ampol", "Newcastle", 2302, -32.925, 151.76, {"U91": (225.0, 3)}, out=1))   # a suburb named like a region
         st.append(station(200, "Closed Servo", "Independent", "Tibooburra", 2880, -29.43, 142.01, {"U91": (250.0, 45)}, out=1))   # nothing for 45 days
         with tempfile.TemporaryDirectory() as out:
             r = sp.build(out, stations, forecast)
@@ -261,6 +264,11 @@ class Pieces(unittest.TestCase):
             dead, sm = rd("station/closed-servo-200/index.html"), rd("sitemap.xml")
             self.assertIn('<meta name="robots" content="noindex">', dead); self.assertNotIn('rel="canonical"', dead)
             self.assertNotIn("closed-servo-200", sm); self.assertNotIn("tibooburra-2880", sm); self.assertIn("fuel-prices/newcastle/", sm)
+            # outside Sydney a page's lastmod is the day its newest price was reported; region and Sydney pages change daily
+            lm = lambda path: re.search(re.escape(path) + r"</loc><lastmod>([\d-]+)<", sm).group(1)
+            three = (sp.dt.date.fromisoformat(ASOF) - sp.dt.timedelta(days=3)).isoformat()
+            self.assertEqual(lm("station/ampol-newcastle-west-300/"), three); self.assertEqual(lm("fuel-prices/newcastle-2302/"), three)
+            self.assertEqual(lm("station/servo-newcastle-0-100/"), ASOF); self.assertEqual(lm("fuel-prices/newcastle/"), ASOF)
             robots = rd("robots.txt")
             for bot in ("GPTBot", "OAI-SearchBot", "ClaudeBot", "PerplexityBot", "Google-Extended"): self.assertIn(f"User-agent: {bot}\n", robots)
             self.assertEqual(robots.count("Disallow:"), 2); self.assertNotIn("Disallow: /\n", robots)
