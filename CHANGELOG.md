@@ -2,6 +2,14 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-20 — Search Console: name case and honest sitemap dates
+
+Owner sent the Search Console "Why pages aren't indexed" report three days after launch: 21 excluded by noindex, 1,512 crawled but not indexed.
+- **Noindex (21): left alone.** Those are the stations silent for over 30 days, suburbs made only of them, and `/s/`. None are in the sitemap.
+- **Station names:** an ALL-CAPS name got a capital after every apostrophe ("Yogi'S Place"). Now only O'Connell-style names get one. The fix is in all three copies: `station_name` (`seo_pages.py`), `title()` (`share.html`) and `stationName()` (`app/src/lib/format.ts`, so it ships to the app as an OTA). URLs don't change, since slugs are lower case.
+- **Sitemap `lastmod`:** a station page outside Sydney, and a suburb page made only of such stations, now gives the day its newest price was reported, not the day of the run. Sydney pages carry the day's forecast call, so they, the hubs, brands and regions keep the run's date.
+- **Not done:** making suburb pages with one station noindex, as first suggested. Search Console shows no duplicate-content row, and suburb pages are the main traffic source (`docs/SEO.md`). It waits until the report's example URLs show suburb pages left unindexed.
+
 ## 2026-11-18 — Web: tank size moves into the savings sentence
 
 Owner: "what is the need for the tank size filter?" … "change it". It never filtered anything: it only turns cents into dollars ("saves about $4 on a 50 L tank", and Shop around). Next to the fuel picker in the header it looked like a filter.

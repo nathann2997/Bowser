@@ -80,7 +80,15 @@ export function stationName(n: string): string {
   if (/[a-z]/.test(name) || !/[A-Z]{4}/.test(name)) return name;
   return name
     .split(' ')
-    .map((w) => (ACRONYMS.has(w) ? w : w.toLowerCase().replace(/(^|[-'’(])([a-z])/g, (_, p: string, ch: string) => p + ch.toUpperCase())))
+    .map((w) =>
+      ACRONYMS.has(w)
+        ? w
+        : w
+            .toLowerCase()
+            .replace(/(^|[-(])([a-z])/g, (_, p: string, ch: string) => p + ch.toUpperCase())
+            // after an apostrophe only in O'Connell-style names, not "Yogi's"
+            .replace(/^([A-Z]['’])([a-z])/, (_, p: string, ch: string) => p + ch.toUpperCase()),
+    )
     .join(' ');
 }
 

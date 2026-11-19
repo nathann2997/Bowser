@@ -60,6 +60,7 @@ Never lead a page title with "FuelCheck" or call the site "FuelCheck": it risks 
 In Search Console, weekly for the first two months:
 - **Pages indexed** against the 1,284 in the sitemap. Expect weeks, not days, for a new domain; station pages will be last.
 - **Queries and clicks by page group** (filter by `/fuel-prices/`, `/station/`, `/brands/`): shows which group earns its keep.
+- **First report (2026-11-20, three days in):** 21 excluded by noindex (intended: stations silent 30+ days and `/s/`; don't validate them) and 1,512 crawled but not indexed, which is normal at this age. The sitemap's `lastmod` now follows price dates for pages outside Sydney. Making single-station suburb pages noindex is on hold until the example URLs, or a "Duplicate" row, show suburb pages losing out to their station page.
 - **"Crawled, currently not indexed"** on station pages. If most stay unindexed after two months, Google finds them too thin: add content to them or drop them from the sitemap and keep the suburb pages.
 - **Core Web Vitals:** the new pages should pass easily (one tiny script, no web fonts). The dashboard is heavier; watch it separately.
 
