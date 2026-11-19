@@ -497,7 +497,7 @@ const ACRONYMS = new Set(["BP","EG","APW","NRMA","NSW","LPG","RD","ST","MT","CVR
 function stationName(n){   // as stationName() in app/src/lib/format.ts
   const name = n.replace(/\s*\(members only\)/i,"").replace(/\s+/g," ").trim();
   if (/[a-z]/.test(name) || !/[A-Z]{4}/.test(name)) return name;
-  return name.split(" ").map(w => ACRONYMS.has(w) ? w : w.toLowerCase().replace(/(^|[-'’(])([a-z])/g,(_,p,ch)=>p+ch.toUpperCase())).join(" ");
+  return name.split(" ").map(w => ACRONYMS.has(w) ? w : w.toLowerCase().replace(/(^|[-(])([a-z])/g,(_,p,ch)=>p+ch.toUpperCase()).replace(/^([A-Z]['’])([a-z])/,(_,p,ch)=>p+ch.toUpperCase())).join(" ");
 }
 function brandSuburb(name, brand, suburb){
   const e = brand.trim().replace(/[.*+?^${}()|[\]\\]/g,"\\$&").replace(/\s+/g,"\\s+");
