@@ -2,6 +2,14 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-20 — Search pages: the tested record beside every call
+
+Roadmap item 2: proof next to each call, as PetrolPulse does with "Tested 86% accurate", but with our stricter rules spelled out.
+- Every call card on the search pages (hub, fuel, suburb, brand, forecast, cycle, best day, Christmas) and every Sydney station page now carries one line: "Bowser's Sydney Unleaded 91 call, tested on the year to 22 Oct: following it saved about $1.18 a 50 L tank against filling up the day you check, and it was right on 72% of days (always “wait”: 48%)", with a link to the accuracy page. It uses the figure the app's Today tile and the dashboard lead with (`app/src/lib/track.ts` `tested()`: the replay's last year when it holds 300+ days, else the whole replay), so the three never disagree.
+- Each fuel uses its own record (diesel: $0.51, 78% against 56% for always "no rush"). With no record for a fuel, there's no line. Stations outside Sydney have no call, so they have no line either.
+- Accuracy page: the lead adds what following the calls saved (2.9c a litre since 2021), and a new section, "Why accuracy figures differ between sites", explains the 1c rule, that every day counts, and that live calls are never revised.
+- Tests: 1 new (the line on fuel, hub, suburb, forecast and station pages, none outside Sydney or without a record).
+
 ## 2026-11-20 — Track record in dollars saved, against one fixed habit
 
 Reddit feedback on the track record (two comments, 2026-11-20): a hit rate flatters "always Wait", which is right about half the time in Sydney's cycle but wrong on exactly the weeks that cost most (the jumps); score it in cents against always-wait instead. Working on that, the QA audit found that the existing `gain` mixes two baselines (a Fill is scored against waiting a week, a Wait against filling today), so it isn't a saving against any one habit and on its scale "always Fill" and "always Wait" are mirror images. Recomputed on the replay (`data` branch, U91, the year to 22 Oct 2026) against one habit, filling up the day you check: the calls saved **2.2c a litre (≈ $1.10 a 50 L tank)**; "always Wait" (right 48%) cost 0.65c; so the calls beat always-wait by about 2.9c (≈ $1.45 a tank); perfect hindsight is 3.1c. 2021–26: 2.8c saved, always-wait −0.23c, hindsight 3.2c. In the last year 86 weeks had a 5c+ jump and the calls said Wait on 15 of them.

@@ -394,10 +394,39 @@ class Site:
         return (f"The {where} median for {NAME[f]} is {c1(r['now'])}c/L and Bowser expects it {move} in a week "
                 f"(likely range {lo:.0f}c to {hi:.0f}c).")
 
-    def verdict_card(self, f):
+    def tested(self, f):
+        """The replayed record for fuel f as the app shows it (app/src/lib/track.ts tested()): the last year of the replay
+        when it holds 300+ days, else the whole replay. (period, % right, % right for the best fixed rule and its call,
+        c/L saved a call against filling up the day you check, or None), or None."""
+        r = (self.track.get("replay") or {}).get(f) if isinstance(self.track.get("replay"), dict) else None
+        ok = lambda d: isinstance(d, dict) and all(num(d.get(k)) for k in ("n", "right")) and d["n"] > 0
+        if not ok(r): return None
+        rc = r.get("recent")
+        lead = rc if ok(rc) and rc["n"] >= 300 and isinstance(rc.get("to"), str) else r
+        try:
+            period = (f"the year to {short_date(lead['to'])}" if lead is not r else
+                      f"{r['from'][:4]}–{r['to'][:4]} prices")
+        except (KeyError, TypeError, ValueError): return None
+        b = lead.get("base") if isinstance(lead.get("base"), dict) else {}
+        word = {"up": "fill now", "down": "wait", "flat": "no rush"}.get(b.get("cls"))
+        return (period, lead["right"] / lead["n"], b["right"] / lead["n"] if num(b.get("right")) and word else None, word,
+                lead.get("save") if num(lead.get("save")) else None)
+
+    def proof(self, f, up):
+        """One line of evidence beside a call: what following it saved and how often it was right, tested; '' without a record."""
+        x = self.tested(f)
+        if not x: return ""
+        period, pct, base, word, save = x
+        txt = (f"Bowser’s Sydney {NAME[f]} call, tested on {period}: " + (f"following it saved about ${TANK * save / 100:.2f} a {TANK} L tank against filling up the day you check, and it was " if num(save) and save > 0 else "")
+               + f"right on {pct:.0%} of days" + (f" (always “{word}”: {base:.0%})" if base is not None else "") + ".")
+        return esc(txt) + (f' <a href="{up}fuel-price-forecast/accuracy/">How it’s scored</a>' if self.has_acc else "")
+
+    def verdict_card(self, f, up=None):
         r = self.live[f]; v = r.get("verdict") or {}
+        pr = self.proof(f, up) if up is not None else ""
         return (f'<div class="verdict {TONE.get(v.get("cls"), "calm")}"><span class="eyebrow">Bowser’s call for Sydney {esc(NAME[f])}, {esc(self.sday)}</span>'
-                f'<b>{esc(v.get("head", "No call today"))}</b><span>{esc(self.outlook(f))}</span></div>')
+                f'<b>{esc(v.get("head", "No call today"))}</b><span>{esc(self.outlook(f))}</span>'
+                + (f'<span class="small">{pr}</span>' if pr else "") + "</div>")
 
     @staticmethod
     def path(r, key, days):
@@ -650,7 +679,7 @@ class Site:
             lead = f"The cheapest {NAME[f0]} in {esc(name)} today is <b>{c1(top['p'][f0][0])}c/L</b> at {link}" + (" (members only)" if top.get("m") else "") + (f", {vm}." if vm else ".")
         lead += f" {esc(name)} has {stations_n} reporting prices to NSW FuelCheck." if n > 1 else ""
         body = [f"<h1>{esc(label)} fuel prices today</h1>", f'<p class="lead">{lead}</p>', self.fuel_cards(pool, up, True)]
-        if not out_syd: body.append(self.verdict_card(f0 if f0 in self.live else "U91"))
+        if not out_syd: body.append(self.verdict_card(f0 if f0 in self.live else "U91", up))
         body += [f"<h2>Petrol and diesel prices in {esc(name)} {pc}</h2>", self.price_table(pool, where=False, up=up)]
         at = self.sub_at[key]
         nearby = [s for d, s in self.near(at) if s["sub"] != key]
@@ -771,12 +800,13 @@ class Site:
             if num(fc.get("d7")) and num(fc.get("lo7")) and num(fc.get("hi7")):
                 txt += (f" In a week Bowser expects about {c1(p0[0] + fc['d7'])}c here (likely range {p0[0] + fc['lo7']:.0f}c to {p0[0] + fc['hi7']:.0f}c).")
             if fc.get("rise"): txt += f" The next price rise is likely around {esc(short_date(fc['rise']))}."
+            prf = self.proof(f0, up)
             fill = TANK * p0[0] / 100; r = self.live.get(f0)
             txt += f" A {TANK} L fill costs about ${fill:.2f} today"
             if r and num(r.get("now")) and abs(p0[0] - r["now"]) >= 0.5:
                 g = TANK * (p0[0] - r["now"]) / 100
                 txt += f", ${abs(g):.2f} {'less' if g < 0 else 'more'} than at the Sydney median price"
-            body.append(f"<p>{txt}.</p>")
+            body.append(f"<p>{txt}.</p>" + (f'<p class="small">{prf}</p>' if prf else ""))
             pr = d.get("profile") or {}
             notes = []
             typ = (pr.get("typ") or {}).get(f0)
@@ -824,7 +854,7 @@ class Site:
         body = [f"<h1>{esc(nm)} prices in Sydney today</h1>",
                 f'<p class="lead">The median {esc(nm)} price across Sydney is <b>{c1(r["now"])}c/L</b> on {esc(self.day)}.'
                 + (f' The cheapest is <b>{c1(top[0]["p"][f][0])}c</b> at <a href="{up}{esc(top[0]["url"])}">{esc(top[0]["name"])}</a>.' if top else "") + "</p>",
-                self.verdict_card(f)]
+                self.verdict_card(f, up)]
         if num(r.get("p10")) and num(r.get("p90")):
             body.append(f"<p>Most Sydney stations charge between {c1(r['p10'])}c and {c1(r['p90'])}c for {esc(nm)} today, so on a {TANK} L tank the gap between "
                         f"a cheap station and a dear one is about ${TANK * (r['p90'] - r['p10']) / 100:.0f}.</p>")
@@ -889,7 +919,7 @@ class Site:
                 f'<p class="lead">On {esc(self.day)} the median price of {esc(NAME[f0])} in Sydney is <b>{c1(r["now"])}c/L</b>. '
                 f"Bowser tracks {len(self.st):,} service stations in {len(self.subs):,} suburbs{' across NSW' if nsw else ''} using NSW FuelCheck prices, "
                 "and for Sydney tells you whether to fill up now or wait.</p>",
-                self.verdict_card(f0)]
+                self.verdict_card(f0, up)]
         cards = []
         for f in FUELS:
             if f not in self.live: continue
@@ -1026,7 +1056,7 @@ class Site:
                          f"{'about the same as' if abs(g) < 0.5 else cents(g) + (' under' if g < 0 else ' over')} the Sydney median of {c1(x['now'])}c")
             body = [f"<h1>{esc(b)} fuel prices today</h1>", f'<p class="lead">{lead}.</p>', self.fuel_cards(pool, up, False)]
             if all(s.get("m") for s in pool): body.append(f"<p>{esc(b)} fuel is for members only: you need a membership card to fill up.</p>")
-            if x and len(sp_) >= 3: body.append(self.verdict_card(f0))
+            if x and len(sp_) >= 3: body.append(self.verdict_card(f0, up))
             body += [f"<h2>All {esc(b)} stations, cheapest first</h2>", self.price_table(pool, sort=f0, up=up),
                      f'<p>Compare with <a href="../">other brands</a> or see the <a href="{up}fuel-prices/{FSLUG[f0]}/">cheapest {esc(NAME[f0])} in Sydney</a>.</p>',
                      "" if indep else f'<p class="small">{esc(b)} is a trade mark of its owner. Bowser is independent and not affiliated with {esc(b)}.</p>', self.sources_p()]
@@ -1051,7 +1081,7 @@ class Site:
         body = [f"<h1>{head}</h1>",
                 f'<p class="lead">As of {esc(self.day)}, Bowser predicts the Sydney median {esc(N0)} price will <b>{ans}</b> over the next week. Today’s call: <b>{esc(v.lower())}</b>.</p>',
                 f'<p class="small">Updated {esc(self.day)}. The forecast is rebuilt about five times a day from the latest NSW FuelCheck prices.</p>',
-                self.verdict_card(f0)]
+                self.verdict_card(f0, up)]
         fc_chart = self.forecast_chart(f0)
         if fc_chart: body += [f"<h2>Sydney {esc(N0)} price: recent weeks and the next 14 days</h2>", fc_chart]
         body += ["<h2>The 14-day outlook for each fuel</h2>",
@@ -1144,7 +1174,7 @@ class Site:
             body.append(f'<p class="lead">Sydney’s last big price jump began on <b>{esc(short_date(last))}</b>, {since} days ago. In normal years a jump comes about every <b>{gap:.0f} days</b>'
                         + (f" and lifts Unleaded 91 by about <b>{amp:.0f}c</b> a litre" if num(amp) else "") + ".</p>")
         body.append(f'<p class="small">Updated {esc(self.day)}.</p>')
-        body.append(self.stage_card() or (self.verdict_card("U91") if "U91" in live else ""))
+        body.append(self.stage_card() or (self.verdict_card("U91", up) if "U91" in live else ""))
         if self.stage() and "U91" in live: body.append(f"<p>{esc(self.outlook('U91'))} Bowser’s call today: <b>{esc(v.lower())}</b>. "
                                                       f'See the <a href="{up}fuel-price-forecast/">full forecast</a>.</p>')
         body += ["<h2>What is the petrol price cycle?</h2>",
@@ -1342,7 +1372,8 @@ class Site:
             base = tr.get("base") or {}
             lead.append(f"Replayed on {tr['n']:,} days from {esc(short_date(tr['from']))} {tr['from'][:4]} to {esc(short_date(tr['to']))} {tr['to'][:4]}, using only what was known on each day, "
                         f"Bowser’s fill-or-wait call for Sydney Unleaded 91 was right <b>{pct(tr['right'], tr['n'])}</b> of the time."
-                        + (f" The best rule that ignores the forecast, always saying “{CALL.get(base.get('cls'), base.get('cls'))}”, was right on {pct(base['right'], tr['n'])}." if num(base.get("right")) else ""))
+                        + (f" The best rule that ignores the forecast, always saying “{CALL.get(base.get('cls'), base.get('cls'))}”, was right on {pct(base['right'], tr['n'])}." if num(base.get("right")) else "")
+                        + (f" Following the calls saved about {tr['save']:.1f}c a litre a fill, ${TANK * tr['save'] / 100:.2f} on a {TANK} L tank, against filling up the day you check." if num(tr.get("save")) and tr["save"] > 0 else ""))
         if num(m7) and num(n7):
             lead.append(f"Its 7-day price forecast was off by <b>{m7:.1f}c</b> a litre on average, against {n7:.1f}c for assuming today’s price holds.")
         body = ["<h1>How accurate is Bowser’s fuel price forecast?</h1>",
@@ -1369,6 +1400,14 @@ class Site:
             if counts(lv) and isinstance(lv.get("since"), str):
                 body.append(f"<p>Live calls, made each morning since {esc(short_date(lv['since']))} and never revised: {lv['right']} of {lv['n']} scored so far were right, {lv['close']} close and {lv['wrong']} wrong. "
                             f'Every one is listed on the <a href="{up}" data-cta="accuracy-track">dashboard</a>.</p>')
+        if tr.get("n"):
+            body += ["<h2>Why accuracy figures differ between sites</h2>",
+                     "<p>A hit rate depends on the scoring rule as much as on the forecast. Bowser counts a wait as right only if the Sydney median then averaged at least 1c lower "
+                     "over the following week, and a fill only if it averaged at least 1c higher. It scores every day, including days without a strong call, and live calls keep the "
+                     "morning call, never revised. A rule that counts a wait as right whenever any cheaper day follows within the week, or leaves out the hard days, reports a higher "
+                     "figure for the same forecast.</p>",
+                     "<p>That is why Bowser also shows what following the calls saved, in cents, and what a fixed habit such as always waiting would have scored on the same days. "
+                     "A forecast earns its keep only if it beats the habit.</p>"]
         hs = [(h, *err("U91", h), ent("U91", h).get("dir")) for h in (1, 3, 7, 14)]
         hs = [x for x in hs if num(x[1]) and num(x[2])]
         if hs:
@@ -1420,7 +1459,7 @@ class Site:
                 f"but the difference is only <b>{spread:.1f}c a litre</b>, about {TANK * spread:.0f} cents on a {TANK} L tank. What matters is where Sydney is in its price cycle, "
                 "and the cheap days fall on a different weekday every cycle.</p>",
                 f'<p class="small">Updated {esc(self.day)}.</p>',
-                self.stage_card() or (self.verdict_card("U91") if "U91" in self.live else ""),
+                self.stage_card() or (self.verdict_card("U91", up) if "U91" in self.live else ""),
                 "<h2>Petrol prices by day of the week in Sydney</h2>",
                 '<div class="scroll"><table><thead><tr><th>Day</th><th class="n">Against the week’s average</th><th class="n">On a 50 L tank</th></tr></thead><tbody>'
                 + "".join(f'<tr><td>{"<b>" + d + "</b>" if x in (min(dow), max(dow)) else d}</td><td class="n">{rel(x)}</td><td class="n">{"−" if x < 0 else "+" if x > 0 else ""}{abs(TANK * x):.0f}c</td></tr>'
@@ -1482,7 +1521,7 @@ class Site:
             now = (f"This year, {lc(self.outlook('U91'))} "
                    + (f"For Christmas Day, {k} days away, Bowser expects about {c1(r['now'] + dx)}c." if dx is not None else
                       f"Christmas is {(xmas - today).days} days away; Bowser’s 14-day forecast will reach it from {short_date((xmas - dt.timedelta(days=14)).isoformat())}."))
-            body += [f"<h2>Christmas {xmas.year}: what Bowser expects</h2>", self.stage_card() or self.verdict_card("U91"),
+            body += [f"<h2>Christmas {xmas.year}: what Bowser expects</h2>", self.stage_card() or self.verdict_card("U91", up),
                      f'<p>{esc(now)} <a href="{up}fuel-price-forecast/">See the full forecast</a>.</p>']
         else:
             now = "Bowser’s 14-day forecast reaches Christmas Day from 11 December each year."
