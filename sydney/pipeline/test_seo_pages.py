@@ -262,6 +262,8 @@ class Pieces(unittest.TestCase):
         self.assertEqual(head.count("<title>"), 1); self.assertTrue(head.startswith("<title>"))
         self.assertIn('<link rel="canonical" href="https://checkbowser.app/">', head)
         self.assertIn("Unleaded 91 is 213.6c/L in Sydney today (17 Nov)", head)
+        self.assertIn("<title>Should you fill up today? Sydney fuel prices and forecast | Bowser</title>", head)
+        self.assertIn("Should you fill up today? Bowser’s call for Sydney: wait if you can.", head)
         self.assertEqual(len(re.findall(r"<script\b", head, re.I)), 1); self.assertIn('<script type="application/ld+json">', head)
         links = sp.home_links(stations, forecast)
         self.assertIn('href="fuel-prices/parramatta-2150/"', links); self.assertNotIn("<script", links)

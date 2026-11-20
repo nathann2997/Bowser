@@ -2,6 +2,10 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-20 — Dashboard title: "Should you fill up today?"
+
+Roadmap item 3. The dashboard's `<title>` (from `home_head()` in `seo_pages.py`) changes from "Bowser: Sydney fuel prices today and when to fill up" to "Should you fill up today? Sydney fuel prices and forecast | Bowser". The description now opens with the question and today's answer ("Should you fill up today? Bowser's call for Sydney: wait if you can."). PetrolPulse builds its homepage title on this phrase, and it's the question the dashboard answers. The forecast page keeps "fuel price forecast … next week", and "should I fill up today" moves from its row in the `docs/SEO.md` keyword map to the dashboard's, so the two pages don't compete. Test updated.
+
 ## 2026-11-20 — Search pages: the tested record beside every call
 
 Roadmap item 2: proof next to each call, as PetrolPulse does with "Tested 86% accurate", but with our stricter rules spelled out.
