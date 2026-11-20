@@ -1,8 +1,13 @@
-<html lang="en-AU">
+<html lang="en-AU" class="boot">
 <meta charset="utf-8">
 <title>Bowser</title>
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- "boot": until the first render, everything below the header stays invisible. The browser paints while the large
+     page is still arriving, and showing the empty boxes, then filling them, moved the whole page at once (PageSpeed's
+     layout shift, 0.74). The main script removes the class after render(), or on any error; without JavaScript the
+     noscript style shows the page. Not a script of its own: export_api.py pins the page's one inline script by hash. -->
+<noscript><style>.boot .wrap>*{visibility:visible!important}</style></noscript>
 <style>
 /* Layout and tokens mirror the Bowser app (app/src/constants/theme.ts, docs/DESIGN.md): the decision, then the place,
    then the saving, then the evidence (Today as in the 2026-10-23 design review: the verdict card, your stations, the
@@ -60,6 +65,9 @@ header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:1
 .brandline{display:flex;flex-direction:column;gap:8px}
 .brandline svg{display:block;height:26px;width:120px}
 .tagline{color:var(--fg);font-weight:600;font-size:15px}
+.boot .wrap>:not(header){visibility:hidden;animation:unboot 0s 8s forwards}   /* if the script never runs (an old browser, a blocked script), the page still shows after 8 s */
+@keyframes unboot{to{visibility:visible}}
+.asof:empty::before{content:"\00a0"}   /* the "Prices as of" line keeps its height before the script fills it */
 h2.q{font-size:20px}
 #stTitle{font-size:14px;font-weight:600;color:var(--fg2)}
 .controls{display:flex;gap:8px;flex-wrap:wrap}
@@ -205,7 +213,7 @@ footer details.srcs summary{cursor:pointer;color:var(--fg2)}
 footer details.srcs>div{margin-top:6px}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 @media (min-width:960px){.grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px}}
-/* the map (MapLibre + OpenFreeMap, loaded when the Map view opens, the default): price tags as in app/src/components/station-map.tsx */
+/* the map (MapLibre + OpenFreeMap; the default view, loaded when it comes on screen or on the first scroll or touch): price tags as in app/src/components/station-map.tsx */
 .mapcard{padding:0;overflow:hidden;position:relative;isolation:isolate}   /* isolate: the map's tags, buttons and bar (z-index up to 45) stack inside the card, so they can't show through the Filters panel when it opens over the map */
 #map{height:max(420px,min(860px,calc(100vh - 150px)));width:100%}
 @media (max-width:560px){#map{height:max(340px,62vh)}}   /* on a phone the selected station's card fits under the map */
@@ -395,11 +403,18 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
   </footer>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- The data as JSON, not a script literal: JSON.parse reads it several times faster than the engine compiles a 1 MB object
+     (build.py escapes < > & so a station name can't end this block) -->
+<script type="application/json" id="bowser-data">__DATA__</script>
 <script>
 // Not inside another site's frame (clickjacking): the host can't send X-Frame-Options or frame-ancestors
 if (window.top !== window.self) { document.documentElement.style.display = "none"; try { window.top.location.replace(location.href); } catch (e) {} }
-const D = __DATA__;
+// If the script fails before the first render, show the page as far as it got (see "boot" in the <head>)
+addEventListener("error", () => document.documentElement.classList.remove("boot"));
+const D = JSON.parse(document.getElementById("bowser-data").textContent);
+// Stations outside Sydney arrive with their price and age only when the advice is the usual "Price only" (build.py
+// leaves it out of the page, about a quarter of its data); put it back so every station reads the same
+D.stations.forEach(s => { if (s.out) for (const f in s.p) if (s.p[f].length === 2) s.p[f].push("na", "Price only", "Outside Sydney, where Bowser has no forecast"); });
 // Station names, brands, suburbs and advice text come from the NSW API (third-party): escape them before any innerHTML
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 const $ = (id) => document.getElementById(id);
@@ -505,7 +520,8 @@ function brandSuburb(name, brand, suburb){
 }
 const PIN_SVG = `<svg class="pinmark" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>`;
 let MAP_OK = !!(window.Promise && window.Map);   // false once the map library fails to load: the page falls back to the list
-const updatedText = a => a == null ? "" : a === 0 ? "Updated today" : a === 1 ? "Updated 1 day ago" : `Updated ${a} days ago`;
+// Numbers from the data go into HTML as numbers (+x): never text, whatever the data holds
+const updatedText = a => a == null ? "" : +a === 0 ? "Updated today" : +a === 1 ? "Updated 1 day ago" : `Updated ${Math.round(+a)} days ago`;
 const mapsUrl = (la, lo) => `https://www.google.com/maps/search/?api=1&query=${+la},${+lo}`;
 
 // ---- the decision (verdict rule mirrored in export_api.py; outlook as app/src/lib/outlook.ts)
@@ -601,20 +617,20 @@ function stationRows(){
 // Skip for now and Check price always show (echoesSydney() in app/src/lib/copy.ts)
 const echoesSydney = (code, sydney) => sydney !== "act" && code !== "chk" && code !== "hi" && code !== "na" && ADVICE_TONE[code] === sydney;
 const rowLabel = (name, pinned, s) => `${name}${pinned ? ", pinned" : ""}, ${s.price.toFixed(1)} cents, ${s.adv[1]}`;
-const pinBtn = (i, name, pinned) => `<button type="button" class="chip" data-pin="${i}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(name)}">${pinned ? "Unpin" : "Pin"}</button>`;
+const pinBtn = (i, name, pinned) => `<button type="button" class="chip" data-pin="${+i}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(name)}">${pinned ? "Unpin" : "Pin"}</button>`;
 function stationItem(s, med, tone, where = "list"){
   const name = stationName(s.n), gap = s.price - med, stale = s.age != null && s.age > STALE_DAYS, pinned = isPinned(s.i);
   const gapTxt = Math.abs(gap) < 0.05 ? "at median" : `${gap < 0 ? "−" : "+"}${Math.abs(gap).toFixed(1)}c`;
   const quiet = echoesSydney(s.adv[0], tone);
   const chips = (quiet ? "" : `<span class="badge t-${ADVICE_TONE[s.adv[0]] || "calm"}">${esc(s.adv[1])}</span>`) + (stale ? `<span class="small up">${updatedText(s.age)}</span>` : "");
-  return `<details class="st${pinned ? " is-pinned" : ""}" id="st-${where}-${s.i}" data-i="${s.i}"><summary aria-label="${esc(rowLabel(name, pinned, s))}">
+  return `<details class="st${pinned ? " is-pinned" : ""}" id="st-${where}-${+s.i}" data-i="${+s.i}"><summary aria-label="${esc(rowLabel(name, pinned, s))}">
     <div class="st-main"><div class="st-name"><span>${esc(name)}</span>${PIN_SVG}</div>
       <div class="small st-sub">${esc(brandSuburb(name, s.b, s.s))}${s.d != null ? ` · ${s.d.toFixed(1)} km` : ""}${s.m ? " · Members" : ""}</div>
       ${chips ? `<div class="st-chips">${chips}</div>` : ""}</div>
     <div class="st-price"><div class="bignum">${s.price.toFixed(1)}</div><div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}">${gapTxt}</div></div>
   </summary><div class="st-more"><p>${esc(s.adv[2])}</p><div class="small">${[updatedText(s.age) + (stale ? " · check before driving" : ""), `${esc(s.s)} ${esc(s.pc)}`].filter(Boolean).join(" · ")}</div>
     <div class="st-actions">${pinBtn(s.i, name, pinned)}
-      ${MAP_OK ? `<button type="button" class="link" data-showmap="${s.i}">Show on map</button>` : ""}
+      ${MAP_OK ? `<button type="button" class="link" data-showmap="${+s.i}">Show on map</button>` : ""}
       <a class="link" href="${mapsUrl(s.la, s.lo)}" target="_blank" rel="noopener noreferrer">Directions →</a></div></div></details>`;
 }
 function brandOptions(){
@@ -818,6 +834,23 @@ function renderWhy(){
 const RANGES = [["3M",92],["1Y",365],["3Y",1095],["All",99999]];
 segment($("range"), RANGES.map(([k]) => [k,k]), () => state.range, k => { state.range = k; renderMain(); });
 let charts = {};
+// Chart.js loads when the charts come near the screen (or "Predicted vs actual" opens), not with the page: it blocked
+// the first paint and its work held up the phone. Both charts sit in fixed-height boxes, so drawing them later moves nothing.
+let chartLoading = false;
+function loadCharts(){
+  if (window.Chart || chartLoading) return;   // after a failed load, a later try adds a fresh script tag
+  chartLoading = true;
+  const sc = document.createElement("script");
+  sc.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js";
+  sc.integrity = "sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==";
+  sc.crossOrigin = "anonymous"; sc.referrerPolicy = "no-referrer";
+  sc.addEventListener("load", () => { renderMain(); renderBT(); });
+  sc.addEventListener("error", () => { chartLoading = false; });   // try again next time they come into view
+  document.head.append(sc);
+}
+if (window.IntersectionObserver) {
+  new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) loadCharts(); }, {rootMargin: "600px 0px"}).observe($("main"));
+} else loadCharts();
 const FONT = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
 const axis = () => ({grid:{color:css("--line"),drawTicks:false}, border:{display:false}, ticks:{color:css("--muted"),font:{family:FONT,size:11},padding:6}});
 const tip = () => ({backgroundColor:css("--fg"),titleColor:css("--bg"),bodyColor:css("--bg"),titleFont:{family:FONT,weight:"600"},bodyFont:{family:FONT,size:12},padding:10,cornerRadius:8,boxPadding:4});
@@ -934,7 +967,7 @@ function renderBT(){
   if (charts.bt) charts.bt.destroy();
   charts.bt = new Chart($("bt"), cfg);
 }
-$("btBox").addEventListener("toggle", renderBT);
+$("btBox").addEventListener("toggle", () => { loadCharts(); renderBT(); });
 function renderBTTable(){
   const S = D.bt.summary, f = state.fuel, prod = D.bt.prod;
   const month = ym => { const [y,m] = ym.split("-").map(Number); return `${MO[m-1]} ${y}`; };
@@ -994,7 +1027,7 @@ function renderFresh(){
 }
 
 
-// ---- the map: MapLibre GL with OpenFreeMap tiles (free, no key, no limits), loaded when the Map view opens (the default view).
+// ---- the map: MapLibre GL with OpenFreeMap tiles (free, no key, no limits), the default view; loaded when it comes on screen or on the first scroll or touch (see mapNear).
 // Mirrors the app's map (app/src/components/station-map.tsx): every station passing the filters, shown as you pan and
 // zoom (no radius), grouped into numbered circles when zoomed out; tags coloured by the cheapest, middle and dearest
 // third of the stations in view; pinned stations always shown. The cheapest station in view is always its own, larger
@@ -1091,7 +1124,24 @@ function setFs(on){
   if (map) { try { on ? map.cooperativeGestures.disable() : map.cooperativeGestures.enable(); } catch {} map.resize(); }
 }
 
+// The map stays the first view, but its library (the page's heaviest code) starts loading only when the map is on screen,
+// the visitor first scrolls or touches the page, or the List/Map switch or "Show on map" is used. On a phone the map
+// starts below the verdict, so a visit that only reads the verdict doesn't pay for it, and the first scroll still gives
+// it a head start. The map's box has a fixed height, so filling it later moves nothing.
+let mapNear = !window.IntersectionObserver, mapGo = () => {};
+if (!mapNear) {
+  const go = mapGo = () => {
+    if (mapNear) return;
+    mapNear = true; io.disconnect(); EV.forEach(t => removeEventListener(t, go));
+    if (state.view === "map" && MAP_OK) showMap();
+  };
+  const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) go(); });
+  const EV = ["scroll", "pointerdown", "keydown", "touchstart"];
+  EV.forEach(t => addEventListener(t, go, {passive: true}));
+  io.observe($("map"));
+}
 async function showMap(){
+  if (!mapNear) return;
   try { await loadMapLib(); } catch { mapFail(); return; }
   if (!map) return initMap();
   map.resize();   // the map may have been created or resized while the List view was showing
@@ -1297,6 +1347,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-closesel]"
 
 function setView(v){
   if (v !== state.view) track("web.view_changed", {view: v});
+  if (v === "map") mapGo();   // asked for: load it now (renderStations() below opens it)
   state.view = v; store.set("view2", v); syncView();
   if (v === "list") { closeSel(); setFs(false); }
   renderStations();
@@ -1316,6 +1367,7 @@ function render(){
   brandOptions(); renderToday(); renderWhy(); renderInsights(); renderMain(); renderBrands(); renderBTTable(); renderTrack();
 }
 render(); renderFresh();
+document.documentElement.classList.remove("boot");   // the first render is in: show the page (see the <head>)
 // One pageview per load, with where the visit came from (the site's own domain only, never the address)
 track("$pageview", {
   fuel: state.fuel, view: state.view, hasArea: !!(state.area && !state.area.missing), pins: pins.length,
