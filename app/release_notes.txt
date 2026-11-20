@@ -1,1 +1,1 @@
-Bowser 1.0, ready for Google Play: the widget now lists stations near the area saved in Bowser instead of reading your location in the background, and More links to the privacy policy.
+Bowser 1.0.1: the welcome screen, Today, Stations, station pages and About now show where prices come from (NSW Government FuelCheck, with a link) and say plainly that Bowser is an independent app, not a government app.

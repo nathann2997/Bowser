@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AreaPicker } from '@/components/area-picker';
 import { FilterSheet } from '@/components/filter-sheet';
 import { FilterIcon, ListIcon, MapIcon } from '@/components/icons';
+import { SourceLine } from '@/components/source-line';
 import { MissingPinItem, rowKey, StationItem } from '@/components/station-row';
 import { StationMap } from '@/components/station-map';
 import { Button, Card, Disclosure, FuelChip, Loading, Screen, StaleBanner, T } from '@/components/ui';
@@ -266,6 +267,8 @@ export default function Stations() {
           <Disclosure title="About “Fill by” dates">
             <T kind="small" color={c.fg2}>{WHEN_NOTE}</T>
           </Disclosure>
+
+          <SourceLine />
 
           {sheetEl}
           {toggle ? <View style={{ height: 56 }} /> : null}

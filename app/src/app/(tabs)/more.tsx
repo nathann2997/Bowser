@@ -17,6 +17,7 @@ import { daysBetween, nice, refreshedText } from '@/lib/format';
 import { bgRequestOpensSettings, openLocationSettings, useBackgroundLocation } from '@/lib/location';
 import { useFills } from '@/lib/fills';
 import { setSettings, useSettings } from '@/lib/settings';
+import { FUELCHECK_DATA_URL, FUELCHECK_URL, NOT_GOVERNMENT } from '@/lib/sources';
 
 const MODEL = [
   ['What it predicts', 'How the Sydney median price of each fuel will move over the next 1, 3, 7 and 14 days, and the chance of a jump of 5c or more within a week.'],
@@ -27,7 +28,6 @@ const MODEL = [
 ] as const;
 
 const CC_BY_SA = 'https://creativecommons.org/licenses/by-sa/3.0/au/';
-const FUELCHECK_DATA = 'https://data.nsw.gov.au/data/dataset/fuel-check';
 // Google Play asks for the privacy policy to be reachable inside the app, not only on the listing
 const PRIVACY = 'https://checkbowser.app/privacy/';
 
@@ -186,9 +186,6 @@ export default function More() {
         <Pressable onPress={() => Linking.openURL(CC_BY_SA).catch(() => {})} accessibilityRole="link" hitSlop={8}>
           <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>Licence: CC BY-SA 3.0 AU</T>
         </Pressable>
-        <Pressable onPress={() => Linking.openURL(FUELCHECK_DATA).catch(() => {})} accessibilityRole="link" hitSlop={8}>
-          <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>FuelCheck data on data.nsw.gov.au</T>
-        </Pressable>
       </Disclosure>
 
       <Section title="About">
@@ -200,6 +197,14 @@ export default function More() {
           </View>
         </View>
         <T kind="small">Forecasts are estimates for planning, not financial advice.</T>
+        {/* Shown, not folded away: Google Play asks for the source and this disclaimer to be easy to see (lib/sources.ts) */}
+        <T kind="small">{NOT_GOVERNMENT} Fuel prices come from NSW Government FuelCheck, run by NSW Fair Trading.</T>
+        <Pressable onPress={() => Linking.openURL(FUELCHECK_URL).catch(() => {})} accessibilityRole="link" hitSlop={8}>
+          <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>NSW FuelCheck: fuelcheck.nsw.gov.au</T>
+        </Pressable>
+        <Pressable onPress={() => Linking.openURL(FUELCHECK_DATA_URL).catch(() => {})} accessibilityRole="link" hitSlop={8}>
+          <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>FuelCheck data: data.nsw.gov.au</T>
+        </Pressable>
         <View style={styles.between}>
           <T color={c.fg} style={{ flex: 1 }}>Share anonymous usage</T>
           <Switch value={s.analytics} onValueChange={(v) => setSettings({ analytics: v })} accessibilityLabel="Share anonymous usage and crash reports" />

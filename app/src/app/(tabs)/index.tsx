@@ -6,6 +6,7 @@ import { AreaPicker } from '@/components/area-picker';
 import { OutlookChart } from '@/components/outlook-chart';
 import { SavingsStrip, TrackStrip } from '@/components/proof-strip';
 import { BowserWordmark } from '@/components/brand';
+import { SourceLine } from '@/components/source-line';
 import { MissingPinItem, rowKey, STALE_DAYS, StationItem } from '@/components/station-row';
 import { Card, Disclosure, Loading, Screen, Section, StaleBanner, T, toneColors } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
@@ -141,6 +142,7 @@ export default function Today() {
           <TrackStrip />
 
           <T kind="small">{refreshedText(f.generated_at) || `Prices as of ${nice(f.asof)}`}. New prices up to 5 times a day. Estimates, not financial advice.</T>
+          <SourceLine />
         </>
       )}
     </Screen>
