@@ -2,6 +2,14 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-20 — Web: a simpler dashboard (branch `site/simpler-dashboard`, not merged)
+
+A web user's feedback: the page has too much content, and the definitions are overwhelming. Only the dashboard (`template.html`) changed; the app, station pages and search pages are untouched. Measured on a 390 px wide screen with the live data of 20 Nov: the page went from 3,726 px to 3,010 px tall, words visible before opening anything from 539 to 358, and folds from 9 to 7.
+- **Where are prices heading?** The three insight cards, each with a sentence of definition, are now one row of three numbers with short labels ("66 days since prices last jumped", "5 weeks a usual price cycle", "13c a litre less at the cheapest stations"). Their full explanations open first under **More facts and how to read the chart**, which also takes in the old "About this chart" fold.
+- **Can I trust it?** One card: "72% of “fill or wait” calls right" over the past year, and what always saying "Wait" scored. The accuracy stats, the "tested on every month" sentence, the method and the live-call counts moved into a new **How it’s tested** fold, which also holds the old "Accuracy by days ahead" table. Data freshness moved into **How it works**. "Predicted vs actual" stays a fold of its own, because its chart is drawn when opened. When `track.json` doesn't load, a single line ("About 56% closer than assuming prices stay put.") shows instead of the card.
+- **Footer:** one visible line keeps the FuelCheck link, the CC BY-SA attribution, the "not financial advice" note and the "not affiliated with the NSW Government" line (Play policy, from 1.0.1); the full sources and the Sydney postcode definition sit under **Sources and definitions**. The search summary and links (`<!--SEO_LINKS-->`) are unchanged.
+- The web now shows less than the app's `insights()` and Track record screen on purpose; the code comments say so, so a later sync shouldn't bring the text back.
+
 ## 2026-11-20 — Google Play: Bowser 1.0.1 (government source and disclaimer, optional hardware)
 
 Google Play blocked the closed test (Misleading Claims policy, "Missing Source Link for Government Information", enforced 2026-11-20): an app showing government information must link the official source and say clearly that it doesn't represent a government. Owner: "go".
