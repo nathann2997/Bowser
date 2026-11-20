@@ -2,6 +2,35 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-20 — Search: beat the competitors on forecast searches (branch `seo/forecast-competitors`, stacked on #25)
+
+Owner: "improve the SEO further through keyword and competitor analysis … we want to rank high for fuel forecast." Competitor review (ACCC, Finder, NRMA, FuelRadar, PetrolSpy, motoring clubs, news) and the features we lack are in `docs/SEO.md` → "Competitors for forecast searches". Only the search pages (`seo_pages.py`) and one new stat (`build.py`) change; the dashboard and app are untouched.
+- **Forecast page** (`/fuel-price-forecast/`): a chart of the last 60 days with the 14-day forecast and its likely range, a tank-savings table (30–100 L), a visible "Updated" line, and five quick answers with today's numbers (next week, tomorrow, fill or wait, is the cycle still running, how accurate). Adds `FAQPage` and `Dataset` (forecast.json, track.json) structured data. The heading and title now say "next week", and the description says "prediction".
+- **New `/fuel-price-forecast/accuracy/`**: the replayed call (83% right against 63% for always "wait"), split by call type; the last 12 months (72% against 48%); live calls; the price forecast's error against "no change" for 1, 3, 7 and 14 days, by year (2026 included, the hardest) and by fuel. No competitor publishes this.
+- **Cycle page**: a cycle-stage card ("Running long: day 66, usually 37"), an answer to "is the cycle still running?" (8 jumps in 12 months, typically 26c against 37c), and the latest 8 jumps. The ACCC's table stops in January 2026.
+- **New `/best-day-to-buy-petrol/`**: the weekday figures (Friday cheapest, Tuesday dearest, 0.6c apart), why the "cheap Tuesday" rule fails in Sydney, what is worth more (a jump is about 60 times the weekday gap), and three quick answers.
+- **New `/petrol-prices-christmas/`**: what the Sydney median did from 10 Dec to 10 Jan in each year since 2019 (a jump in 5 of 7), and this year's outlook from November to January.
+- **Links:** a "Guides" row in every footer, the dashboard's footer links, station pages link to the forecast, and `llms.txt` lists the new pages. Pages whose data is missing are neither built nor linked.
+- **`build.py`**: `stats.recent_jumps`, the last 16 jumps from the same detector as `cycles_by_year`, so the counts agree.
+- Fixed: the forecast page's jump-chance paragraph was missing its `</p>`.
+- Audit (independent review, then malformed-feed runs). Fixed:
+  - the accuracy table could link to a fuel page that wasn't built;
+  - a non-dict `bt` or `bt.summary` entry, a 0 baseline error, a missing track count or date, an impossible jump date, or an unreadable `history.start` / `last_restore` crashed the build (most of these broke the dashboard footer too). The page section is now left out instead;
+  - "is the cycle still running?" now also counts how many jumps there were, not just their size;
+  - a Christmas jump that began on 8–9 Dec was dated 10 Dec;
+  - the Christmas outlook shows only from 1 Nov to 25 Dec, and from 11 Dec it gives the forecast for Christmas Day;
+  - "about average the week's average", and the hard-coded "under a cent" and "less than a dollar", are now computed.
+
+  Still crashing as before this change, not new: `history.start` unreadable on the fuel pages' chart, and a `live` entry without `d14`.
+- Tests: 3 new (forecast answers, accuracy, cycle / best day / Christmas), with longer sample history. All 62 pass. Checked against the live data of 20 Nov: 3,526 pages, every JSON-LD block parses, no wholesale figures.
+
+## 2026-11-20 — Search Console: name case and honest sitemap dates
+
+Owner sent the Search Console "Why pages aren't indexed" report three days after launch: 21 excluded by noindex, 1,512 crawled but not indexed.
+- **Noindex (21): left alone.** Those are the stations silent for over 30 days, suburbs made only of them, and `/s/`. None are in the sitemap.
+- **Station names:** an ALL-CAPS name got a capital after every apostrophe ("Yogi'S Place"). Now only O'Connell-style names get one. The fix is in all four copies: `station_name` (`seo_pages.py`), `title()` (`share.html`), the dashboard (`template.html`) and `stationName()` (`app/src/lib/format.ts`, so it ships to the app as an OTA). URLs don't change, since slugs are lower case.
+- **Sitemap `lastmod`:** a station page outside Sydney, and a suburb page made only of such stations, now gives the day its newest price was reported, not the day of the run. Sydney pages carry the day's forecast call, so they, the hubs, brands and regions keep the run's date.
+- **Not done:** making suburb pages with one station noindex, as first suggested. Search Console shows no duplicate-content row, and suburb pages are the main traffic source (`docs/SEO.md`). It waits until the report's example URLs show suburb pages left unindexed.
 ## 2026-11-20 — Web: PageSpeed fixes (branch `site/pagespeed`, on top of `site/simpler-dashboard`, not merged)
 
 Owner sent Google PageSpeed results for checkbowser.app: mobile 34 (CLS 0.74, TBT 1,830 ms, LCP 4.2 s, Chart.js render-blocking), desktop 43 (CLS 0.691, TBT 1,920 ms). Causes: the browser painted the empty page while the 1.4 MB HTML was still arriving, then the script filled it all at once (one shift, `div.today`); Chart.js loaded before the script; MapLibre (the default Map view) loaded and ran on every visit; the data was a 1.3 MB JavaScript literal.
