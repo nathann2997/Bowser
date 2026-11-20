@@ -363,7 +363,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
     <h2 class="q" id="mh">Can I trust it?</h2>
     <div class="card" id="trackCard" hidden>
       <div class="eyebrow" id="trackEyebrow"></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 6px"><span class="bignum" id="trackPct"></span><b>of “fill or wait” calls right</b></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 6px"><span class="bignum" id="trackPct"></span><b id="trackWhat">of “fill or wait” calls right</b></div>
       <p class="small" id="trackLift" style="color:var(--fg2);max-width:70ch"></p>
     </div>
     <p id="accLine" style="max-width:70ch"></p>
@@ -574,7 +574,7 @@ document.addEventListener("change", e => {   // the hero is redrawn, so its tank
   const el = e.target.closest?.("[data-tank]"); if (!el) return;
   state.tank = +el.value; store.set("tank", state.tank);
   const hero = $("hero"); hero.removeAttribute("aria-live");   // only the dollar figure changed: don't re-read the whole verdict
-  renderHero(); renderInsights();
+  renderHero(); renderInsights(); renderTrack();
   setTimeout(() => hero.setAttribute("aria-live", "polite"), 0);
   $("hero").querySelector("[data-tank]")?.focus();   // the redraw replaced it: keep keyboard focus
 });
@@ -998,16 +998,24 @@ function renderTrack(){
   const pct = t => Math.round(t.right/t.n*100), word = {up:"Fill", down:"Wait", flat:"No rush"};
   const r = all.recent && all.recent.n >= 300 && all.recent.to ? all.recent : all;
   $("trackEyebrow").textContent = r === all ? `${all.from.slice(0,4)}–${all.to.slice(0,4)}` : "Over the past year";
-  $("trackPct").textContent = pct(r) + "%";
+  // Dollars saved a tank lead when track.json has them (`save`: against filling up the day you check) and they come to
+  // 50c or more, as the app's worth()/compareText(): a hit rate flatters "always Wait", which is right half the time but
+  // costs money on the jump weeks (Reddit feedback 2026-11-20). Else the hit rate leads, as before.
+  const L = state.tank, money = r.save != null && Math.abs(r.save)*L/100 >= 0.5;
+  $("trackPct").textContent = money ? dollars(r.save, L) : pct(r) + "%";
+  $("trackPct").style.color = money ? `var(${r.save > 0 ? "--cheap" : "--dear"})` : "";
+  $("trackWhat").textContent = money ? `${r.save > 0 ? "saved" : "lost"} on a ${L} L tank, on average, by following the “fill or wait” calls` : "of “fill or wait” calls right";
   // The card says the result in one line; how it was checked sits under "How it's tested" (web only: user feedback 2026-11-20)
   let lift = "";
   if (r.base) {
-    const b = Math.round(r.base.right/r.n*100), pts = pct(r) - b, rule = `always saying “${word[r.base.cls]}”`;
-    lift = Math.abs(pts) >= 5 ? `By comparison, ${rule} was right ${b}% of the time.`
+    const b = Math.round(r.base.right/r.n*100), pts = pct(r) - b, rule = `always saying “${word[r.base.cls]}”`, bs = r.base.save;
+    lift = money && bs != null
+      ? `Right ${pct(r)}% of the time. ${rule[0].toUpperCase() + rule.slice(1)} was right ${b}%${bs <= -0.25 ? ` but cost about ${dollars(bs, L)} a tank` : bs >= 0.25 ? ` and saved about ${dollars(bs, L)} a tank` : ""}.`
+      : Math.abs(pts) >= 5 ? `By comparison, ${rule} was right ${b}% of the time.`
       : `About the same as ${rule} (${b}%)${r.base.cls === "flat" ? ": prices rarely moved enough here to test the calls" : ""}.`;
   }
   $("trackLift").textContent = lift; $("trackLift").hidden = !lift;
-  $("trackHow").textContent = `${r === all ? `Tested on ${all.from.slice(0,4)}–${all.to.slice(0,4)} prices` : `Tested on the year to ${nice(r.to)}`}: each day’s “fill or wait” call, checked against the average Sydney price over the week after.`;
+  $("trackHow").textContent = `${r === all ? `Tested on ${all.from.slice(0,4)}–${all.to.slice(0,4)} prices` : `Tested on the year to ${nice(r.to)}`}: each day’s “fill or wait” call, checked against the average Sydney price over the week after.${money ? " The dollars are against filling up the day you check: a Wait saves (or costs) the week’s move, a Fill or No rush means filling that day." : ""}`;
   $("trackHow").hidden = false; $("accLine").hidden = true;
   const l = TRACK.live && TRACK.live[state.fuel];
   $("trackLive").textContent = l && l.n && l.since

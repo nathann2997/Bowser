@@ -7,7 +7,8 @@ import { track } from './analytics';
 import { API_BASE } from './api';
 import { fuelName, nice, stationName } from './format';
 import { money, type SavingsSummary } from './savings';
-import { countsText, tested } from './track';
+import { dollars } from './outlook';
+import { countsText, tested, worth } from './track';
 import type { Fuel, Track } from './types';
 
 /** The share page sits beside the API: …/api/v1 → …/s/ */
@@ -33,14 +34,20 @@ export function savingsMessage(s: SavingsSummary): string | null {
 /** The dashboard, which shows the track record too: …/api/v1 → …/ */
 export const SITE = API_BASE.replace(/\/api\/v1\/?$/, '') + '/';
 
-/** The track record for a fuel: the tested hit rate with what it beats, and the live calls so far. Null with no tested
- *  figure (a fuel the backtest doesn't cover). */
-export function trackMessage(t: Track, fuel: Fuel): string | null {
+/** The track record for a fuel: what following the calls saved on your tank when track.json has it and it's worth
+ *  leading with (as the Track record screen), else the tested hit rate with what it beats; then the live calls so far.
+ *  Null with no tested figure (a fuel the backtest doesn't cover). */
+export function trackMessage(t: Track, fuel: Fuel, tankL = 50): string | null {
   const x = tested(t, fuel);
   if (!x) return null;
-  const beat = x.lift && x.lift.pts >= 5 ? `, ${x.lift.pts} points better than always saying “${x.lift.rule}”` : '';
   const l = t.live?.[fuel];
   const live = l && l.n > 0 && l.since ? ` Live since ${nice(l.since, false)}: ${countsText(l, ', ')}.` : '';
+  const w = worth(x.save, tankL);
+  if (w?.saved) {
+    const vs = x.lift && x.baseSave != null && x.baseSave <= -0.25 ? ` Always saying “${x.lift.rule}” would have cost ${dollars(x.baseSave, tankL)}.` : '';
+    return `Following Bowser’s fill-or-wait calls for Sydney ${fuelName(fuel)} saved about ${w.amount} a ${tankL} L tank on average, against filling up the day you check (tested on ${x.period}).${vs} Right ${x.pct}% of the time.${live}\n${SITE}`;
+  }
+  const beat = x.lift && x.lift.pts >= 5 ? `, ${x.lift.pts} points better than always saying “${x.lift.rule}”` : '';
   return `Bowser’s fill-or-wait calls for Sydney ${fuelName(fuel)} were right ${x.pct}% of the time, tested on ${x.period}${beat}.${live}\n${SITE}`;
 }
 

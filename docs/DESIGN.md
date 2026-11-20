@@ -57,7 +57,7 @@ The owner asked for a simpler Today ("show the trend for the fuel and the statio
 3. **Cheapest near {suburb}**, without the postcode so it fits on one line.
 4. **You saved**, once you've logged a fill.
 5. Why we think this, then Price trends.
-6. **Calls right**, at the bottom.
+6. **Following the calls saved** (dollars a tank, against filling up the day you check; "Calls right" when it's under 50c or the data predates it), at the bottom.
 
 "Best for you" is gone. It duplicated the cheapest nearby and the pinned stations, and pulled attention from the trend.
 

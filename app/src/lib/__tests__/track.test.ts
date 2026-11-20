@@ -2,8 +2,8 @@ import { describe, expect, it } from '@jest/globals';
 
 import { trackMessage } from '../share';
 import {
-  callsFor, callValue, callWord, countsText, gainText, headline, lift, liftText, LIVE_MIN, liveLeads, liveNote, outcomeText, rangeText,
-  runs, runText, tested,
+  callsFor, callValue, callWord, compareText, countsText, gainText, headline, lift, liftText, LIVE_MIN, liveLeads, liveNote, outcomeText,
+  rangeText, runs, runText, tested, worth,
 } from '../track';
 import type { Call, Counts, LiveTally, ReplayTally, Tally, Track } from '../types';
 import published from './track.fixture.json';
@@ -30,10 +30,10 @@ const recent: ReplayTally = {
 describe('headline', () => {
   it('is the tested figure until live calls lead: the last year of the replay when published, else the whole replay', () => {
     expect(headline(track(live(13, 5, { down: 13 }), recent), 'U91'))
-      .toEqual({ pct: 72, n: 342, live: false, text: 'Right 72% of the time', sub: 'tested on the year to 22 Oct' });
+      .toEqual({ pct: 72, n: 342, live: false, save: null, text: 'Right 72% of the time', sub: 'tested on the year to 22 Oct' });
     // a track.json from before 2026-11-11 has no `recent`, `by` or `base`
     expect(headline(track({ ...tally(13, 5, '2026-10-22', '2026-11-03'), since: '2026-10-22' }), 'U91'))
-      .toEqual({ pct: 84, n: 2062, live: false, text: 'Right 84% of the time', sub: 'tested on 2021–2026 prices' });
+      .toEqual({ pct: 84, n: 2062, live: false, save: null, text: 'Right 84% of the time', sub: 'tested on 2021–2026 prices' });
   });
   it('13 Wait calls from one falling fortnight do not replace the tested figure (the 38% tile of 2026-11-11)', () => {
     expect(headline(published as Track, 'U91')).toMatchObject({ live: false, pct: 72, sub: 'tested on the year to 22 Oct' });
@@ -75,6 +75,26 @@ describe('the tested figure', () => {
     expect(liftText({ pts: 2, rule: 'Wait', basePct: 48 })).toBe('About the same as always saying “Wait” (48%).');
     expect(lift(tally(10, 5))).toBeNull();
   });
+  it('leads with dollars saved against filling up the day you check (Reddit feedback 2026-11-20)', () => {
+    // U91, the year to 22 Oct 2026: the calls saved 2.22c a litre; "always Wait", right 48%, cost 0.65c
+    const money: ReplayTally = { ...recent, recent: { ...recent.recent!, save: 2.22, base: { cls: 'down', right: 164, save: -0.65 }, gss: 0.45 } };
+    const x = tested(track(none, money), 'U91')!;
+    expect(x).toMatchObject({ gain: 5.21, save: 2.22, baseSave: -0.65 });
+    expect(compareText(x, 50)).toBe('Always saying “Wait” was right 48% of the time but cost about $0.33 a tank.');
+    expect(headline(track(none, money), 'U91')).toMatchObject({ live: false, save: 2.22, sub: 'tested on the year to 22 Oct' });
+    expect(worth(2.22, 50)).toEqual({ amount: '$1.11', saved: true });
+    expect(worth(-1.2, 50)).toEqual({ amount: '$0.60', saved: false });
+    expect(worth(0.9, 50)).toBeNull();                                  // 45c a tank: too small to lead with
+    expect(worth(null, 50)).toBeNull();
+    expect(gainText(2.22, 50, true)).toBe('Following each call saved about $1.11 a tank on average, against filling up the day you check.');
+    // always Fill and always No rush fill the day you check: no dollars
+    const dl = tested(track(none, { ...tally(2098, 1829), save: 0.27, base: { cls: 'flat', right: 1790, save: 0 } }), 'U91')!;
+    expect(compareText(dl, 50)).toBe('Always saying “No rush” was right 85% of the time.');
+    // a track.json from before 2026-11-20 has no savings: the hit rate stays first
+    expect(compareText(tested(track(none, recent), 'U91')!, 50)).toBeNull();
+    expect(tested(track(none, recent), 'U91')).toMatchObject({ save: null, baseSave: null });
+    expect(headline(track(none, recent), 'U91')).toMatchObject({ save: null });
+  });
   it('puts the average value of a call on your tank', () => {
     expect(gainText(5.21, 50)).toBe('Following each call saved about $2.60 a tank on average.');
     expect(gainText(-1.2, 50)).toBe('Following each call cost about $0.60 a tank on average.');
@@ -97,6 +117,10 @@ describe('the live record', () => {
     expect(trackMessage(track(none), 'U91')).toBe(
       'Bowser’s fill-or-wait calls for Sydney Unleaded 91 were right 84% of the time, tested on 2021–2026 prices.\nhttps://checkbowser.app/');
     expect(trackMessage(track(none), 'DL')).toBeNull();
+    // with savings (track.json from 2026-11-20): dollars first, on your tank
+    const money: ReplayTally = { ...recent, recent: { ...recent.recent!, save: 2.22, base: { cls: 'down', right: 164, save: -0.65 } } };
+    expect(trackMessage(track(none, money), 'U91', 60)).toBe(
+      'Following Bowser’s fill-or-wait calls for Sydney Unleaded 91 saved about $1.33 a 60 L tank on average, against filling up the day you check (tested on the year to 22 Oct). Always saying “Wait” would have cost $0.39. Right 72% of the time.\nhttps://checkbowser.app/');
   });
 });
 

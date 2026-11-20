@@ -15,8 +15,8 @@ import { fuelName, nice } from '@/lib/format';
 import { useSettings } from '@/lib/settings';
 import { canShare, shareText, trackMessage } from '@/lib/share';
 import {
-  callsFor, callValue, callWord, countsText, gainText, liftText, LIVE_MIN, liveLeads, liveNote, MARK, outcomeText, rangeText, runs,
-  runText, STATUS_WORD, tested, type Run, type Tested,
+  callsFor, callValue, callWord, compareText, countsText, gainText, liftText, LIVE_MIN, liveLeads, liveNote, MARK, outcomeText, rangeText, runs,
+  runText, STATUS_WORD, tested, type Run, type Tested, worth,
 } from '@/lib/track';
 import type { Call, CallStatus, Counts, LiveTally } from '@/lib/types';
 
@@ -30,7 +30,7 @@ export default function TrackRecord() {
   const x = t ? tested(t, s.fuel) : null;
   const lead = liveLeads(live);
   const { pending, scored } = runs(t ? callsFor(t, s.fuel) : []);
-  const brag = t ? trackMessage(t, s.fuel) : null;
+  const brag = t ? trackMessage(t, s.fuel, s.tankL) : null;
   const liveCard = live?.since ? <LiveCard key="live" l={live} tankL={s.tankL} lead={lead} /> : null;
   const testedCard = x ? <TestedCard key="tested" x={x} tankL={s.tankL} lead={!lead} /> : null;
 
@@ -79,7 +79,7 @@ export default function TrackRecord() {
               The tested figure applies the same rule to the forecast model’s walk-forward test from 2021: each day predicted only from data before it. It’s compared with the best rule that ignores the forecast (always Fill, always Wait or always No rush), because some of those are right most days on their own.
             </T>
             <T kind="small" color={c.fg2}>
-              The dollar figures are what following the call was worth on your tank against filling at the week’s average: filling before a rise, or waiting through a fall. In the averages No rush counts as nothing gained or lost; a wrong No rush shows what the other call would have saved.
+              The headline dollars are what following the calls saved on your tank against one habit, filling up the day you check: a Wait saves (or costs) the week’s move, a Fill or No rush means filling that day, so nothing either way. “Always Wait” is priced the same way. Beside each call, the dollars are what it was worth against doing the opposite: filling before a rise, or waiting through a fall; a wrong No rush shows what the other call would have saved.
             </T>
           </Disclosure>
         </>
@@ -104,16 +104,40 @@ function Big({ pct, lead }: { pct: number; lead: boolean }) {
   );
 }
 
-/** The rule replayed on past prices, against the best rule that ignores the forecast */
+/** Dollars a tank, the tested card's lead when it matters (lib/track.ts worth) */
+function BigWorth({ w, lead }: { w: NonNullable<ReturnType<typeof worth>>; lead: boolean }) {
+  const c = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: Spacing.two, flexWrap: 'wrap' }}>
+      <T kind="hero" color={w.saved ? c.cheap : c.dear} style={lead ? { fontSize: 44, lineHeight: 50, letterSpacing: -1.2 } : undefined}>{w.amount}</T>
+      <T color={c.fg} style={{ fontWeight: '700' }}>{w.saved ? 'saved' : 'cost'} a tank, on average</T>
+    </View>
+  );
+}
+
+/** The rule replayed on past prices, against the rules that ignore the forecast: in dollars a tank first (since
+ *  2026-11-20), then how often it was right. A track.json without the base's dollars keeps the hit rate first. */
 function TestedCard({ x, tankL, lead }: { x: Tested; tankL: number; lead: boolean }) {
   const c = useTheme();
-  const gain = gainText(x.gain, tankL);
+  const w = worth(x.save, tankL);
+  const vs = compareText(x, tankL);
+  const gain = x.save != null ? gainText(x.save, tankL, true) : gainText(x.gain, tankL);
   return (
     <View style={[styles.hero, { backgroundColor: c.surface, borderColor: c.line }]}>
       <T kind="eyebrow">Tested on {x.period}</T>
-      <Big pct={x.pct} lead={lead} />
-      {x.lift ? <T kind="small" color={c.fg2}>{liftText(x.lift)}</T> : null}
-      {gain ? <T kind="small" color={c.fg2}>{gain}</T> : null}
+      {w && vs ? (
+        <>
+          <BigWorth w={w} lead={lead} />
+          <T kind="small" color={c.fg2}>Following each call, against filling up the day you check. Right {x.pct}% of the time.</T>
+          <T kind="small" color={c.fg2}>{vs}</T>
+        </>
+      ) : (
+        <>
+          <Big pct={x.pct} lead={lead} />
+          {x.lift ? <T kind="small" color={c.fg2}>{liftText(x.lift)}</T> : null}
+          {gain ? <T kind="small" color={c.fg2}>{gain}</T> : null}
+        </>
+      )}
       <T kind="small">
         What Bowser would have said on each of {x.n.toLocaleString('en-AU')} days, using only data from before that day.
         {x.n !== x.all.n ? ` Over ${x.all.years} it was right ${x.all.pct}% of the time.` : ''}
@@ -125,7 +149,7 @@ function TestedCard({ x, tankL, lead }: { x: Tested; tankL: number; lead: boolea
 /** The calls Bowser has actually made, as counts (a % of a handful of calls says little), with what they were worth */
 function LiveCard({ l, tankL, lead }: { l: LiveTally; tankL: number; lead: boolean }) {
   const c = useTheme();
-  const gain = gainText(l.gain, tankL);
+  const gain = l.save != null ? gainText(l.save, tankL, true) : gainText(l.gain, tankL);
   const note = liveNote(l);
   return (
     <View style={[styles.hero, { backgroundColor: c.surface, borderColor: c.line }]}>

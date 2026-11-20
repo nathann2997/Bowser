@@ -16,12 +16,16 @@ Scoring, one rule for both (Sydney medians from store/daily.csv):
   down (wait)     right if move <= -1c, wrong if >= +1c, else close
   flat (no rush)  right if |move| < 3c, wrong if >= 5c, else close
 Beside the right / close / wrong counts, every tally carries:
-  gain    the average value of following the call, c/L: fill +move, wait -move, no rush 0 (docs/RULE_ANALYSIS_2026-10.md)
+  save    the average saving against filling up the day you check, c/L (saved()): the figure the app leads with
+  gain    the same as `save` since 2026-11-20, for apps that read `gain`. Before, it scored a Fill against waiting and a
+          Wait against filling (two baselines, docs/RULE_ANALYSIS_2026-10.md), which overstated the saving 2 to 2.5x
   by      the counts per call type (up / down / flat)
 and each replay tally also carries:
   base    the best rule that never looks at the forecast (always fill, always wait or always no rush) and how many of
           the same days it got right: the hit rate to beat. Diesel rarely moves 3c in a week, so "always no rush" is
           right about 85% of the time there.
+          Also what that rule saved (`save`, c/L): "always wait" is right about half the time but costs money.
+  gss     the Gerrity skill score of the calls on three ordered outcomes (gerrity()): a check beside `save`, not shown
   recent  the same tally over the last RECENT_DAYS days of the replay (it ends when the backtest does, a week or more
           before today), with its own base: the like-for-like comparison
           for live calls, and the figure the app leads with (the 2021-on average hid a weak 2026).
@@ -90,23 +94,53 @@ def append(base, rows):
         w.writerows(rows)
 
 
-def value(cls, move):
-    """What following the call was worth, c/L: filling before a rise, or waiting through a fall; no rush is 0"""
-    return move if cls == "up" else -move if cls == "down" else 0.0
-
-
 def counts(rs):
     return {"n": len(rs), **{k: sum(r["status"] == k for r in rs) for k in ["right", "close", "wrong"]}}
+
+
+ORDER = ("down", "flat", "up")   # the calls as an ordered scale: a Fill before a fall is a bigger miss than before a flat week
+
+
+def gerrity(rs):
+    """Gerrity skill score of the calls against three ordered outcomes (fall: move <= -1c, rise: >= +1c, else flat): 1 is
+    perfect, 0 is no better than chance or any constant call, and a call two classes out costs more than one class out.
+    One outcome scale for every call (unlike `score`, where No rush has a wider band), so it's a check on the calls,
+    beside `save`, not the app's right / wrong. None when one of the outcomes never happened (the score is undefined)."""
+    K = len(ORDER)
+    obs = [0 if r["move"] <= -1 else 2 if r["move"] >= 1 else 1 for r in rs]
+    p = [obs.count(k) / len(rs) for k in range(K)] if rs else []
+    if not rs or min(p) == 0: return None
+    cum = [sum(p[:i + 1]) for i in range(K - 1)]
+    a = [(1 - c) / c for c in cum]
+    def s(i, j):   # i <= j, the scoring weight for a call in class i and an outcome in class j
+        return (sum(1 / a[r] for r in range(i)) - (j - i) + sum(a[r] for r in range(j, K - 1))) / (K - 1)
+    gss = sum(s(min(i, j), max(i, j)) for i, j in zip((ORDER.index(r["cls"]) for r in rs), obs)) / len(rs)
+    return round(gss, 3) + 0.0
+
+
+def saved(cls, move):
+    """What following the call saved against one fixed habit, filling up the day you check, c/L: waiting through a fall
+    saves -move; Fill and No rush mean filling now, so 0. Unlike the old `gain` (a Fill scored against waiting, a Wait against
+    filling: two baselines, until 2026-11-20), every call and every rule share this one, so they can be compared and averaged."""
+    return -move if cls == "down" else 0.0
+
+
+def mean_saved(cls, rs):
+    return round(sum(saved(cls, r["move"]) for r in rs) / len(rs), 2) + 0.0
 
 
 def one(rs, base=False):
     """The tally of scored rows (each: date, cls, move, status) for one fuel"""
     t = {**counts(rs), "from": min((r["date"] for r in rs), default=None), "to": max((r["date"] for r in rs), default=None),
-         "gain": round(sum(value(r["cls"], r["move"]) for r in rs) / len(rs), 2) + 0.0 if rs else None,
+         "save": round(sum(saved(r["cls"], r["move"]) for r in rs) / len(rs), 2) + 0.0 if rs else None,
          "by": {c: counts([r for r in rs if r["cls"] == c]) for c in ("up", "down", "flat")}}
+    t["gain"] = t["save"]   # what apps before 2026-11-20 show as "Following each call saved about $x a tank": now honest
     if base and rs:
-        best = max(("up", "down", "flat"), key=lambda c: sum(score(c, r["move"]) == "right" for r in rs))
-        t["base"] = {"cls": best, "right": sum(score(best, r["move"]) == "right" for r in rs)}
+        # `base` is the rule right most often, with what it saved on `save`'s scale: "always Wait" is right about half the
+        # time in Sydney's cycle but costs money, because the weeks it's wrong are the jumps (Reddit feedback 2026-11-20)
+        best = max(ORDER, key=lambda c: sum(score(c, r["move"]) == "right" for r in rs))
+        t["base"] = {"cls": best, "right": sum(score(best, r["move"]) == "right" for r in rs), "save": mean_saved(best, rs)}
+        t["gss"] = gerrity(rs)
     return t
 
 
@@ -193,4 +227,6 @@ def check(t):
                 if c["right"] + c["close"] + c["wrong"] != c["n"]: errs.append(f"{part} {name} counts {c}")
             if sum(v["n"] for v in s["by"].values()) != s["n"]: errs.append(f"{part} {f} by-call counts {s['by']}")
             if "base" in s and not 0 <= s["base"]["right"] <= s["n"]: errs.append(f"{part} {f} base {s['base']}")
+            for name, c in [(f, s), *([(f"{f} recent", s["recent"])] if "recent" in s else [])]:
+                if c.get("gss") is not None and not -1 <= c["gss"] <= 1: errs.append(f"{part} {name} gss {c['gss']}")
     return errs
