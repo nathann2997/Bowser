@@ -2,6 +2,17 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-20 — Web: PageSpeed fixes (branch `site/pagespeed`, on top of `site/simpler-dashboard`, not merged)
+
+Owner sent Google PageSpeed results for checkbowser.app: mobile 34 (CLS 0.74, TBT 1,830 ms, LCP 4.2 s, Chart.js render-blocking), desktop 43 (CLS 0.691, TBT 1,920 ms). Causes: the browser painted the empty page while the 1.4 MB HTML was still arriving, then the script filled it all at once (one shift, `div.today`); Chart.js loaded before the script; MapLibre (the default Map view) loaded and ran on every visit; the data was a 1.3 MB JavaScript literal.
+- **No jump on load:** `<html class="boot">` keeps everything below the header invisible until the first render (the script removes it, or on any error; `<noscript>` and an 8 s CSS fallback show the page if the script never runs). The "Prices as of" line keeps its height while empty.
+- **Chart.js** loads from the script (same version and SRI) when the charts come near the screen or "Predicted vs actual" opens. Both charts are in fixed-height boxes.
+- **The map** stays the default view; MapLibre starts loading when the map is on screen, on the first scroll, touch or key, or when the Map switch or "Show on map" is used.
+- **Data:** a `<script type="application/json">` block read with `JSON.parse` (the inline script's CSP hash no longer changes daily). `build.py` leaves the identical "Price only" advice off the 1,526 stations outside Sydney in the page's copy only (1.29 MB to 0.98 MB of data); the template restores it. The app's API (`data` in `export_api.py`) is unchanged.
+- **`export_api.py`:** the CSP step ignores the JSON data block when counting inline scripts and finds the Chart.js address in the loader. A literal `<script>` in a template comment still fails the export (it did once during this change).
+- Measured locally with the live data of 20 Nov, under the production CSP, median of 3 Lighthouse 12 runs: mobile 67 → 98 (CLS 0.74 → 0, LCP 3.2 → 2.0 s, TBT 170 → 0 ms), desktop 77 → 100 (CLS 0.646 → 0). This Mac's CPU is faster than PageSpeed's, so the real numbers show only after the next deploy.
+- QA (subagent audit): nothing blocking. Fixed from it: the CSS fallback for a script that never runs, stale map comments, listener cleanup when the Map switch loads the map, the build log's page size.
+
 ## 2026-11-20 — Web: a simpler dashboard (branch `site/simpler-dashboard`, not merged)
 
 A web user's feedback: the page has too much content, and the definitions are overwhelming. Only the dashboard (`template.html`) changed; the app, station pages and search pages are untouched. Measured on a 390 px wide screen with the live data of 20 Nov: the page went from 3,726 px to 3,010 px tall, words visible before opening anything from 539 to 358, and folds from 9 to 7.

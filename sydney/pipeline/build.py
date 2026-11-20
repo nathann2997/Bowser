@@ -136,8 +136,12 @@ data = {"stations": sta, "start": str(start.date()), "hist": hist, "tgp": tgp, "
         "suburbs": subs, "snap_asof": ST["asof"]}
 tpl = open(f"{BASE}/pipeline/template.html", encoding="utf-8").read()
 os.makedirs(f"{BASE}/out", exist_ok=True)
-# Escaped for an inline <script>: a station name from the NSW API containing "</script>" or "<!--" must not end the block.
-# \u003c etc. are the same characters to the JSON/JS parser. (ensure_ascii already escapes U+2028/U+2029.)
-js = json.dumps(data, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+# The page's copy leaves out the advice that is the same for every station outside Sydney (NA): [price, age] only,
+# and template.html puts it back. About a quarter of the page's data, which a phone has to parse before anything shows.
+# `data` itself stays whole: export_api.py publishes it as the app's API.
+page = {**data, "stations": [{**s, "p": {f: (v[:2] if s.get("out") and v[2:] == NA else v) for f, v in s["p"].items()}} for s in sta]}
+# Escaped for the inline <script type="application/json">: a station name from the NSW API containing "</script>" or
+# "<!--" must not end the block. \u003c etc. are the same characters to JSON.parse. (ensure_ascii already escapes U+2028/U+2029.)
+js = json.dumps(page, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 open(f"{BASE}/out/dashboard.html", "w", encoding="utf-8").write(tpl.replace("__DATA__", js))
-print("built", asof.date(), len(json.dumps(data)) // 1024, "KB", stats)
+print("built", asof.date(), len(json.dumps(data)) // 1024, "KB of data,", len(js) // 1024, "KB in the page", stats)
