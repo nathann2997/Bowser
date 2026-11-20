@@ -46,7 +46,7 @@ Either way, EAS keeps signing uploads with its key, which is then the **upload k
 ## Store listing
 
 - **App name:** `Bowser`. The brand rule is no descriptor after the name (`docs/BRAND.md`). The short description carries the search words.
-- **Short description (80 max):** `When to fill up in Sydney, and where fuel is cheapest near you.`
+- **Short description (80 max):** `Sydney petrol price forecast: fill up today or wait? Cheapest fuel across NSW.` (78 characters; 2026-11-20, so Play search matches "petrol price forecast" and "fuel", the words people search: `docs/SEO.md`. Before: `When to fill up in Sydney, and where fuel is cheapest near you.`)
 - **Full description (4000 max):**
 
 ```
@@ -55,6 +55,8 @@ Bowser is not a government app. It is independent and is not affiliated with, en
 Bowser tells you whether to fill up today or wait, and where fuel is cheapest near you.
 
 Sydney petrol prices move in cycles: they climb sharply, then drift down for weeks. Bowser reads every price NSW service stations report to the NSW Government's FuelCheck service, up to five times a day, and turns it into one plain call: fill now, or wait.
+
+The fuel price forecast is tested: replayed on every day since 2021 using only what was known at the time, and every live call is scored in public a week later.
 
 • Today's call for your fuel: Unleaded 91, E10, Premium 95 and 98, or Diesel
 • A 1, 3, 7 and 14-day outlook for Sydney prices, with a likely range
