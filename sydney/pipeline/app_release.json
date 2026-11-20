@@ -1,8 +1,8 @@
 {
   "android": {
-    "version": "1.0.0",
-    "url": "https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/429cfe06-7041-48da-a7eb-e30da3aa84ed",
-    "notes": "Bowser 1.0, ready for Google Play: the widget now lists stations near the area saved in Bowser instead of reading your location in the background, and More links to the privacy policy."
+    "version": "1.0.1",
+    "url": "https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/d0443e86-c4d1-475e-8d8b-f60155bc1832",
+    "notes": "Bowser 1.0.1: the welcome screen, Today, Stations, station pages and About now show where prices come from (NSW Government FuelCheck, with a link) and say plainly that Bowser is an independent app, not a government app."
   },
   "ios": null
 }
