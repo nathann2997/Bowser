@@ -213,9 +213,11 @@ footer details.srcs summary{cursor:pointer;color:var(--fg2)}
 footer details.srcs>div{margin-top:6px}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 @media (min-width:960px){.grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px}}
-/* the map (MapLibre + OpenFreeMap; the default view, loaded when it comes on screen or on the first scroll or touch): price tags as in app/src/components/station-map.tsx */
+/* the map (MapLibre + OpenFreeMap; the default view, loaded on the first mouse move, scroll, key or touch, or 5 s after load when on screen): price tags as in app/src/components/station-map.tsx */
 .mapcard{padding:0;overflow:hidden;position:relative;isolation:isolate}   /* isolate: the map's tags, buttons and bar (z-index up to 45) stack inside the card, so they can't show through the Filters panel when it opens over the map */
 #map{height:max(420px,min(860px,calc(100vh - 150px)));width:100%}
+#map:empty{display:flex;align-items:center;justify-content:center}
+#map:empty::before{content:"Loading the map…";color:var(--muted);font-size:13px}   /* until MapLibre fills the box */
 @media (max-width:560px){#map{height:max(340px,62vh)}}   /* on a phone the selected station's card fits under the map */
 /* In Map view the stations take the full width under the verdict, so the map is as big as the screen allows; the
    verdict card lies flat (words beside the 14-day line) so it fills the row and the map starts higher */
@@ -501,7 +503,8 @@ let state = {
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const fmt = (v,d=1) => (v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(d);   // a real minus sign, as in the station rows
 const day = (s,k) => new Date(Date.parse(s+"T00:00:00Z")+k*864e5).toISOString().slice(0,10);
-const nice = s => new Date(s+"T00:00:00Z").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
+const NICE = new Intl.DateTimeFormat("en-AU",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});   // one formatter: toLocaleDateString builds one per call
+const nice = s => { const d = new Date(s+"T00:00:00Z"); return isNaN(d) ? "–" : NICE.format(d); };   // format() throws on a bad date
 const daysBetween = (a,b) => Math.round((Date.parse(b)-Date.parse(a))/864e5);
 const fuelName = k => FUELS.find(f=>f[0]===k)[1];
 const n0 = (v, d=0) => v == null || !Number.isFinite(v) ? "–" : v.toFixed(d);
@@ -1035,7 +1038,7 @@ function renderFresh(){
 }
 
 
-// ---- the map: MapLibre GL with OpenFreeMap tiles (free, no key, no limits), the default view; loaded when it comes on screen or on the first scroll or touch (see mapNear).
+// ---- the map: MapLibre GL with OpenFreeMap tiles (free, no key, no limits), the default view; loaded on the first mouse move, scroll, key or touch, or 5 s after load when on screen (see mapNear).
 // Mirrors the app's map (app/src/components/station-map.tsx): every station passing the filters, shown as you pan and
 // zoom (no radius), grouped into numbered circles when zoomed out; tags coloured by the cheapest, middle and dearest
 // third of the stations in view; pinned stations always shown. The cheapest station in view is always its own, larger
@@ -1132,10 +1135,12 @@ function setFs(on){
   if (map) { try { on ? map.cooperativeGestures.disable() : map.cooperativeGestures.enable(); } catch {} map.resize(); }
 }
 
-// The map stays the first view, but its library (the page's heaviest code) starts loading only when the map is on screen,
-// the visitor first scrolls or touches the page, or the List/Map switch or "Show on map" is used. On a phone the map
-// starts below the verdict, so a visit that only reads the verdict doesn't pay for it, and the first scroll still gives
-// it a head start. The map's box has a fixed height, so filling it later moves nothing.
+// The map stays the first view, but its library and drawing (most of the page's work) wait for the visitor: the first
+// mouse move, scroll, key or touch, or the List/Map switch or "Show on map". On a phone the map starts below the verdict,
+// so a visit that only reads the verdict never pays for it. Where the map is on screen from the start (a computer), a
+// visitor who touches nothing still gets it 5 s after the page loads; until then the box says it's loading. Loading it
+// with the page held up the first seconds (PageSpeed desktop, 1.9 s of blocking). The box has a fixed height, so
+// filling it later moves nothing.
 let mapNear = !window.IntersectionObserver, mapGo = () => {};
 if (!mapNear) {
   const go = mapGo = () => {
@@ -1143,8 +1148,14 @@ if (!mapNear) {
     mapNear = true; io.disconnect(); EV.forEach(t => removeEventListener(t, go));
     if (state.view === "map" && MAP_OK) showMap();
   };
-  const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) go(); });
-  const EV = ["scroll", "pointerdown", "keydown", "touchstart"];
+  let later = 0;
+  const io = new IntersectionObserver(es => {
+    if (!es.some(e => e.isIntersecting) || later) return;
+    later = 1;
+    const wait = () => setTimeout(go, 5000);
+    if (document.readyState === "complete") wait(); else addEventListener("load", wait, {once: true});
+  });
+  const EV = ["pointermove", "wheel", "scroll", "pointerdown", "keydown", "touchstart"];
   EV.forEach(t => addEventListener(t, go, {passive: true}));
   io.observe($("map"));
 }
