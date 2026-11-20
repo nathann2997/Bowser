@@ -172,10 +172,6 @@ details.disc[open]>summary::after{content:"\2212"}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--fg2)}
 .legend i{display:inline-block;width:18px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
 .legend i.band{height:10px}
-.cards{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
-@media (min-width:720px){.cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.ins{display:flex;flex-direction:column;gap:4px}
-.ins .small{color:var(--fg2)}
 .brow{display:flex;align-items:center;gap:8px}
 .brow .bn{width:120px;font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .track{flex:1;height:16px;position:relative}
@@ -203,7 +199,10 @@ ul.clean b{color:var(--fg)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle}
 .ok{background:var(--down)} .warn{background:var(--up)}
 .folds{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}
-@media (min-width:960px){.folds{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (min-width:960px){.folds{grid-template-columns:repeat(3,minmax(0,1fr))}.folds.two{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.disc-body .eyebrow{margin-top:8px}
+footer details.srcs summary{cursor:pointer;color:var(--fg2)}
+footer details.srcs>div{margin-top:6px}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 @media (min-width:960px){.grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px}}
 /* the map (MapLibre + OpenFreeMap, loaded when the Map view opens, the default): price tags as in app/src/components/station-map.tsx */
@@ -338,31 +337,34 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
       <div class="sec-head"><div class="seg" id="range" role="group" aria-label="Time range"></div><div class="legend" id="legend"></div></div>
       <div class="chartbox"><canvas id="main" role="img" aria-label="Sydney pump price and wholesale price over time with forecast"></canvas></div>
     </div>
-    <div class="cards" id="insights"></div>
-    <div class="folds">
+    <div class="card stats" id="insights"></div>
+    <div class="folds two">
     <details class="disc"><summary>Cheapest brands today</summary><div class="disc-body">
       <div style="display:flex;flex-direction:column;gap:8px" id="brands"></div>
       <button class="btn" type="button" id="allBrands" hidden></button>
       <p class="small" id="brandNote"></p>
     </div></details>
-    <details class="disc"><summary>More facts</summary><div class="disc-body facts" id="facts"></div></details>
-    <details class="disc"><summary>About this chart</summary><div class="disc-body"><p class="small" style="color:var(--fg2)">Sydney median vs the wholesale price. The band shows the middle 80% of station prices; the dashed line is the forecast and the shaded fan its likely range. Hover to read any day.</p><p class="small" id="gapNote"></p></div></details>
+    <details class="disc"><summary>More facts and how to read the chart</summary><div class="disc-body">
+      <p class="small" style="color:var(--fg2)">The chart shows the Sydney median against the wholesale price. The band is the middle 80% of station prices; the dashed line is the forecast and the shaded fan its likely range. Hover to read any day.</p><p class="small" id="gapNote"></p>
+      <div class="facts" id="facts"></div>
+    </div></details>
     </div>
   </section>
 
   <section class="section" aria-labelledby="mh">
     <h2 class="q" id="mh">Can I trust it?</h2>
-    <div class="card stats" id="accStats"></div>
-    <p id="accLine" style="max-width:70ch"></p>
     <div class="card" id="trackCard" hidden>
       <div class="eyebrow" id="trackEyebrow"></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 6px"><span class="bignum" id="trackPct"></span><b>of calls right</b></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 6px"><span class="bignum" id="trackPct"></span><b id="trackWhat">of “fill or wait” calls right</b></div>
       <p class="small" id="trackLift" style="color:var(--fg2);max-width:70ch"></p>
-      <p class="small" id="trackLive" style="max-width:70ch"></p>
     </div>
-    <div class="grid2">
-      <div class="section">
-        <details class="disc"><summary>Accuracy by days ahead</summary><div class="disc-body">
+    <p id="accLine" style="max-width:70ch"></p>
+    <div class="folds">
+        <details class="disc"><summary>How it’s tested</summary><div class="disc-body">
+          <p class="small" id="trackHow" style="color:var(--fg2);max-width:70ch" hidden></p>
+          <p class="small" id="trackLive" style="max-width:70ch"></p>
+          <div class="stats" id="accStats"></div>
+          <p class="small" id="accTest" style="color:var(--fg2);max-width:70ch"></p>
           <div class="tablewrap"><table><thead><tr><th>Ahead</th><th class="n">No change</th><th class="n">Bowser</th><th class="n">Better by</th><th class="n">Direction</th></tr></thead><tbody id="btTable"></tbody></table></div>
           <p class="small" id="btNote"></p>
         </div></details>
@@ -374,22 +376,20 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
             <li><b>How it’s tested:</b> every month since Jan 2021 was forecast using only the data before it, including the 2022 and 2026 oil shocks. The likely ranges held about 8 in 10 outcomes in normal months and about 7 in 10 in shock months.</li>
             <li><b>Limits:</b> it reacts to oil and wholesale moves as they happen, but it can’t see wars, OPEC decisions or excise changes coming.</li>
           </ul>
+          <div class="eyebrow">Data freshness</div>
+          <div class="fresh" id="fresh"></div>
         </div></details>
-      </div>
-      <div class="section">
         <details class="disc" id="btBox"><summary>Predicted vs actual</summary><div class="disc-body">
           <p class="small">Sydney U91, 7-day change, last two years.</p>
           <div class="legend"><span><i style="background:var(--fg)"></i>Actual change</span><span><i style="background:var(--retail)"></i>Bowser’s forecast (made 7 days earlier)</span></div>
           <div class="chartbox" style="height:280px"><canvas id="bt" role="img" aria-label="Backtest predicted versus actual seven day change"></canvas></div>
         </div></details>
-        <details class="disc"><summary>Data freshness</summary><div class="disc-body fresh" id="fresh"></div></details>
-      </div>
     </div>
   </section>
 
   <footer>
-    <div>Sources: <a href="https://www.fuelcheck.nsw.gov.au/">NSW Government FuelCheck</a> API (live) and monthly price history on data.nsw.gov.au (© State of NSW, NSW Fair Trading, CC BY-SA 3.0 AU; adapted, with forecasts added); Australian Institute of Petroleum terminal gate prices; Brent crude from the U.S. Energy Information Administration (Refinitiv) and AUD/USD from the Reserve Bank of Australia (WM/Reuters). Sydney means postcodes 2000 to 2234, 2555 to 2574 and 2740 to 2786. Prices in Australian cents per litre including GST.</div>
-    <div>Forecasts are estimates for planning, not financial advice. Bowser is independent, not a government service, and is not affiliated with the NSW Government.</div>
+    <div>Data: <a href="https://www.fuelcheck.nsw.gov.au/">NSW Government FuelCheck</a> (© State of NSW, CC BY-SA 3.0 AU), with forecasts added. Forecasts are estimates for planning, not financial advice. Bowser is independent, not a government service, and is not affiliated with the NSW Government.</div>
+    <details class="srcs"><summary>Sources and definitions</summary><div>Sources: NSW Government FuelCheck API (live) and monthly price history on data.nsw.gov.au (© State of NSW, NSW Fair Trading, CC BY-SA 3.0 AU; adapted, with forecasts added); Australian Institute of Petroleum terminal gate prices; Brent crude from the U.S. Energy Information Administration (Refinitiv) and AUD/USD from the Reserve Bank of Australia (WM/Reuters). Sydney means postcodes 2000 to 2234, 2555 to 2574 and 2740 to 2786. Prices in Australian cents per litre including GST.</div></details>
     <!--SEO_LINKS-->
     <div>Visits are counted anonymously so we can see what helps: no cookies, and never your location, your area or your IP address.</div>
   </footer>
@@ -558,7 +558,7 @@ document.addEventListener("change", e => {   // the hero is redrawn, so its tank
   const el = e.target.closest?.("[data-tank]"); if (!el) return;
   state.tank = +el.value; store.set("tank", state.tank);
   const hero = $("hero"); hero.removeAttribute("aria-live");   // only the dollar figure changed: don't re-read the whole verdict
-  renderHero(); renderInsights();
+  renderHero(); renderInsights(); renderTrack();
   setTimeout(() => hero.setAttribute("aria-live", "polite"), 0);
   $("hero").querySelector("[data-tank]")?.focus();   // the redraw replaced it: keep keyboard focus
 });
@@ -879,13 +879,17 @@ function renderInsights(){
   const sinceJump = ST.last_restore ? daysBetween(ST.last_restore, CTX.asof) : null;
   const dow = ST.dow.map(v => v ?? 0), names = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
   const lo = dow.indexOf(Math.min(...dow)), hi = dow.indexOf(Math.max(...dow)), gap = ST.cycle_gap_calm;
-  // insights() in app/src/lib/copy.ts; the three that change what you do come first, the rest sit under More facts
+  // From insights() in app/src/lib/copy.ts, but the web deliberately shows less (user feedback 2026-11-20: too much
+  // text): three numbers with short labels, and their full explanations first under "More facts". Don't re-sync to the app.
   const key = [
-    ["Where we are now", sinceJump != null ? `${sinceJump} days` : "n/a", `since the last jump${ST.last_restore ? ` on ${nice(ST.last_restore)}` : ""}.${sinceJump != null && gap != null && sinceJump > gap ? " Longer than a normal cycle." : ""}`],
-    ["The Sydney cycle", gap != null ? `${Math.round(gap/7)} weeks` : "–", `Normally prices jump about ${n0(ST.cycle_amp_calm)}c every ${n0(gap)} days, then slide back slowly.`],
-    ["Shop around", `${n0(ST.shop_around)}c`, `How much less the cheapest 10% of stations charge than the median on a typical day${ST.shop_around != null ? `: about ${dollars(ST.shop_around, state.tank)} on a ${state.tank} L tank` : ""}.`],
+    [sinceJump != null ? `${sinceJump} days` : "–", "since prices last jumped"],
+    [gap != null ? `${Math.round(gap/7)} weeks` : "–", "a usual price cycle"],
+    [`${n0(ST.shop_around)}c`, "a litre less at the cheapest stations"],
   ];
   const more = [
+    ["Last jump", sinceJump != null ? `${sinceJump} days ago` : "–", `${ST.last_restore ? `On ${nice(ST.last_restore)}.` : ""}${sinceJump != null && gap != null && sinceJump > gap ? " Longer than a normal cycle." : ""}`],
+    ["The Sydney cycle", gap != null ? `${Math.round(gap/7)} weeks` : "–", `Normally prices jump about ${n0(ST.cycle_amp_calm)}c every ${n0(gap)} days, then slide back slowly.`],
+    ["Shop around", `${n0(ST.shop_around)}c`, `How much less the cheapest 10% of stations charge than the median on a typical day${ST.shop_around != null ? `: about ${dollars(ST.shop_around, state.tank)} on a ${state.tank} L tank` : ""}.`],
     ["Margin today", `${n0(ST.margin_now,1)}c`, `U91 over wholesale, against a typical ${n0(ST.margin_typ)}c. Thin margins usually end in a jump.`],
     ["Day of week", "under 1c", `${names[lo]} is cheapest and ${names[hi]} dearest, but the gap is under 1c. The cycle matters far more.`],
     ["Diesel premium", `${n0(ST.dl_gap_now)}c`, `Over U91 today, against ${n0(ST.dl_gap_2019_25)}c on average from 2019 to 2025.`],
@@ -893,7 +897,7 @@ function renderInsights(){
     ["Since 2019", `${n0(ST.low_2019)}c → ${n0(ST.high_all)}c`, `Sydney U91 median, from the 2020 low to the high on ${ST.high_date ? nice(ST.high_date) : "–"}.`],
     ["Oil today", `US$${n0(CTX.brent_usd)}`, `Brent crude a barrel, about A$${n0(CTX.brent_aud)} (${CTX.fred_last ? nice(CTX.fred_last) : "–"}).`],
   ];
-  $("insights").innerHTML = key.map(([t,b,p]) => `<div class="card ins"><div class="eyebrow">${t}</div><div class="bignum">${b}</div><p class="small">${p}</p></div>`).join("");
+  $("insights").innerHTML = key.map(([b,l]) => `<div><div class="bignum">${b}</div><div class="small">${l}</div></div>`).join("");
   $("facts").innerHTML = more.map(([t,b,p]) => `<div><div class="fh"><span class="eyebrow">${t}</span><b>${b}</b></div><p class="small" style="color:var(--fg2)">${p}</p></div>`).join("");
   const cs = cycleSummary(); $("cycle").textContent = cs; $("cycle").hidden = !cs;
 }
@@ -936,7 +940,7 @@ function renderBTTable(){
   const month = ym => { const [y,m] = ym.split("-").map(Number); return `${MO[m-1]} ${y}`; };
   if (!S[f+"|7"] || D.bt.auc[f] == null) {   // a fuel the backtest doesn't cover yet (P95 until its first monthly run)
     $("btTable").innerHTML = ""; $("accStats").innerHTML = "";
-    $("btNote").textContent = $("accLine").textContent = `${fuelName(f)} hasn’t been through the monthly accuracy test yet.`;
+    $("btNote").textContent = $("accLine").textContent = `${fuelName(f)} hasn’t been through the monthly accuracy test yet.`; $("accTest").textContent = "";
     return;
   }
   $("btTable").innerHTML = [1,3,7,14].map(h => { const r = S[f+"|"+h];
@@ -946,29 +950,40 @@ function renderBTTable(){
   $("accStats").innerHTML = [[`${r7[prod].toFixed(1)}c`, "average miss, 7 days ahead"], [`${Math.round(r7.dir*100)}%`, "right direction"], [`${r7.naive.toFixed(1)}c`, "if you assumed no change"]]
     .map(([b,l]) => `<div><div class="bignum">${b}</div><div class="small">${l}</div></div>`).join("");
   const better = Math.round((1 - r7[prod]/r7.naive)*100);
-  $("accLine").textContent = `${better > 0 ? `About ${better}% closer than assuming prices stay put. ` : ""}Tested on every month since ${month(D.bt.test_from)} for ${fuelName(f)}, using only the data available at the time.`;
+  $("accLine").textContent = better > 0 ? `About ${better}% closer than assuming prices stay put.` : `Tested on every month since ${month(D.bt.test_from)}.`;
+  $("accTest").textContent = `Price forecasts for ${fuelName(f)}, 7 days ahead${better > 0 ? `: about ${better}% closer than assuming prices stay put` : ""}. Tested on every month since ${month(D.bt.test_from)}, using only the data available at the time.`;
   $("btNote").textContent = `${fuelName(f)}: the average miss in cents a litre, forecasting each month from ${month(D.bt.test_from)} to ${month(D.bt.test_to)} with only the data before it. “No change” assumes today’s price holds. Direction is how often Bowser called the move right, for moves of 1c or more. Jump warnings score ${D.bt.auc[f].toFixed(2)} out of 1, where 0.5 is a coin toss.`;
 }
 // The daily call's track record (api/v1/track.json, track_api.py), worded as the app's Track record screen
 // (app/src/lib/track.ts: keep the two in step): the rule tested on the last year of the replay against the best rule
-// that ignores the forecast, then the live calls as counts. Unlike the app, live calls never take over the headline here. Only on the published site, where the API sits beside the page;
+// that ignores the forecast, then the live calls as counts. Unlike the app, live calls never take over the headline here. The web card is shorter than the app's on purpose (the method and live counts sit in a fold). Only on the published site, where the API sits beside the page;
 // anywhere else, or if the file is missing, the card stays hidden.
 let TRACK = null;
 function renderTrack(){
   const all = TRACK && TRACK.replay && TRACK.replay[state.fuel];
-  if (!all || !all.n) { $("trackCard").hidden = true; return; }
+  if (!all || !all.n) { $("trackCard").hidden = $("trackHow").hidden = true; $("trackLive").textContent = ""; $("accLine").hidden = false; return; }
   const pct = t => Math.round(t.right/t.n*100), word = {up:"Fill", down:"Wait", flat:"No rush"};
   const r = all.recent && all.recent.n >= 300 && all.recent.to ? all.recent : all;
-  $("trackEyebrow").textContent = r === all ? `Tested on ${all.from.slice(0,4)}–${all.to.slice(0,4)} prices` : `Tested on the year to ${nice(r.to)}`;
-  $("trackPct").textContent = pct(r) + "%";
-  let lift = "Each day’s “fill or wait” call, checked against the average Sydney price over the week after.";
+  $("trackEyebrow").textContent = r === all ? `${all.from.slice(0,4)}–${all.to.slice(0,4)}` : "Over the past year";
+  // Dollars saved a tank lead when track.json has them (`save`: against filling up the day you check) and they come to
+  // 50c or more, as the app's worth()/compareText(): a hit rate flatters "always Wait", which is right half the time but
+  // costs money on the jump weeks (Reddit feedback 2026-11-20). Else the hit rate leads, as before.
+  const L = state.tank, money = r.save != null && Math.abs(r.save)*L/100 >= 0.5;
+  $("trackPct").textContent = money ? dollars(r.save, L) : pct(r) + "%";
+  $("trackPct").style.color = money ? `var(${r.save > 0 ? "--cheap" : "--dear"})` : "";
+  $("trackWhat").textContent = money ? `${r.save > 0 ? "saved" : "lost"} on a ${L} L tank, on average, by following the “fill or wait” calls` : "of “fill or wait” calls right";
+  // The card says the result in one line; how it was checked sits under "How it's tested" (web only: user feedback 2026-11-20)
+  let lift = "";
   if (r.base) {
-    const b = Math.round(r.base.right/r.n*100), pts = pct(r) - b, rule = `always saying “${word[r.base.cls]}”`;
-    lift += pts >= 5 ? ` ${pts} points better than ${rule}, which was right ${b}% of the time.`
-      : pts <= -5 ? ` ${-pts} points worse than ${rule}, which was right ${b}% of the time.`
-      : ` About the same as ${rule} (${b}%)${r.base.cls === "flat" ? ": prices rarely moved enough here to test the calls" : ""}.`;
+    const b = Math.round(r.base.right/r.n*100), pts = pct(r) - b, rule = `always saying “${word[r.base.cls]}”`, bs = r.base.save;
+    lift = money && bs != null
+      ? `Right ${pct(r)}% of the time. ${rule[0].toUpperCase() + rule.slice(1)} was right ${b}%${bs <= -0.25 ? ` but cost about ${dollars(bs, L)} a tank` : bs >= 0.25 ? ` and saved about ${dollars(bs, L)} a tank` : ""}.`
+      : Math.abs(pts) >= 5 ? `By comparison, ${rule} was right ${b}% of the time.`
+      : `About the same as ${rule} (${b}%)${r.base.cls === "flat" ? ": prices rarely moved enough here to test the calls" : ""}.`;
   }
-  $("trackLift").textContent = lift;
+  $("trackLift").textContent = lift; $("trackLift").hidden = !lift;
+  $("trackHow").textContent = `${r === all ? `Tested on ${all.from.slice(0,4)}–${all.to.slice(0,4)} prices` : `Tested on the year to ${nice(r.to)}`}: each day’s “fill or wait” call, checked against the average Sydney price over the week after.${money ? " The dollars are against filling up the day you check: a Wait saves (or costs) the week’s move, a Fill or No rush means filling that day." : ""}`;
+  $("trackHow").hidden = false; $("accLine").hidden = true;
   const l = TRACK.live && TRACK.live[state.fuel];
   $("trackLive").textContent = l && l.n && l.since
     ? `Live calls since ${nice(l.since)}: ${l.n} scored, ${l.right} right, ${l.close} neutral (prices barely moved) and ${l.wrong} wrong.${l.pending ? ` ${l.pending} more await a result.` : ""}`
