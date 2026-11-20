@@ -15,14 +15,14 @@ One page per search intent, so pages don't compete with each other. Volumes are 
 
 | Searches | Page | Why Bowser can rank |
 |---|---|---|
-| bowser, check bowser, bowser fuel app | `/` (dashboard) | Brand. |
+| bowser, check bowser, bowser fuel app; should I fill up today, fill up now or wait | `/` (dashboard) | Brand, and the question the dashboard answers. Title since 2026-11-20: "Should you fill up today? Sydney fuel prices and forecast \| Bowser" (PetrolPulse builds its title on the same phrase). |
 | nsw fuel prices, sydney petrol prices, fuel prices sydney today, cheapest petrol sydney, petrol prices near me | `/fuel-prices/` | Today's median, the 15 cheapest, every suburb linked. |
 | petrol prices {suburb}, cheapest fuel {suburb}, {suburb} fuel prices | `/fuel-prices/{suburb}-{postcode}/` (384 today) | Long tail. Low competition per suburb, large in total. The main traffic source. |
 | {station name} fuel price, 7-eleven parramatta petrol price | `/station/{name}-{id}/` (864 today) | Very long tail; price history and a per-station forecast nobody else has. |
 | newcastle fuel prices, central coast petrol prices, wollongong fuel prices, canberra petrol prices | `/fuel-prices/{region}/` (23) | Median, 20 cheapest, the gap to Sydney, every suburb in the region. |
 | e10 price sydney, diesel price sydney, 98 petrol price, unleaded 91 price today | `/fuel-prices/{fuel}/` (5) | Median, 25 cheapest, 90-day chart, brand table. |
 | costco fuel price, 7-eleven fuel price, ampol/bp/shell petrol price, cheapest petrol brand | `/brands/`, `/brands/{brand}/` (22) | "costco fuel price" and "7 eleven fuel price" are among the largest fuel searches in Australia. |
-| fuel price forecast, petrol price forecast/prediction (sydney), petrol prices next week, will petrol go up/down this week or tomorrow, should I fill up today or wait | `/fuel-price-forecast/` | The product. Updated five times a day: a 60-day + 14-day chart, the call, tank savings, and question-style answers (FAQPage) with today's numbers. Every "next week / tomorrow / prediction" search belongs here, not on new pages. |
+| fuel price forecast, petrol price forecast/prediction (sydney), petrol prices next week, will petrol go up/down this week or tomorrow | `/fuel-price-forecast/` | The product. Updated five times a day: a 60-day + 14-day chart, the call, tank savings, and question-style answers (FAQPage) with today's numbers. Every "next week / tomorrow / prediction" search belongs here, not on new pages. |
 | how accurate is the fuel forecast, fuel price prediction accuracy | `/fuel-price-forecast/accuracy/` | No competitor publishes a track record (2026-11-20 review). Trust page for Google and for people deciding whether to believe the call. |
 | sydney petrol price cycle, petrol cycle sydney, where are we in the petrol cycle, is the petrol cycle back | `/petrol-price-cycle/` | Own data: a cycle-stage card, the latest jumps, cycle length by year. The ACCC's Sydney table is stale (stops in January 2026). |
 | best day to buy petrol (sydney), cheapest day to buy petrol, is tuesday the cheapest day for petrol, is petrol cheaper on weekends | `/best-day-to-buy-petrol/` | Split out of the cycle page on 2026-11-20 (FuelRadar ranks a dedicated page). The answer, "no day in Sydney", backed by Bowser's weekday figures. |

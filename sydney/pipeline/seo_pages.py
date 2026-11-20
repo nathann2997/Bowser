@@ -1620,9 +1620,11 @@ def home_head(stations, forecast, site=SITE):
     site = site.rstrip("/"); live = {r["fuel"]: r for r in forecast["live"]}
     r = live.get("U91") or next(iter(live.values())); v = (r.get("verdict") or {}).get("head", "")
     n = sum(usable(s) is not None for s in stations["stations"]); day = short_date(stations["asof"])
-    title = "Bowser: Sydney fuel prices today and when to fill up"
-    desc = (f"{NAME[r['fuel']]} is {c1(r['now'])}c/L in Sydney today ({day}). Bowser’s call: {v.lower()}. Live NSW FuelCheck prices for {n} stations, "
-            "a map of the cheapest near you and a 14-day fuel price forecast.")
+    # "Should you fill up today?" is the question the dashboard answers and the phrase PetrolPulse builds its title on
+    # (docs/SEO.md, competitors); the forecast page keeps "fuel price forecast … next week", so the two don't compete
+    title = "Should you fill up today? Sydney fuel prices and forecast | Bowser"
+    desc = (f"Should you fill up today? Bowser’s call for Sydney: {v.lower()}. {NAME[r['fuel']]} is {c1(r['now'])}c/L in Sydney today ({day}). "
+            f"Live NSW FuelCheck prices for {n:,} stations and a map of the cheapest near you.")
     org = {"@type": "Organization", "@id": site + "/#org", "name": "Bowser", "url": site + "/", "logo": site + "/apple-touch-icon.png"}
     ld = {"@context": "https://schema.org", "@graph": [
         org, {"@type": "WebSite", "@id": site + "/#site", "name": "Bowser", "alternateName": ["Check Bowser", "checkbowser.app"], "url": site + "/",
