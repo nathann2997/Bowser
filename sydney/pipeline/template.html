@@ -520,7 +520,8 @@ function brandSuburb(name, brand, suburb){
 }
 const PIN_SVG = `<svg class="pinmark" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>`;
 let MAP_OK = !!(window.Promise && window.Map);   // false once the map library fails to load: the page falls back to the list
-const updatedText = a => a == null ? "" : a === 0 ? "Updated today" : a === 1 ? "Updated 1 day ago" : `Updated ${a} days ago`;
+// Numbers from the data go into HTML as numbers (+x): never text, whatever the data holds
+const updatedText = a => a == null ? "" : +a === 0 ? "Updated today" : +a === 1 ? "Updated 1 day ago" : `Updated ${Math.round(+a)} days ago`;
 const mapsUrl = (la, lo) => `https://www.google.com/maps/search/?api=1&query=${+la},${+lo}`;
 
 // ---- the decision (verdict rule mirrored in export_api.py; outlook as app/src/lib/outlook.ts)
@@ -616,20 +617,20 @@ function stationRows(){
 // Skip for now and Check price always show (echoesSydney() in app/src/lib/copy.ts)
 const echoesSydney = (code, sydney) => sydney !== "act" && code !== "chk" && code !== "hi" && code !== "na" && ADVICE_TONE[code] === sydney;
 const rowLabel = (name, pinned, s) => `${name}${pinned ? ", pinned" : ""}, ${s.price.toFixed(1)} cents, ${s.adv[1]}`;
-const pinBtn = (i, name, pinned) => `<button type="button" class="chip" data-pin="${i}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(name)}">${pinned ? "Unpin" : "Pin"}</button>`;
+const pinBtn = (i, name, pinned) => `<button type="button" class="chip" data-pin="${+i}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(name)}">${pinned ? "Unpin" : "Pin"}</button>`;
 function stationItem(s, med, tone, where = "list"){
   const name = stationName(s.n), gap = s.price - med, stale = s.age != null && s.age > STALE_DAYS, pinned = isPinned(s.i);
   const gapTxt = Math.abs(gap) < 0.05 ? "at median" : `${gap < 0 ? "−" : "+"}${Math.abs(gap).toFixed(1)}c`;
   const quiet = echoesSydney(s.adv[0], tone);
   const chips = (quiet ? "" : `<span class="badge t-${ADVICE_TONE[s.adv[0]] || "calm"}">${esc(s.adv[1])}</span>`) + (stale ? `<span class="small up">${updatedText(s.age)}</span>` : "");
-  return `<details class="st${pinned ? " is-pinned" : ""}" id="st-${where}-${s.i}" data-i="${s.i}"><summary aria-label="${esc(rowLabel(name, pinned, s))}">
+  return `<details class="st${pinned ? " is-pinned" : ""}" id="st-${where}-${+s.i}" data-i="${+s.i}"><summary aria-label="${esc(rowLabel(name, pinned, s))}">
     <div class="st-main"><div class="st-name"><span>${esc(name)}</span>${PIN_SVG}</div>
       <div class="small st-sub">${esc(brandSuburb(name, s.b, s.s))}${s.d != null ? ` · ${s.d.toFixed(1)} km` : ""}${s.m ? " · Members" : ""}</div>
       ${chips ? `<div class="st-chips">${chips}</div>` : ""}</div>
     <div class="st-price"><div class="bignum">${s.price.toFixed(1)}</div><div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}">${gapTxt}</div></div>
   </summary><div class="st-more"><p>${esc(s.adv[2])}</p><div class="small">${[updatedText(s.age) + (stale ? " · check before driving" : ""), `${esc(s.s)} ${esc(s.pc)}`].filter(Boolean).join(" · ")}</div>
     <div class="st-actions">${pinBtn(s.i, name, pinned)}
-      ${MAP_OK ? `<button type="button" class="link" data-showmap="${s.i}">Show on map</button>` : ""}
+      ${MAP_OK ? `<button type="button" class="link" data-showmap="${+s.i}">Show on map</button>` : ""}
       <a class="link" href="${mapsUrl(s.la, s.lo)}" target="_blank" rel="noopener noreferrer">Directions →</a></div></div></details>`;
 }
 function brandOptions(){

@@ -11,6 +11,7 @@ Owner sent Google PageSpeed results for checkbowser.app: mobile 34 (CLS 0.74, TB
 - **Data:** a `<script type="application/json">` block read with `JSON.parse` (the inline script's CSP hash no longer changes daily). `build.py` leaves the identical "Price only" advice off the 1,526 stations outside Sydney in the page's copy only (1.29 MB to 0.98 MB of data); the template restores it. The app's API (`data` in `export_api.py`) is unchanged.
 - **`export_api.py`:** the CSP step ignores the JSON data block when counting inline scripts and finds the Chart.js address in the loader. A literal `<script>` in a template comment still fails the export (it did once during this change).
 - Measured locally with the live data of 20 Nov, under the production CSP, median of 3 Lighthouse 12 runs: mobile 67 → 98 (CLS 0.74 → 0, LCP 3.2 → 2.0 s, TBT 170 → 0 ms), desktop 77 → 100 (CLS 0.646 → 0). This Mac's CPU is faster than PageSpeed's, so the real numbers show only after the next deploy.
+- **CodeQL** (3 high, `js/xss-through-dom`): read from a DOM block, the data now counts as untrusted, and a price's age and a row's index went into HTML unescaped. Both are numbers from our own build, so it wasn't exploitable, but they are now forced to numbers (`+x`) where they enter the HTML.
 - QA (subagent audit): nothing blocking. Fixed from it: the CSS fallback for a script that never runs, stale map comments, listener cleanup when the Map switch loads the map, the build log's page size.
 
 ## 2026-11-20 — Web: a simpler dashboard (branch `site/simpler-dashboard`, not merged)
