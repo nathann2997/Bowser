@@ -1,5 +1,7 @@
-// The track record (track.json, sydney/pipeline/track_api.py) in words: the headline hit rate and what it's measured
-// against, what happened after each call, and what following it was worth on your tank.
+// The track record (track.json, sydney/pipeline/track_api.py) in words: what following the calls saved on your tank
+// against filling up the day you check (the headline since 2026-11-20: a hit rate flatters "always Wait", which is right
+// half the time but costs money on the jump weeks), the hit rate and what it's measured against, and what happened
+// after each call.
 import { nice } from './format';
 import { dollars } from './outlook';
 import type { Call, CallStatus, Counts, Fuel, LiveTally, TestedTally, Track, VerdictCls } from './types';
@@ -43,6 +45,8 @@ export type Tested = {
   by: TestedTally['by'];          // the counts per call type over the same period
   lift: Lift | null;
   gain: number | null;            // c/L a call, on average
+  save: number | null;            // c/L saved a call against filling up the day you check (null before 2026-11-20)
+  baseSave: number | null;        // the same for the hit-rate base (lift.rule), on the same days
   all: { pct: number; n: number; years: string };   // the whole replay
 };
 
@@ -56,21 +60,40 @@ export function tested(t: Track, fuel: Fuel): Tested | null {
   const lead = r.recent && r.recent.n >= RECENT_MIN ? r.recent : r;
   return {
     pct: pctOf(lead), n: lead.n, period: lead === r || !lead.to ? `${years} prices` : `the year to ${nice(lead.to, false)}`,
-    by: lead.by, lift: lift(lead), gain: lead.gain ?? null, all: { pct: pctOf(r), n: r.n, years },
+    by: lead.by, lift: lift(lead), gain: lead.gain ?? null, save: lead.save ?? null, baseSave: lead.base?.save ?? null,
+    all: { pct: pctOf(r), n: r.n, years },
   };
 }
 
-export type Headline = { pct: number; n: number; live: boolean; text: string; sub: string };
+/** save: c/L saved a call against filling up the day you check (null in a track.json without it); the tile leads with it
+ *  in dollars when it matters (worth()) */
+export type Headline = { pct: number; n: number; live: boolean; save: number | null; text: string; sub: string };
 
 /** The one number for Today's tile: live calls once they lead (liveLeads), until then the tested figure */
 export function headline(t: Track, fuel: Fuel): Headline | null {
   const live = t.live?.[fuel];
   if (liveLeads(live)) {
     const pct = pctOf(live);
-    return { pct, n: live.n, live: true, text: `Right ${pct}% of the time`, sub: `${live.n} live calls since ${nice(live.since ?? live.from!, false)}` };
+    return { pct, n: live.n, live: true, save: live.save ?? null, text: `Right ${pct}% of the time`, sub: `${live.n} live calls since ${nice(live.since ?? live.from!, false)}` };
   }
   const x = tested(t, fuel);
-  return x && { pct: x.pct, n: x.n, live: false, text: `Right ${x.pct}% of the time`, sub: `tested on ${x.period}` };
+  return x && { pct: x.pct, n: x.n, live: false, save: x.save, text: `Right ${x.pct}% of the time`, sub: `tested on ${x.period}` };
+}
+
+/** What following the calls saved on your tank against filling up the day you check, when it's worth leading with
+ *  (50c a tank either way): { amount: "$1.10", saved } */
+export function worth(save: number | null | undefined, tankL: number): { amount: string; saved: boolean } | null {
+  if (save == null || (Math.abs(save) * tankL) / 100 < 0.5) return null;
+  return { amount: dollars(save, tankL), saved: save > 0 };
+}
+
+/** The hit-rate base in dollars on the same scale: "Always saying “Wait” was right 48% of the time but cost about $0.33 a
+ *  tank." Null in a track.json from before 2026-11-20 (no base saving): liftText stands alone then. Always Fill and
+ *  always No rush save nothing on this scale (they fill the day you check), so they get no dollars. */
+export function compareText(x: Tested, tankL: number): string | null {
+  if (!x.lift || x.baseSave == null) return null;
+  const g = x.baseSave, s = `Always saying “${x.lift.rule}” was right ${x.lift.basePct}% of the time`;
+  return g <= -0.25 ? `${s} but cost about ${dollars(g, tankL)} a tank.` : g >= 0.25 ? `${s} and saved about ${dollars(g, tankL)} a tank.` : `${s}.`;
 }
 
 export const MARK: Record<CallStatus, string> = { right: '✓', close: '≈', wrong: '✗', pending: '…' };
@@ -80,10 +103,11 @@ export const STATUS_WORD: Record<CallStatus, string> = { right: 'Right', close: 
 /** "5 right · 8 neutral · 0 wrong" */
 export const countsText = (c: Counts, sep = ' · ') => `${c.right} right${sep}${c.close} neutral${sep}${c.wrong} wrong`;
 
-/** What following a call was worth on your tank on average; null when it's too small to matter (under 0.25c a litre) */
-export function gainText(gain: number | null | undefined, tankL: number): string | null {
+/** What following a call was worth on your tank on average; null when it's too small to matter (under 0.25c a litre).
+ *  vsToday: the figure is Tally.save (against filling up the day you check), so the sentence says so */
+export function gainText(gain: number | null | undefined, tankL: number, vsToday = false): string | null {
   if (gain == null || Math.abs(gain) < 0.25) return null;
-  return `Following each call ${gain > 0 ? 'saved' : 'cost'} about ${dollars(gain, tankL)} a tank on average.`;
+  return `Following each call ${gain > 0 ? 'saved' : 'cost'} about ${dollars(gain, tankL)} a tank on average${vsToday ? ', against filling up the day you check' : ''}.`;
 }
 
 /** The caveat on a young live record: every scored call so far is the same call, so only half the rule is tested */

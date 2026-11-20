@@ -4,6 +4,8 @@ Question: can the track record improve Bowser's advice? Data: the walk-forward b
 
 ## Findings
 
+> **2026-11-20:** the c/L figures here use `gain`, which scores a Fill against waiting and a Wait against filling (two baselines), so they are larger than a saving against any one habit. Against filling up the day you check (`save` in `track_api.py`), U91 2021–26 is 2.8c a litre, hindsight 3.2c. The gap between `gain` and `save` is the average move on Fill days, which differs by rule, so the rankings of cut-offs below should be re-checked on `save` before relying on them. See CHANGELOG 2026-11-20.
+
 1. **The cut-offs are fine.** The current rule (`verdict()` in `export_api.py`) earns 5.0 c/L per call, against 5.73 c/L for perfect hindsight: 87% of what's possible (about $2.50 of $2.87 on a 50 L tank). The best of ~12,000 cut-off combinations adds 0.06–0.09 c/L (under 5c a tank). Rules that maximise "% right" earn less money (they say No rush and Wait more), which confirms scoring by money, not hit rate. **No change.**
 2. **The jump chance is reasonably honest.** In 2025–26 predicted and actual jump rates line up from 25% upward (e.g. 0.42 → 0.43, 0.73 → 0.71). Its weakness is jumps it rates near zero: days given under 5% saw a 7-day jump 8% of the time in 2025–26 (0.8% predicted). Recalibration wouldn't fix that.
 3. **2026 is the real problem.** The rule captured 84–94% of the possible value each year 2021–25, but 64% in 2026. Prices followed wholesale in big sustained swings (U91 ~210c in early March → 260c late March → 150c late June → 239c late September), and the model, which is built around Sydney's price cycle, read sustained rises as the usual post-peak fall:

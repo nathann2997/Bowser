@@ -1,5 +1,5 @@
 // The evidence that Bowser is worth it, as tappable tiles on Today: your savings under the verdict (once you've logged a
-// fill; opens /savings), and how often its calls were right at the foot of the page (opens /track).
+// fill; opens /savings), and what following its calls was worth at the foot of the page (opens /track).
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -10,7 +10,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useHistory, useTrack } from '@/lib/api';
 import { useFills } from '@/lib/fills';
 import { useSettings } from '@/lib/settings';
-import { headline } from '@/lib/track';
+import { headline, worth } from '@/lib/track';
 import { money, roundCents, summarise } from '@/lib/savings';
 
 /** Your savings, under Today's verdict, once you've logged a fill */
@@ -34,13 +34,30 @@ export function SavingsStrip() {
   );
 }
 
-/** How often Bowser’s calls were right, at the foot of Today (your stations come first): the tested figure for the
- *  replay's last year until enough live calls are scored (lib/track.ts headline) */
+/** What following Bowser’s calls saved on your tank against filling up the day you check, at the foot of Today (your stations come first): the tested
+ *  figure for the replay's last year until enough live calls are scored (lib/track.ts headline). How often they were
+ *  right when the dollars are too small to lead with, or a track.json has none. */
 export function TrackStrip() {
   const tq = useTrack();
-  const { fuel } = useSettings();
+  const { fuel, tankL } = useSettings();
   const h = tq.data ? headline(tq.data, fuel) : null;
   if (!h) return null;
+  const w = worth(h.save, tankL);
+  if (w) {
+    const verb = w.saved ? 'saved' : 'cost';
+    return (
+      <View style={styles.strip}>
+        <Tile
+          eyebrow={`Following the calls ${verb}`}
+          big={`${w.amount} a tank`}
+          tone={w.saved ? 'cheap' : 'dear'}
+          sub={h.sub}
+          a11y={`Following Bowser’s calls ${verb} about ${w.amount} a tank on average against filling up the day you check, ${h.sub}. Right ${h.pct}% of the time. Opens the track record`}
+          onPress={() => router.push('/track')}
+        />
+      </View>
+    );
+  }
   return (
     <View style={styles.strip}>
       <Tile

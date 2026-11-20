@@ -52,9 +52,38 @@ class Tally(unittest.TestCase):
     def test_base_is_the_best_rule_that_ignores_the_forecast(self):
         # prices barely move: "always no rush" is right every day, whatever was called
         quiet = [row("down", -0.5), row("up", 0.5), row("flat", 0.2), row("down", -1.5)]
-        self.assertEqual(T.one(quiet, base=True)["base"], {"cls": "flat", "right": 4})
+        self.assertEqual(T.one(quiet, base=True)["base"], {"cls": "flat", "right": 4, "save": 0.0})
         falling = [row("down", -6), row("down", -4), row("up", 5)]
-        self.assertEqual(T.one(falling, base=True)["base"], {"cls": "down", "right": 2})
+        self.assertEqual(T.one(falling, base=True)["base"], {"cls": "down", "right": 2, "save": 1.67})
+
+    def test_save_is_against_filling_the_day_you_check(self):
+        self.assertEqual([T.saved("down", -4), T.saved("down", 2), T.saved("up", 5), T.saved("flat", -9)], [4, -2, 0.0, 0.0])
+        t = T.one([row("up", 3), row("down", -4), row("down", 2), row("flat", -9)])
+        self.assertEqual((t["gain"], t["save"]), (1.25, 0.5))                   # save: (0 + 4 - 2 + 0) / 4
+        self.assertIsNone(T.one([])["save"])
+
+    def test_base_carries_what_it_saved(self):
+        # Sydney's cycle: slow falls most days, a big jump now and then. "Always wait" is right most often but costs money
+        cycle = [row("down", -1.5)] * 6 + [row("up", 12)]
+        t = T.one(cycle, base=True)
+        self.assertEqual(t["base"], {"cls": "down", "right": 6, "save": -0.43})   # (6 x 1.5 - 12) / 7
+        self.assertEqual(t["save"], 1.29)                                          # the calls: 6 x 1.5 / 7
+        self.assertEqual(T.one([row("up", 4)], base=True)["base"]["save"], 0.0)   # always fill: 0 by definition
+
+    def test_gerrity(self):
+        rs = [row(c, m) for c, m in [("down", -3), ("flat", 0), ("up", 4), ("down", -2), ("up", 1), ("flat", 0.5)]]
+        self.assertEqual(T.gerrity(rs), 1.0)                                       # every call in the right class
+        for c in T.ORDER:                                                          # any constant call scores 0
+            self.assertEqual(T.gerrity([dict(r, cls=c) for r in rs]), 0.0)
+        flipped = [dict(r, cls={"up": "down", "down": "up", "flat": "flat"}[r["cls"]]) for r in rs]
+        self.assertLess(T.gerrity(flipped), 0)
+        # a two-class miss costs more than a one-class miss
+        one_off = [dict(r, cls="flat") if r["cls"] == "up" else r for r in rs]
+        two_off = [dict(r, cls="down") if r["cls"] == "up" else r for r in rs]
+        self.assertGreater(T.gerrity(one_off), T.gerrity(two_off))
+        self.assertIsNone(T.gerrity([row("down", -3), row("up", 4)]))             # no flat week: undefined
+        self.assertIsNone(T.gerrity([]))
+        self.assertEqual(T.one(rs, base=True)["gss"], 1.0)
 
     def test_pending_rows_are_not_tallied(self):
         rows = [row("down", -6), {"date": "2026-01-02", "fuel": "U91", "cls": "down", "move": None, "status": "pending"}]

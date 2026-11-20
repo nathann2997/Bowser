@@ -177,12 +177,15 @@ export type Counts = { n: number; right: number; close: number; wrong: number };
 export type Tally = Counts & {
   from: string | null; to: string | null;
   gain?: number | null;           // average value of following the call, c/L: fill +move, wait −move, no rush 0
+  save?: number | null;           // (from 2026-11-20) average saving against filling up the day you check, c/L: wait −move, else 0
   by?: Partial<Record<VerdictCls, Counts>>;   // the counts per call type
 };
 
-/** The best rule that never looks at the forecast (always fill / wait / no rush), and how many of the same days it got right */
-export type Baseline = { cls: VerdictCls; right: number };
-export type TestedTally = Tally & { base?: Baseline };
+/** The best rule that never looks at the forecast (always fill / wait / no rush), and how many of the same days it got right.
+ *  `save` (from 2026-11-20): what that rule saved, on Tally.save's scale */
+export type Baseline = { cls: VerdictCls; right: number; save?: number };
+/** gss (from 2026-11-20): Gerrity skill score of the calls, a pipeline check (not shown) */
+export type TestedTally = Tally & { base?: Baseline; gss?: number | null };
 export type ReplayTally = TestedTally & { recent?: TestedTally };   // recent: the last 365 days of the replay
 export type LiveTally = Tally & { since: string | null; pending?: number };   // pending: calls not scored yet
 
