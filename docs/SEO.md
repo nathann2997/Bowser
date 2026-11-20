@@ -97,6 +97,9 @@ Desk research with a US-based search tool. These are the pages that kept coming 
 | **PetrolSpy** | Map, cycle graphs, price-spike notifications in its app, paid API. | The app already has local price-rise alerts; web email alerts are not built. |
 | **RACQ / RACV / RAC WA, FuelWatch** | Cycle explainers for their own state; FuelWatch publishes tomorrow's actual prices in WA. | Out of scope (no data outside NSW). The best-day page points to the ACCC and FuelWatch for other cities. |
 | **Petrol Price Predictor** (connectingthedots.com.au) | Claims 30-day predictions per station in 4 states; shows no accuracy figures. | The accuracy page is the answer: a tested, public record. |
+| **PetrolPulse** (`petrolpulse.com.au`), the closest rival | Homepage title "Fuel Price Forecast Australia — Should You Fill Up Today?". A fill-or-wait call for 8 capitals and 12 regional cities (`/petrol-prices/{city}`), oil + AUD + cycle signals, `/forecast-accuracy` (86% right on 8,471 replayed calls since April 2026, scored with lenient rules: a fill is right unless prices fall 3c+, a wait is right if any cheaper day follows, and days without a strong call are left out), a methodology page, founder byline and ABN, "Market Pulse" news, alerts, route planner, trip calculator, fuel shortage map, iOS and Android apps. No suburb or station pages; the Sydney page contradicts itself (600 vs 847 stations, 18–28 vs 35-day cycle). | Win on depth: crawlable suburb and station pages, a test back to 2021 with error in c/L, stricter scoring, a live log of every call. Lose on breadth (they cover every capital), authorship, and news cadence. |
+| **Fuel Daddy** (`fueldaddy.com.au`) | 8,100+ stations in every state; suburb pages (`/locations-{state}/{suburb}/`), brands, a Costco page, an outage tracker, calculators, embeddable widgets, iOS app with price-drop alerts, "no ads". `/fuel-price-forecast/` places each of 32 cities within its last 14 days' range: a rule of thumb, with no test. On 20 Nov it said "Fill now" for Sydney while prices were falling. | Their forecast is a rule of thumb; ours is tested. They match us on suburb pages nationally. The widgets and outage tracker are the features to note. |
+| **ConnectingTheDots** (`connectingthedots.com.au/services/data-analytics/petrol/`) | A marketing page for a 30-day per-station predictor (NSW, QLD, SA, WA metro); the app runs on a dynamic-DNS address. No accuracy, method or FAQ. Funded by donations. | Not a search threat. |
 | **News** (CarExpert, Yahoo, 9News, SMH) | "Prices tipped to rise" articles quoting NRMA or the ACCC. | A pitch angle: the forecast with its public record (Owner to do, item 4). |
 
 ### Features competitors have that Bowser doesn't (not built)
@@ -109,7 +112,9 @@ In rough order of value:
 6. **Author and method pages** (Finder has named authors and a "why trust us" page): a named person behind Bowser on /about/ would help E-E-A-T.
 7. **Longer history charts** (1 year, all time) on fuel and station pages; the data is already in `history.json`.
 8. **A 7-Eleven fuel price lock guide** tied to the forecast ("lock now: a jump is likely").
-9. **Pages for other cities** (Melbourne, Brisbane, Adelaide, Perth): skipped. There's no data for them, so they'd be thin pages.
+9. **A fuel outage tracker** (PetrolPulse, Fuel Daddy: "233 stations out of fuel"): a search topic during the 2026 shortages. It needs a dependable out-of-stock signal from FuelCheck, which hasn't been checked.
+10. **Trip cost calculator and route planner** (PetrolPulse, Fuel Daddy).
+11. **Pages for other cities** (Melbourne, Brisbane, Adelaide, Perth): skipped. There's no data for them, so they'd be thin pages.
 
 ## Next
 - **Regions** (done 2026-11-17: 23 region pages, the hub retitled for NSW). Watch which regions get searches and add centres to `REGIONS` where a town is missing.
