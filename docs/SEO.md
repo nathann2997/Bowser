@@ -22,8 +22,11 @@ One page per search intent, so pages don't compete with each other. Volumes are 
 | newcastle fuel prices, central coast petrol prices, wollongong fuel prices, canberra petrol prices | `/fuel-prices/{region}/` (23) | Median, 20 cheapest, the gap to Sydney, every suburb in the region. |
 | e10 price sydney, diesel price sydney, 98 petrol price, unleaded 91 price today | `/fuel-prices/{fuel}/` (5) | Median, 25 cheapest, 90-day chart, brand table. |
 | costco fuel price, 7-eleven fuel price, ampol/bp/shell petrol price, cheapest petrol brand | `/brands/`, `/brands/{brand}/` (22) | "costco fuel price" and "7 eleven fuel price" are among the largest fuel searches in Australia. |
-| fuel price forecast, will petrol prices go up/down this week, when to buy petrol sydney, petrol price prediction | `/fuel-price-forecast/` | The product. Updated five times a day with a public track record. |
-| sydney petrol price cycle, petrol cycle sydney, cheapest day to buy petrol | `/petrol-price-cycle/` | Own data: days since the last jump, cycle length by year, the weekday myth with numbers. |
+| fuel price forecast, petrol price forecast/prediction (sydney), petrol prices next week, will petrol go up/down this week or tomorrow, should I fill up today or wait | `/fuel-price-forecast/` | The product. Updated five times a day: a 60-day + 14-day chart, the call, tank savings, and question-style answers (FAQPage) with today's numbers. Every "next week / tomorrow / prediction" search belongs here, not on new pages. |
+| how accurate is the fuel forecast, fuel price prediction accuracy | `/fuel-price-forecast/accuracy/` | No competitor publishes a track record (2026-11-20 review). Trust page for Google and for people deciding whether to believe the call. |
+| sydney petrol price cycle, petrol cycle sydney, where are we in the petrol cycle, is the petrol cycle back | `/petrol-price-cycle/` | Own data: a cycle-stage card, the latest jumps, cycle length by year. The ACCC's Sydney table is stale (stops in January 2026). |
+| best day to buy petrol (sydney), cheapest day to buy petrol, is tuesday the cheapest day for petrol, is petrol cheaper on weekends | `/best-day-to-buy-petrol/` | Split out of the cycle page on 2026-11-20 (FuelRadar ranks a dedicated page). The answer, "no day in Sydney", backed by Bowser's weekday figures. |
+| petrol prices christmas (sydney), will petrol go up before christmas, petrol prices holidays | `/petrol-prices-christmas/` | Every Christmas since 2019 from Bowser's own history, plus this year's outlook. One evergreen address, so it builds links year on year. |
 | nsw fuel check, fuelcheck nsw, fuel check app, fuelcheck prices | `/nsw-fuelcheck/` | See the next section. |
 
 ### "NSW FuelCheck" searches
@@ -81,6 +84,32 @@ What decides whether an assistant can find and quote Bowser, and where it stands
 - **Is the answer easy to lift?** Each page opens with one sentence that answers its question with a number and a place, and carries its date; the hub has short question-and-answer blocks; structured data says what each page is. Done.
 - **`/llms.txt`:** a plain summary of the site, today's numbers, the main pages and the data files. It is a proposed convention that few crawlers read yet; it costs nothing and is there for those that do.
 - **Can they trust it?** Sources are credited on every page, the forecast's track record is public, and About says who runs it. The weak point is the same as for Google: no other site links here yet.
+
+## Competitors for forecast searches (reviewed 2026-11-20)
+Desk research with a US-based search tool. These are the pages that kept coming up, not measured Google AU positions, and no People Also Ask box was seen. Check against Search Console queries in December 2026, once real data is in.
+
+| Who | What they do for "will it go up / when to buy" | What Bowser does about it |
+|---|---|---|
+| **ACCC** (`accc.gov.au/…/petrol-price-cycles-in-the-5-largest-cities`) | A text buying tip per city (updated Mon/Wed/Fri), a 45-day chart, and a table of the last 5 cycles. Its Sydney table stops at a 27 Jan 2026 peak and it says cycles "have mostly not occurred" since late February. No structured data. | The cycle page shows a current stage, the latest jumps and an honest answer to "is the cycle still running?" (jumps are back but smaller: 8 in the last 12 months, typically 26c against 37c in normal years). |
+| **Finder** (`finder.com.au/fuel`) | The closest product: a "Should you fill up today?" widget for 5 cities (cycle stage, predicted low, saving with a tank slider), station map, history charts. Article + Dataset + Person-author schema. Updated about monthly. | Forecast page now has the tank-savings table, a forecast chart, a Dataset block and question answers; daily freshness beats theirs. Their author pages and editorial policy are the E-E-A-T gap (see below). |
+| **NRMA** (`mynrma.com.au` weekly fuel report, press releases) | A written Monday outlook ("expected to fall to the high 210s this week") and a press release for each long weekend. | Not copied yet: dated weekly outlook pages need saved snapshots (below). The Christmas page covers the biggest holiday. |
+| **FuelRadar** (`fuelradar.com.au`) | Programmatic FuelCheck pages per city, suburb and fuel, plus "best day to buy fuel in {city}" pages. Prices up to months old on some suburb pages. | Bowser already has suburb, station and fuel pages with fresher data and a call; added a dedicated best-day page. |
+| **PetrolSpy** | Map, cycle graphs, price-spike notifications in its app, paid API. | The app already has local price-rise alerts; web email alerts are not built. |
+| **RACQ / RACV / RAC WA, FuelWatch** | Cycle explainers for their own state; FuelWatch publishes tomorrow's actual prices in WA. | Out of scope (no data outside NSW). The best-day page points to the ACCC and FuelWatch for other cities. |
+| **Petrol Price Predictor** (connectingthedots.com.au) | Claims 30-day predictions per station in 4 states; shows no accuracy figures. | The accuracy page is the answer: a tested, public record. |
+| **News** (CarExpert, Yahoo, 9News, SMH) | "Prices tipped to rise" articles quoting NRMA or the ACCC. | A pitch angle: the forecast with its public record (Owner to do, item 4). |
+
+### Features competitors have that Bowser doesn't (not built)
+In rough order of value:
+1. **Web alerts** ("a jump is coming"): email or browser push from the site. PetrolSpy and FuelWatch have them; Bowser's alerts live only in the app.
+2. **Weekly outlook pages** (NRMA style): one dated address a week with an archive. Needs a weekly snapshot of the forecast saved on the `data` branch, because the pages are rebuilt from today's data only and `track.json` keeps calls without their ranges.
+3. **Long-weekend pages** (Easter, Anzac Day, King's Birthday, Labour Day, Australia Day), on the Christmas page's pattern.
+4. **An interactive "fill up today?" widget** with a tank slider (Finder). The static tank table covers the search side; a slider means new script, which every page's CSP hash has to allow.
+5. **A free embeddable cycle-stage badge** for local news and community sites: a source of links.
+6. **Author and method pages** (Finder has named authors and a "why trust us" page): a named person behind Bowser on /about/ would help E-E-A-T.
+7. **Longer history charts** (1 year, all time) on fuel and station pages; the data is already in `history.json`.
+8. **A 7-Eleven fuel price lock guide** tied to the forecast ("lock now: a jump is likely").
+9. **Pages for other cities** (Melbourne, Brisbane, Adelaide, Perth): skipped. There's no data for them, so they'd be thin pages.
 
 ## Next
 - **Regions** (done 2026-11-17: 23 region pages, the hub retitled for NSW). Watch which regions get searches and add centres to `REGIONS` where a town is missing.

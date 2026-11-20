@@ -12,7 +12,10 @@ tests (test_seo_pages.py) run it on small made-up dicts. docs/SEO.md has the key
   OUT/station/{name}-{id}/            one per station: prices, 90-day history, forecast, nearby alternatives
   OUT/brands/, OUT/brands/{brand}/    brands with 3+ stations
   OUT/fuel-price-forecast/            guide: this week's outlook and how the forecast is made and tested
-  OUT/petrol-price-cycle/             guide: the Sydney price cycle and where it is now
+  OUT/fuel-price-forecast/accuracy/   the forecast's track record: replayed and live calls, error against "no change"
+  OUT/petrol-price-cycle/             guide: the Sydney price cycle, where it is now, the recent jumps
+  OUT/best-day-to-buy-petrol/         guide: the weekday myth with Bowser's own numbers, and what to watch instead
+  OUT/petrol-prices-christmas/        guide: what Sydney prices did over each Christmas since 2019, and this year's outlook
   OUT/nsw-fuelcheck/                  guide: what NSW FuelCheck is and how Bowser uses it
   OUT/about/, OUT/privacy/            who runs the site, what is counted
   OUT/404.html, OUT/robots.txt, OUT/sitemap.xml, OUT/llms.txt (a plain summary for AI assistants)
@@ -30,7 +33,9 @@ NAME = {"U91": "Unleaded 91", "E10": "E10", "P95": "Premium 95", "P98": "Premium
 SHORT = {"U91": "U91", "E10": "E10", "P95": "95", "P98": "98", "DL": "Diesel"}
 FSLUG = {"U91": "unleaded-91", "E10": "e10", "P95": "premium-95", "P98": "premium-98", "DL": "diesel"}
 TONE = {"now": "act", "by": "act", "wait": "wait", "hi": "wait", "up": "act", "down": "wait"}   # anything else: calm
-OWN = ["fuel-prices", "station", "brands", "fuel-price-forecast", "petrol-price-cycle", "nsw-fuelcheck", "about", "privacy"]
+OWN = ["fuel-prices", "station", "brands", "fuel-price-forecast", "petrol-price-cycle", "best-day-to-buy-petrol", "petrol-prices-christmas",
+       "nsw-fuelcheck", "about", "privacy"]
+DOW = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 STATIC = ["favicon.svg", "apple-touch-icon.png", "og.png"]
 TANK = 50                                           # litres, for "a fill costs"
 NEAR_KM, STALE = 5.0, 7                             # "nearby" radius; a price older than this many days is flagged
@@ -56,6 +61,7 @@ CONTACT_EMAIL = "checkbowser@gmail.com"
 CONTACT = f'<a href="mailto:{html.escape(CONTACT_EMAIL, quote=True)}">{html.escape(CONTACT_EMAIL)}</a>'
 
 esc = lambda v: html.escape(str(v), quote=True)
+lc = lambda s: s[:1].lower() + s[1:]                # "The Sydney median…" inside a sentence
 num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and v == v
 c1 = lambda v: f"{v:.1f}"
 cents = lambda v: f"{abs(v):.1f}c" if abs(v) < 10 else f"{abs(v):.0f}c"
@@ -263,6 +269,14 @@ class Site:
         self.live = {r["fuel"]: r for r in forecast["live"]}
         self.stats, self.fc_asof = forecast.get("stats") or {}, forecast.get("asof") or self.asof
         self.history, self.details, self.track = history or {}, details or {}, track or {}
+        self.bt = forecast.get("bt") if isinstance(forecast.get("bt"), dict) else {}
+        # Pages that need data the feed may lack are built, and linked to, only when it is there
+        dow = self.stats.get("dow")
+        self.has_best = isinstance(dow, list) and len(dow) == 7 and all(num(x) for x in dow) and max(dow) > min(dow)
+        sm = self.bt.get("summary") if isinstance(self.bt.get("summary"), dict) else {}
+        rp = (self.track.get("replay") or {}).get("U91") if isinstance(self.track.get("replay"), dict) else None
+        self.has_acc = bool((isinstance(rp, dict) and rp.get("n")) or isinstance(sm.get("U91|7"), dict))
+        self.xmas = self.xmas_rows()
         self.urls = []                                    # (path, sitemap priority, lastmod)
         rows = [s for s in stations["stations"] if usable(s)]
         sub = clean_suburbs(rows)
@@ -385,6 +399,126 @@ class Site:
         return (f'<div class="verdict {TONE.get(v.get("cls"), "calm")}"><span class="eyebrow">Bowser’s call for Sydney {esc(NAME[f])}, {esc(self.sday)}</span>'
                 f'<b>{esc(v.get("head", "No call today"))}</b><span>{esc(self.outlook(f))}</span></div>')
 
+    @staticmethod
+    def path(r, key, days):
+        """The forecast for `days` ahead (0..14) read off the API's 1/3/7/14-day points, straight lines between them.
+        key: "d" (the expected move), "lo" or "hi" (the likely range). None if a point is missing."""
+        xs, ys = [0, 1, 3, 7, 14], [0] + [r.get(f"{key}{h}") for h in (1, 3, 7, 14)]
+        if not all(num(y) for y in ys): return None
+        for (x0, y0), (x1, y1) in zip(zip(xs, ys), zip(xs[1:], ys[1:])):
+            if x0 <= days <= x1: return y0 + (y1 - y0) * (days - x0) / (x1 - x0)
+        return None
+
+    def med_series(self, f):
+        """(first day, [Sydney median per day]) from history.json, or (None, [])."""
+        H = (self.history.get("hist") or {}).get(f) or {}; med = H.get("med") or []
+        if not isinstance(self.history.get("start"), str) or not isinstance(med, list) or not med: return None, []
+        try: return dt.date.fromisoformat(self.history["start"]), med
+        except ValueError: return None, []
+
+    def stage(self):
+        """Where Sydney is in its price cycle: (days since the last jump, the usual gap, a short label, its tone, a sentence), or None."""
+        S = self.stats; last, gap = S.get("last_restore"), S.get("cycle_gap_calm")
+        if not isinstance(last, str) or not num(gap) or gap <= 0: return None
+        try: since = (dt.date.fromisoformat(self.fc_asof) - dt.date.fromisoformat(last)).days
+        except ValueError: return None
+        pj = (self.live.get("U91") or {}).get("p_jump7")
+        quiet = num(pj) and pj < 0.2
+        if num(pj) and pj >= 0.35:
+            head, tone, txt = "A jump looks likely soon", "act", f"the forecast puts the chance of a 5c-plus jump within a week at about {pj:.0%}, so fill up before it comes"
+        elif since <= 7:
+            head, tone, txt = "Near the top", "act", "a jump has just happened, so prices are near the top of the cycle; buy as little as you can and wait for them to ease"
+        elif since < 0.75 * gap:
+            head, tone, txt = "Falling", "wait", "prices are in the slow slide that follows a jump, which usually rewards waiting"
+        elif since <= 1.25 * gap:
+            head, tone, txt = "Late in the cycle", "calm", "a jump is due by the usual timing" + (", but the forecast sees little sign of one this week" if quiet else "")
+        else:
+            head, tone, txt = "Running long", "calm", ("this cycle has lasted longer than usual" +
+                                                       (", and the forecast still sees little sign of a jump this week" if quiet else ", so a jump could come at any time"))
+        return since, gap, head, tone, txt
+
+    def stage_card(self):
+        st = self.stage()
+        if not st: return ""
+        since, gap, head, tone, txt = st
+        return (f'<div class="verdict {tone}"><span class="eyebrow">Where Sydney is in the petrol price cycle, {esc(self.sday)}</span><b>{esc(head)}</b>'
+                f"<span>Day {since} since the last price jump; in normal years jumps come about every {gap:.0f} days. In short: {esc(txt)}.</span></div>")
+
+    def jumps(self):
+        """build.py's latest price jumps (stats.recent_jumps), oldest first, the well-formed ones only."""
+        out = []
+        for j in self.stats.get("recent_jumps") or []:
+            if not (isinstance(j, dict) and isinstance(j.get("date"), str) and num(j.get("amp"))): continue
+            try: dt.date.fromisoformat(j["date"])
+            except ValueError: continue
+            out.append(j)
+        return out
+
+    def cycle_status(self):
+        """A plain-text answer to "is the Sydney price cycle still running?" from the last 12 months of jumps, or ''."""
+        amp = self.stats.get("cycle_amp_calm"); today = dt.date.fromisoformat(self.fc_asof)
+        recent = [j for j in self.jumps() if 0 <= (today - dt.date.fromisoformat(j["date"])).days <= 365]
+        if not recent or not num(amp): return ""
+        m = statistics.median(j["amp"] for j in recent); gap = self.stats.get("cycle_gap_calm")
+        few = num(gap) and gap > 0 and len(recent) < 0.6 * 365 / gap            # normal years: 365 / gap jumps
+        small = m < 0.75 * amp
+        txt = (f"In the last 12 months Sydney had {len(recent)} price jump{'s' if len(recent) != 1 else ''}, typically {m:.0f}c a litre, against about {amp:.0f}c"
+               + (f" and {365 / gap:.0f} a year" if few else "") + " in normal years"
+               + (", so the cycle has been weaker than usual: fewer and smaller jumps." if few and small else
+                  ", so the cycle has been weaker than usual: fewer jumps." if few else
+                  ", so the cycle is still there but its jumps have been smaller than usual." if small else ", so the cycle is running much as usual."))
+        st = self.stage()
+        return txt + (f" Today is day {st[0]} since the last jump." if st else "")
+
+    def xmas_rows(self):
+        """What the Sydney U91 median did from 10 December to 10 January in each year history.json covers in full."""
+        s0, med = self.med_series("U91")
+        if not s0: return []
+        end = s0 + dt.timedelta(days=len(med) - 1)
+        at = lambda d: med[(d - s0).days] if 0 <= (d - s0).days < len(med) and num(med[(d - s0).days]) else None
+        rows = []
+        for y in range(s0.year, end.year + 1):
+            a, b = dt.date(y, 12, 10), dt.date(y + 1, 1, 10)
+            if a < s0 or b > end: continue
+            win = [(a + dt.timedelta(days=i), at(a + dt.timedelta(days=i))) for i in range((b - a).days + 1)]
+            got = [(d, v) for d, v in win if v is not None]
+            if len(got) < 25 or None in (win[0][1], at(dt.date(y, 12, 24)), win[-1][1]): continue
+            # a jump: 8c or more in three days, the rule build.py counts the cycle with
+            rise = lambda d: (v := at(d)) is not None and (b3 := at(d - dt.timedelta(days=3))) is not None and v - b3 >= 8
+            jump = next((d for d, _ in win if rise(d) and not rise(d - dt.timedelta(days=1))), None)
+            hi_d, hi = max(got, key=lambda t: t[1]); lo_d, lo = min(got, key=lambda t: t[1])
+            rows.append(dict(year=y, start=win[0][1], eve=at(dt.date(y, 12, 24)), end=win[-1][1], hi=hi, hi_d=hi_d, lo=lo, lo_d=lo_d, jump=jump))
+        return rows if len(rows) >= 3 else []
+
+    def forecast_chart(self, f, days=60):
+        """The last `days` of the Sydney median and the 14-day forecast after it, with its likely range shaded."""
+        r = self.live.get(f); s0, med = self.med_series(f)
+        if not r or not s0: return ""
+        end = s0 + dt.timedelta(days=len(med) - 1); today = dt.date.fromisoformat(self.fc_asof)
+        past = [v if num(v) else None for v in med[-days:]]
+        if end > today:
+            if (end - today).days >= len(past): return ""
+            past = past[:len(past) - (end - today).days]
+        if sum(v is not None for v in past) < 20: return ""
+        gap = max((today - end).days, 0)
+        i0 = len(past) - 1 + gap                       # today's position on the chart
+        n = i0 + 15
+        line = past + [None] * (n - len(past))
+        fc, lo, hi = [None] * n, [None] * n, [None] * n
+        for k in range(15):
+            d, a, b = self.path(r, "d", k), self.path(r, "lo", k), self.path(r, "hi", k)
+            if d is None: return ""
+            fc[i0 + k] = r["now"] + d
+            if a is not None and b is not None: lo[i0 + k], hi[i0 + k] = r["now"] + a, r["now"] + b
+        allv = [v for v in line + fc + lo + hi if num(v)]
+        first = today - dt.timedelta(days=i0)
+        svg = chart([("st", line), ("md", fc)], math.floor(min(allv) / 10) * 10, math.ceil(max(allv) / 10) * 10,
+                    (short_date(str(first)), short_date(str(today + dt.timedelta(days=14)))),
+                    f"Sydney median {NAME[f]} price for the last {days} days and Bowser’s forecast for the next 14 days: about "
+                    f"{c1(r['now'] + r['d14'])} cents a litre in 14 days", band=(lo, hi))
+        return (f'<div class="card"><div class="legend"><span><i class="a"></i>Sydney median</span><span><i class="b"></i>Forecast, next 14 days</span>'
+                f"<span>Shaded: the likely range</span></div>{svg}</div>")
+
     # ---- the page shell
     def page(self, path, kind, pattern, title, desc, body, crumbs=(), ld=(), priority=0.5, index=True, root=None, lastmod=None):
         """Write OUT/path/index.html (path '' is not ours: the dashboard). crumbs: [(label, path)] below Home."""
@@ -400,6 +534,11 @@ class Site:
         nav = (f'<a href="{up}fuel-prices/">Prices by suburb</a><a href="{up}fuel-price-forecast/">Forecast</a>'
                f'<a href="{up}petrol-price-cycle/">Price cycle</a><a href="{up}brands/">Brands</a><a href="{up}" data-cta="nav-map">Live map</a>')
         fuels = "".join(f'<a href="{up}fuel-prices/{FSLUG[f]}/">{NAME[f]} prices</a>' for f in FUELS if f in self.live)
+        guides = (f'<a href="{up}fuel-price-forecast/">Fuel price forecast</a>'
+                  + (f'<a href="{up}fuel-price-forecast/accuracy/">Forecast accuracy</a>' if self.has_acc else "")
+                  + f'<a href="{up}petrol-price-cycle/">Sydney petrol price cycle</a>'
+                  + (f'<a href="{up}best-day-to-buy-petrol/">Best day to buy petrol</a>' if self.has_best else "")
+                  + (f'<a href="{up}petrol-prices-christmas/">Petrol prices at Christmas</a>' if self.xmas else ""))
         doc = f"""<!doctype html>
 <html lang="en-AU" data-page="{esc(kind)}" data-pattern="{esc(pattern)}">
 <head>
@@ -433,6 +572,7 @@ class Site:
 </main>
 <footer>
 <nav aria-label="Fuels">{fuels}</nav>
+<nav aria-label="Guides">{guides}</nav>
 <nav aria-label="More"><a href="{up}fuel-prices/">Sydney fuel prices</a><a href="{up}station/">All stations</a><a href="{up}nsw-fuelcheck/">About NSW FuelCheck</a><a href="{up}about/">About Bowser</a><a href="{up}privacy/">Privacy</a></nav>
 <div>{SOURCES}</div>
 <div>Prices as reported to FuelCheck for {esc(self.day)}; a station can change its price at any time, so check the board before you fill. Forecasts are estimates for planning, not financial advice.</div>
@@ -660,6 +800,7 @@ class Site:
         if s["brand"] in self.brand_url: more.append(f'<li><a href="{up}{esc(self.brand_url[s["brand"]])}">{esc(s["brand"])} fuel prices</a></li>')
         if s.get("region") in self.regions: more.append(f'<li><a href="{up}{esc(self.region_url[s["region"]])}">{esc(s["region"])} fuel prices</a></li>')
         if f0 in self.live: more.append(f'<li><a href="{up}fuel-prices/{FSLUG[f0]}/">Cheapest {esc(NAME[f0])} in Sydney today</a></li>')
+        if not s.get("out"): more.append(f'<li><a href="{up}fuel-price-forecast/">Sydney fuel price forecast: will prices go up or down?</a></li>')
         body += ["<h2>More prices</h2>", "<ul>" + "".join(more) + "</ul>", self.sources_p()]
         m = re.match(r"^(.*?),\s*(.+?)\s+NSW\s+(\d{4})$", addr or "")
         ld = {"@context": "https://schema.org", "@type": "GasStation", "name": s["name"], "url": f"{self.site}/{s['url']}",
@@ -904,22 +1045,38 @@ class Site:
             + "".join(f'<td class="n">{c1(x["now"] + x[k])}</td>' for k in ("d3", "d7", "d14"))
             + f'<td class="n">{x["now"] + x["lo7"]:.0f}–{x["now"] + x["hi7"]:.0f}</td><td><span class="chip {TONE.get((x.get("verdict") or {}).get("cls"), "calm")}">{esc((x.get("verdict") or {}).get("head", ""))}</span></td></tr>'
             for f, x in ((f, live[f]) for f in FUELS if f in live))
-        d7 = r["d7"]
+        d7 = r["d7"]; f0 = r["fuel"]; N0 = NAME[f0]; today = dt.date.fromisoformat(self.fc_asof)
         ans = ("stay about where they are" if abs(d7) < 1 else f"{'rise' if d7 > 0 else 'fall'} by about {cents(d7)} a litre")
-        body = ["<h1>Sydney fuel price forecast: will petrol go up or down this week?</h1>",
-                f'<p class="lead">As of {esc(self.day)}, Bowser expects the Sydney median {esc(NAME[r["fuel"]])} price to <b>{ans}</b> over the next seven days. Today’s call: <b>{esc(v.lower())}</b>.</p>',
-                self.verdict_card(r["fuel"]),
-                "<h2>The 14-day outlook for each fuel</h2>",
-                '<div class="scroll"><table><thead><tr><th>Fuel</th><th class="n">Today</th><th class="n">In 3 days</th><th class="n">In 7 days</th><th class="n">In 14 days</th><th class="n">7-day range</th><th>Call</th></tr></thead><tbody>'
-                + rows + "</tbody></table></div>",
-                '<p class="small">Sydney median prices in cents a litre. The range is where Bowser expects the price to land about 8 times in 10.</p>']
-        if num(r.get("p_jump7")):
-            pj = r["p_jump7"]
-            body.append(f"<p>The chance of a sharp jump (5c or more) in the Sydney {esc(NAME[r['fuel']])} median within a week is "
+        head = "Sydney fuel price forecast: will petrol go up or down next week?"
+        body = [f"<h1>{head}</h1>",
+                f'<p class="lead">As of {esc(self.day)}, Bowser predicts the Sydney median {esc(N0)} price will <b>{ans}</b> over the next week. Today’s call: <b>{esc(v.lower())}</b>.</p>',
+                f'<p class="small">Updated {esc(self.day)}. The forecast is rebuilt about five times a day from the latest NSW FuelCheck prices.</p>',
+                self.verdict_card(f0)]
+        fc_chart = self.forecast_chart(f0)
+        if fc_chart: body += [f"<h2>Sydney {esc(N0)} price: recent weeks and the next 14 days</h2>", fc_chart]
+        body += ["<h2>The 14-day outlook for each fuel</h2>",
+                 '<div class="scroll"><table><thead><tr><th>Fuel</th><th class="n">Today</th><th class="n">In 3 days</th><th class="n">In 7 days</th><th class="n">In 14 days</th><th class="n">7-day range</th><th>Call</th></tr></thead><tbody>'
+                 + rows + "</tbody></table></div>",
+                 '<p class="small">Sydney median prices in cents a litre. The range is where Bowser expects the price to land about 8 times in 10.</p>']
+        pj = r.get("p_jump7")
+        if num(pj):
+            body.append(f"<p>The chance of a sharp jump (5c or more) in the Sydney {esc(N0)} median within a week is "
                         f"<b>{'under 5%' if pj < 0.05 else f'about {pj:.0%}'}</b>. "
                         + ("Sydney prices rise in sudden jumps and fall slowly, so this number matters more than the average move: when it is high, fill up before the jump."
-                           if pj >= 0.35 else "Sydney prices rise in sudden jumps and fall slowly; while this number stays low, waiting usually pays."))
+                           if pj >= 0.35 else "Sydney prices rise in sudden jumps and fall slowly; while this number stays low, waiting usually pays.") + "</p>")
+        if abs(d7) >= 1:
+            verb = "waiting a week instead of filling today saves" if d7 < 0 else "filling today instead of in a week saves"
+            body += ["<h2>What the timing is worth on your tank</h2>",
+                     f"<p>If the forecast is right, {verb} about this much on {esc(N0)} at the Sydney median price:</p>",
+                     '<div class="scroll"><table><thead><tr><th>Tank</th><th class="n">Saving</th></tr></thead><tbody>'
+                     + "".join(f'<tr><td>{L} litres</td><td class="n">${L * abs(d7) / 100:.2f}</td></tr>' for L in (30, 50, 70, 100)) + "</tbody></table></div>"]
+            if num(S.get("shop_around")):
+                body.append(f'<p class="small">Picking the station often saves more than picking the day: the cheapest tenth of Sydney stations are typically {S["shop_around"]:.0f}c under the median, '
+                            f'about ${TANK * S["shop_around"] / 100:.2f} on a {TANK} L tank. <a href="{up}fuel-prices/">Find them by suburb</a>.</p>')
         tr = (self.track.get("replay") or {}).get("U91") or {}; lv = (self.track.get("live") or {}).get("U91") or {}
+        ok = lambda d, *ks: isinstance(d, dict) and all(num(d.get(k)) for k in ("n", "right", "close", "wrong")) and all(isinstance(d.get(k), str) for k in ks)
+        if not ok(tr, "from", "to"): tr = {}
+        if not ok(lv, "since"): lv = {}
         body.append("<h2>How accurate is the forecast?</h2>")
         if tr.get("n"):
             body.append(f"<p>Replayed over every day from {esc(short_date(tr['from']))} {tr['from'][:4]} to {esc(short_date(tr['to']))} {tr['to'][:4]}, using only the data available "
@@ -927,7 +1084,9 @@ class Site:
                         f"close on {tr['close'] / tr['n']:.0%} and wrong on {tr['wrong'] / tr['n']:.0%}."
                         + (f" Since the calls went live on {esc(short_date(lv['since']))}, {lv['right']} of {lv['n']} scored calls were right and {lv['wrong']} wrong." if lv.get("n") else "") + "</p>")
         body += ["<p>The forecast is tested the hard way: each month since January 2021 was forecast using only the data before it, including the 2022 and 2026 oil shocks. "
-                 f'The full record, call by call, is on the <a href="{up}" data-cta="forecast-track">dashboard</a>.</p>',
+                 + (f'See <a href="{up}fuel-price-forecast/accuracy/">the full track record</a>, year by year and against the simplest guess, or the call-by-call record on the '
+                    f'<a href="{up}" data-cta="forecast-track">dashboard</a>.</p>' if self.has_acc else
+                    f'The full record, call by call, is on the <a href="{up}" data-cta="forecast-track">dashboard</a>.</p>'),
                  "<h2>How the forecast works</h2>",
                  "<ul><li><b>What it predicts:</b> how the Sydney median price of each fuel will move over the next 1, 3, 7 and 14 days, and the chance of a jump of 5c or more within a week.</li>"
                  "<li><b>What it looks at:</b> how far pump prices sit above the wholesale price compared with the past year, recent wholesale moves, the oil price in Australian dollars, "
@@ -937,30 +1096,75 @@ class Site:
                  "<li><b>Limits:</b> it reacts to oil and wholesale moves as they happen, but it can’t see wars, OPEC decisions or excise changes coming.</li></ul>",
                  "<h2>When is the best time to buy petrol in Sydney?</h2>",
                  f'<p>Just before a jump, at the bottom of the <a href="{up}petrol-price-cycle/">price cycle</a>. The day of the week barely matters in Sydney'
-                 + (f": across the calm years the average gap between the cheapest and dearest weekday is about {max(S['dow']) - min(S['dow']):.1f}c" if isinstance(S.get("dow"), list) and all(num(x) for x in S["dow"]) else "")
+                 + (f": across the calm years the average gap between the cheapest and dearest weekday is about {max(S['dow']) - min(S['dow']):.1f}c" if self.has_best else "")
+                 + (f' (<a href="{up}best-day-to-buy-petrol/">the numbers for each day</a>)' if self.has_best else "")
                  + ". Where you fill matters more than when"
                  + (f": the cheapest tenth of Sydney stations are typically {S['shop_around']:.0f}c under the median" if num(S.get("shop_around")) else "")
-                 + f'. Check <a href="{up}fuel-prices/">today’s cheapest stations by suburb</a>.</p>', self.sources_p()]
-        t = "Sydney fuel price forecast: will petrol go up this week? | Bowser"
-        d = (f"Petrol price forecast for Sydney, updated {self.sday}: {NAME[r['fuel']]} is {c1(r['now'])}c/L and expected to {ans} in 7 days. "
+                 + f'. Check <a href="{up}fuel-prices/">today’s cheapest stations by suburb</a>.</p>']
+        if self.xmas and today.month in (11, 12, 1):
+            body.append(f'<p>Planning a holiday drive? See <a href="{up}petrol-prices-christmas/">what Sydney petrol prices did over each Christmas since {self.xmas[0]["year"]}</a>.</p>')
+        # Questions people ask a search engine, answered with today's numbers (shown on the page and as FAQPage data)
+        qa = [("Will petrol prices go up or down next week in Sydney?", f"{self.outlook(f0)} Bowser’s call today: {(v or 'no call').lower()}.")]
+        if all(num(r.get(k)) for k in ("d1", "lo1", "hi1")):
+            qa.append(("Will petrol go up tomorrow in Sydney?",
+                       f"Bowser expects the Sydney median for {N0} to be about {c1(r['now'] + r['d1'])}c a litre tomorrow, likely between {r['now'] + r['lo1']:.0f}c and {r['now'] + r['hi1']:.0f}c"
+                       + (f", with about a {pj:.0%} chance of a 5c-plus jump within a week." if num(pj) and pj >= 0.05 else ", and the chance of a 5c-plus jump within a week is under 5%." if num(pj) else ".")))
+        qa.append(("Should I fill up today or wait?",
+                   f"Bowser’s call for Sydney today is: {(v or 'no call').lower()}. "
+                   + ("Prices are expected to keep easing, so if you have enough fuel, waiting a few days should be cheaper." if d7 <= -1 else
+                      "Prices are expected to rise, so filling now should beat waiting." if d7 >= 1 else
+                      "Little change is expected this week, so fill when it suits you and pick a cheap station.")
+                   + " Each station page on Bowser also has its own call, based on how that station usually prices."))
+        cs = self.cycle_status()
+        if cs: qa.append(("Is the Sydney petrol price cycle still running?", cs))
+        if tr.get("n"):
+            base = tr.get("base") or {}
+            qa.append(("How accurate is Bowser’s fuel price forecast?",
+                       f"Replayed on every day from {tr['from'][:4]} to {tr['to'][:4]} using only the data available at the time, the fill-or-wait call for Unleaded 91 was right {tr['right'] / tr['n']:.0%} of the time"
+                       + (f", against {base['right'] / tr['n']:.0%} for always giving the same call" if num(base.get("right")) else "") + ". Every live call is scored a week later, in public."))
+        fq, fq_ld = self.faq(qa); body += [fq, self.sources_p()]
+        t = "Sydney fuel price forecast: will petrol go up next week? | Bowser"
+        d = (f"Petrol price prediction for Sydney, updated {self.sday}: {N0} is {c1(r['now'])}c/L and expected to {ans} in 7 days. "
              f"Bowser’s call: {v.lower()}. 14-day outlook for every fuel.")
+        ds = {"@context": "https://schema.org", "@type": "Dataset", "name": "Sydney fuel price forecast",
+              "description": "Bowser’s forecast of the Sydney median price of five fuels 1, 3, 7 and 14 days ahead, with a likely range and the chance of a price jump. Rebuilt about five times a day from NSW FuelCheck prices.",
+              "url": f"{self.site}/fuel-price-forecast/", "isAccessibleForFree": True, "dateModified": self.asof,
+              "temporalCoverage": f"{self.fc_asof}/{(today + dt.timedelta(days=14)).isoformat()}", "spatialCoverage": "Sydney, New South Wales, Australia",
+              "creator": {"@type": "Organization", "name": "Bowser", "url": self.site + "/"},
+              "distribution": [{"@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": f"{self.site}/api/v1/forecast.json"}]}
         self.page("fuel-price-forecast/", "forecast", "/fuel-price-forecast/", t, d, "\n".join(body), crumbs=[("Forecast", "fuel-price-forecast/")],
-                  ld=art("fuel-price-forecast/", "Sydney fuel price forecast: will petrol go up or down this week?", d), priority=1.0)
+                  ld=art("fuel-price-forecast/", head, d) + [ds, fq_ld], priority=1.0)
 
         # ---- price cycle
         body = ["<h1>The Sydney petrol price cycle, and where it is now</h1>"]
         last = S.get("last_restore"); gap, amp = S.get("cycle_gap_calm"), S.get("cycle_amp_calm")
+        if not self.stage(): last = None                 # missing or unreadable: no "days since" anywhere on the page
         if last and num(gap):
-            since = (dt.date.fromisoformat(self.fc_asof) - dt.date.fromisoformat(last)).days
+            since = (today - dt.date.fromisoformat(last)).days
             body.append(f'<p class="lead">Sydney’s last big price jump began on <b>{esc(short_date(last))}</b>, {since} days ago. In normal years a jump comes about every <b>{gap:.0f} days</b>'
                         + (f" and lifts Unleaded 91 by about <b>{amp:.0f}c</b> a litre" if num(amp) else "") + ".</p>")
-        if "U91" in live: body.append(self.verdict_card("U91"))
+        body.append(f'<p class="small">Updated {esc(self.day)}.</p>')
+        body.append(self.stage_card() or (self.verdict_card("U91") if "U91" in live else ""))
+        if self.stage() and "U91" in live: body.append(f"<p>{esc(self.outlook('U91'))} Bowser’s call today: <b>{esc(v.lower())}</b>. "
+                                                      f'See the <a href="{up}fuel-price-forecast/">full forecast</a>.</p>')
         body += ["<h2>What is the petrol price cycle?</h2>",
                  "<p>In Sydney, petrol prices don’t drift up and down with the oil price from day to day. They move in a saw-tooth: prices jump sharply over a day or two, "
                  "often by 30c a litre or more, then slide down a little each day for several weeks until the next jump. The ACCC, which monitors fuel prices, has found the same pattern in "
                  "Australia’s largest cities, and that the cycles come from retailers’ pricing decisions rather than from changes in wholesale costs.</p>",
                  "<p>For drivers the rule is simple: <b>fill up near the bottom, just before the jump, and buy as little as you can near the top</b>. The hard part is knowing when the jump is coming, "
                  f'because the cycle doesn’t keep to a timetable. That is what <a href="{up}fuel-price-forecast/">Bowser’s forecast</a> is for.</p>']
+        rj = self.jumps()
+        if rj:
+            cs = self.cycle_status()
+            left = lambda j: f"{j['gap']:.0f}" if num(j.get("gap")) else f"{(today - dt.date.fromisoformat(j['date'])).days} so far"
+            body += ["<h2>Is the Sydney price cycle still running?</h2>",
+                     (f"<p>{esc(cs)}</p>" if cs else "")
+                     + "<p>The latest jumps in the Sydney Unleaded 91 median. Bowser counts a jump when the median rises 8c or more in three days, so a one-off rise, "
+                     "such as a change in fuel excise or an oil price spike, can appear here too.</p>",
+                     '<div class="scroll"><table><thead><tr><th>Jump began</th><th class="n">Size (c/L)</th><th class="n">Days to the next jump</th></tr></thead><tbody>'
+                     + "".join(f'<tr><td>{esc(short_date(j["date"]))} {j["date"][:4]}</td><td class="n">{j["amp"]:.0f}</td>'
+                               f'<td class="n">{left(j)}</td></tr>'
+                               for j in reversed(rj[-8:])) + "</tbody></table></div>"]
         cy = [c for c in (S.get("cycles_by_year") or []) if num(c.get("gap")) and num(c.get("amp"))]
         if cy:
             body += ["<h2>How long is the Sydney price cycle?</h2>",
@@ -968,14 +1172,12 @@ class Site:
                      '<div class="scroll"><table><thead><tr><th>Year</th><th class="n">Price jumps</th><th class="n">Typical days between</th><th class="n">Typical jump (c/L)</th></tr></thead><tbody>'
                      + "".join(f'<tr><td>{c["year"]}{" (so far)" if str(c["year"]) == self.asof[:4] else ""}</td><td class="n">{c["n"]}</td><td class="n">{c["gap"]:.0f}</td><td class="n">{c["amp"]:.0f}</td></tr>' for c in cy)
                      + "</tbody></table></div>"]
-        dow = S.get("dow")
-        if isinstance(dow, list) and len(dow) == 7 and all(num(x) for x in dow):
-            names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-            lo_d, hi_d = names[dow.index(min(dow))], names[dow.index(max(dow))]
+        if self.has_best:
+            dow = S["dow"]; lo_d, hi_d = DOW[dow.index(min(dow))], DOW[dow.index(max(dow))]
             body += ["<h2>Is there a cheapest day of the week?</h2>",
                      f"<p>Not in Sydney, not any more. Averaged over the calm years since 2019, {lo_d} is the cheapest day and {hi_d} the dearest, but the gap is only about "
                      f"<b>{max(dow) - min(dow):.1f}c a litre</b>: about {TANK * (max(dow) - min(dow)) / 100 * 100:.0f} cents on a {TANK} L tank. With a cycle several weeks long, where prices are in the cycle "
-                     "matters far more than the day of the week.</p>"]
+                     f'matters far more than the day of the week. <a href="{up}best-day-to-buy-petrol/">The figures for every day</a>.</p>']
         if num(S.get("shop_around")):
             body += ["<h2>Stations don’t all jump together</h2>",
                      "<p>When a jump starts, some stations lift their price within hours and others hold the old price for days. A few, such as Costco, hardly follow the cycle at all. "
@@ -1115,6 +1317,196 @@ class Site:
                 '<div class="row"><a class="btn" href="/fuel-prices/">Fuel prices by suburb</a><a href="/">Open the live map</a></div>']
         self.page("404.html", "404", "/404", "Page not found | Bowser", "This page isn’t on Bowser.", "\n".join(body), index=False, root="/")
 
+    # ---- guides that answer one question each (docs/SEO.md keyword map)
+    def _art(self, path, head, desc):
+        return {"@context": "https://schema.org", "@type": "Article", "headline": head, "description": desc,
+                "datePublished": PUBLISHED, "dateModified": self.asof, "mainEntityOfPage": f"{self.site}/{path}", "image": f"{self.site}/og.png",
+                "author": {"@type": "Organization", "name": "Bowser", "url": self.site + "/"},
+                "publisher": {"@type": "Organization", "name": "Bowser", "url": self.site + "/"}}
+
+    def accuracy(self):
+        """The forecast's track record: the replayed and live fill-or-wait calls (track.json) and the price forecast's error
+        against assuming no change (forecast.json bt, the walk-forward backtest). Nobody else publishes theirs."""
+        up = "../../"; path = "fuel-price-forecast/accuracy/"
+        tr = (self.track.get("replay") or {}).get("U91") or {}; lv = (self.track.get("live") or {}).get("U91") or {}
+        sm = self.bt.get("summary") if isinstance(self.bt.get("summary"), dict) else {}; prod = self.bt.get("prod")
+        ent = lambda f, h: e if isinstance(e := sm.get(f"{f}|{h}"), dict) else {}
+        err = lambda f, h: (ent(f, h).get(prod) if isinstance(prod, str) else None, ent(f, h).get("naive"))
+        counts = lambda d: isinstance(d, dict) and all(num(d.get(k)) for k in ("n", "right", "close", "wrong")) and d["n"] > 0
+        if not (counts(tr) and isinstance(tr.get("from"), str) and isinstance(tr.get("to"), str)): tr = {}
+        CALL = {"up": "fill now", "down": "wait", "flat": "no rush"}
+        pct = lambda a, n: f"{a / n:.0%}" if n else "–"
+        m7, n7 = err("U91", 7)
+        lead = []
+        if tr.get("n"):
+            base = tr.get("base") or {}
+            lead.append(f"Replayed on {tr['n']:,} days from {esc(short_date(tr['from']))} {tr['from'][:4]} to {esc(short_date(tr['to']))} {tr['to'][:4]}, using only what was known on each day, "
+                        f"Bowser’s fill-or-wait call for Sydney Unleaded 91 was right <b>{pct(tr['right'], tr['n'])}</b> of the time."
+                        + (f" The best rule that ignores the forecast, always saying “{CALL.get(base.get('cls'), base.get('cls'))}”, was right on {pct(base['right'], tr['n'])}." if num(base.get("right")) else ""))
+        if num(m7) and num(n7):
+            lead.append(f"Its 7-day price forecast was off by <b>{m7:.1f}c</b> a litre on average, against {n7:.1f}c for assuming today’s price holds.")
+        body = ["<h1>How accurate is Bowser’s fuel price forecast?</h1>",
+                f'<p class="lead">{" ".join(lead) or "Every call Bowser makes is scored a week later, in public."}</p>',
+                f'<p class="small">Updated {esc(self.day)}. Figures are for Sydney medians; Bowser’s forecast covers Sydney only.</p>']
+        if tr.get("n"):
+            by = tr.get("by") or {}
+            body += ["<h2>The fill-or-wait call</h2>",
+                     "<p>Each day Bowser says fill now, wait, or no rush. A week later the call is scored against what the Sydney median actually did over that week: "
+                     "<b>fill now</b> is right if prices rose by 1c or more, <b>wait</b> is right if they fell by 1c or more, and <b>no rush</b> is right if they moved less than 3c. "
+                     "Anything in between counts as close, and a no-rush call is wrong only if prices moved 5c or more.</p>",
+                     '<div class="scroll"><table><thead><tr><th>Call</th><th class="n">Days</th><th class="n">Right</th><th class="n">Close</th><th class="n">Wrong</th></tr></thead><tbody>'
+                     + "".join(f'<tr><td>{esc(CALL[c].capitalize())}</td><td class="n">{b["n"]:,}</td><td class="n">{pct(b["right"], b["n"])}</td><td class="n">{pct(b["close"], b["n"])}</td><td class="n">{pct(b["wrong"], b["n"])}</td></tr>'
+                               for c in ("up", "down", "flat") if counts(b := by.get(c)))
+                     + f'<tr><td><b>All calls</b></td><td class="n">{tr["n"]:,}</td><td class="n">{pct(tr["right"], tr["n"])}</td><td class="n">{pct(tr["close"], tr["n"])}</td><td class="n">{pct(tr["wrong"], tr["n"])}</td></tr>'
+                     + "</tbody></table></div>"]
+            rc = tr.get("recent") or {}
+            if counts(rc) and isinstance(rc.get("from"), str) and isinstance(rc.get("to"), str):
+                rb = rc.get("base") or {}
+                harder = rc["right"] / rc["n"] < tr["right"] / tr["n"] - 0.03
+                body.append(f"<p>Over the last 12 months of the replay ({esc(short_date(rc['from']))} {rc['from'][:4]} to {esc(short_date(rc['to']))} {rc['to'][:4]}) "
+                            + ("the going was harder: " if harder else "the call held up: ") + f"right on <b>{pct(rc['right'], rc['n'])}</b> of {rc['n']} days"
+                            + (f", against {pct(rb['right'], rc['n'])} for always saying “{CALL.get(rb.get('cls'), rb.get('cls'))}”" if num(rb.get("right")) else "") + ".</p>")
+            if counts(lv) and isinstance(lv.get("since"), str):
+                body.append(f"<p>Live calls, made each morning since {esc(short_date(lv['since']))} and never revised: {lv['right']} of {lv['n']} scored so far were right, {lv['close']} close and {lv['wrong']} wrong. "
+                            f'Every one is listed on the <a href="{up}" data-cta="accuracy-track">dashboard</a>.</p>')
+        hs = [(h, *err("U91", h), ent("U91", h).get("dir")) for h in (1, 3, 7, 14)]
+        hs = [x for x in hs if num(x[1]) and num(x[2])]
+        if hs:
+            body += ["<h2>The price forecast against the simplest guess</h2>",
+                     "<p>The simplest forecast is that today’s price holds. This is how far each was from the real Sydney Unleaded 91 median, on average, over every day since January 2021.</p>",
+                     '<div class="scroll"><table><thead><tr><th>Days ahead</th><th class="n">Bowser’s error</th><th class="n">“No change” error</th><th class="n">Direction right</th></tr></thead><tbody>'
+                     + "".join(f'<tr><td>{h}</td><td class="n">{m:.1f}c</td><td class="n">{n:.1f}c</td><td class="n">{f"{d:.0%}" if num(d) else "–"}</td></tr>' for h, m, n, d in hs)
+                     + "</tbody></table></div>",
+                     '<p class="small">Error: the average gap between the forecast and the real median, in cents a litre. Direction: how often the forecast got the direction right on days the price moved 1c or more.</p>']
+        yr = self.bt.get("yearly_u91_h7") or {}
+        ys = sorted((str(y), v["model"], v["naive"]) for y, v in (yr.items() if isinstance(yr, dict) else []) if isinstance(v, dict) and num(v.get("model")) and num(v.get("naive")) and v["naive"] > 0)
+        if ys:
+            worst = max(ys, key=lambda t: t[1] / t[2])
+            body += ["<h2>Year by year</h2>",
+                     "<p>The 7-day forecast for Unleaded 91 in each year of the test, against assuming no change. Each month was forecast with a model trained only on the data before it.</p>",
+                     '<div class="scroll"><table><thead><tr><th>Year</th><th class="n">Bowser’s error</th><th class="n">“No change” error</th></tr></thead><tbody>'
+                     + "".join(f'<tr><td>{esc(y)}{" (so far)" if str(y) == self.asof[:4] else ""}</td><td class="n">{m:.1f}c</td><td class="n">{n:.1f}c</td></tr>' for y, m, n in ys)
+                     + "</tbody></table></div>",
+                     f"<p>The hardest year was {esc(worst[0])}, when Bowser’s error was {worst[1]:.1f}c against {worst[2]:.1f}c for no change. Sudden shocks, such as an oil price spike or a change in fuel excise, "
+                     "can’t be seen in the data before they happen, so the forecast catches up only once they show in prices.</p>"]
+        cs = [(f, *err(f, 7)) for f in FUELS if f in self.live]
+        cs = [x for x in cs if num(x[1]) and num(x[2])]
+        if len(cs) > 1:
+            body += ["<h2>Every fuel, 7 days ahead</h2>",
+                     '<div class="scroll"><table><thead><tr><th>Fuel</th><th class="n">Bowser’s error</th><th class="n">“No change” error</th></tr></thead><tbody>'
+                     + "".join(f'<tr><td><a href="{up}fuel-prices/{FSLUG[f]}/">{NAME[f]}</a></td><td class="n">{m:.1f}c</td><td class="n">{n:.1f}c</td></tr>' for f, m, n in cs)
+                     + "</tbody></table></div>",
+                     "<p>Diesel doesn’t follow the petrol price cycle, so assuming no change is already a good guess for it a few days out; the forecast earns its keep on the cycling petrol grades.</p>"]
+        body += ["<h2>How the test is run</h2>",
+                 "<ul><li><b>No peeking:</b> each month from January 2021 is forecast by a model trained only on the days before it, then the model is retrained and the next month is forecast.</li>"
+                 "<li><b>Every day counts:</b> calm months, price jumps and the 2022 and 2026 oil shocks are all in the figures, nothing left out.</li>"
+                 "<li><b>The same rule live:</b> live calls are scored exactly as the replay is, and the morning call is kept, so a call is never changed with hindsight.</li></ul>",
+                 f'<p>See <a href="{up}fuel-price-forecast/">today’s forecast</a> and <a href="{up}petrol-price-cycle/">where Sydney is in the price cycle</a>.</p>', self.sources_p()]
+        t = "How accurate is Bowser’s fuel price forecast? | Bowser"
+        d = clip("Bowser’s Sydney fuel price forecast, tested on every day since 2021: how often the fill-or-wait call was right, the average error against assuming no change, "
+                 f"year by year and for every fuel. Updated {self.sday}.")
+        self.page(path, "accuracy", "/fuel-price-forecast/accuracy/", t, d, "\n".join(x for x in body if x),
+                  crumbs=[("Forecast", "fuel-price-forecast/"), ("Accuracy", path)], ld=[self._art(path, "How accurate is Bowser’s fuel price forecast?", d)], priority=0.7)
+
+    def best_day(self):
+        """The weekday question, answered with Bowser's own weekday figures (stats.dow), and what to watch instead."""
+        up = "../"; path = "best-day-to-buy-petrol/"; S = self.stats; dow = S["dow"]
+        lo_d, hi_d = DOW[dow.index(min(dow))], DOW[dow.index(max(dow))]; spread = max(dow) - min(dow)
+        rel = lambda x: "about the same as" if abs(x) < 0.05 else f"{abs(x):.1f}c {'under' if x < 0 else 'over'}"
+        gaps = [c["gap"] for c in (S.get("cycles_by_year") or []) if num(c.get("gap"))]
+        amp = S.get("cycle_amp_calm")
+        body = ["<h1>What is the best day to buy petrol in Sydney?</h1>",
+                f'<p class="lead">There isn’t one any more. Averaged over the calm years since 2019, {lo_d} is the cheapest day to buy petrol in Sydney and {hi_d} the dearest, '
+                f"but the difference is only <b>{spread:.1f}c a litre</b>, about {TANK * spread:.0f} cents on a {TANK} L tank. What matters is where Sydney is in its price cycle, "
+                "and the cheap days fall on a different weekday every cycle.</p>",
+                f'<p class="small">Updated {esc(self.day)}.</p>',
+                self.stage_card() or (self.verdict_card("U91") if "U91" in self.live else ""),
+                "<h2>Petrol prices by day of the week in Sydney</h2>",
+                '<div class="scroll"><table><thead><tr><th>Day</th><th class="n">Against the week’s average</th><th class="n">On a 50 L tank</th></tr></thead><tbody>'
+                + "".join(f'<tr><td>{"<b>" + d + "</b>" if x in (min(dow), max(dow)) else d}</td><td class="n">{rel(x)}</td><td class="n">{"−" if x < 0 else "+" if x > 0 else ""}{abs(TANK * x):.0f}c</td></tr>'
+                          for d, x in zip(DOW, dow))
+                + "</tbody></table></div>",
+                '<p class="small">How it’s measured: each day’s Sydney Unleaded 91 median against the seven-day average around it, averaged over 2019 to early 2026, leaving out the 2022 oil shock '
+                "and the months since March 2026, when oil and excise moves swamped the weekly pattern.</p>",
+                "<h2>Why the “cheap Tuesday” rule doesn’t work in Sydney</h2>",
+                "<p>Sydney’s price cycle runs for weeks, not days"
+                + (f": the typical gap between jumps has been {min(gaps):.0f} to {max(gaps):.0f} days, depending on the year" if gaps else "")
+                + ". So each cycle’s cheapest days land on a different weekday, and averaged over years every weekday comes out close to even. "
+                "Tips about a cheap weekday come from cities, or years, where the cycle ran on a weekly timetable.</p>",
+                "<h2>So when should you fill up?</h2>",
+                "<p>Near the bottom of the cycle, just before the next jump"
+                + (f". Filling just before a jump instead of just after it saves about {amp:.0f}c a litre, ${TANK * amp / 100:.2f} on a {TANK} L tank, "
+                   f"{amp / spread:.0f} times the gap between the cheapest and dearest weekday" if num(amp) and spread > 0 else "")
+                + (f". Today, {esc(lc(self.outlook('U91')))}" if "U91" in self.live else "")
+                + f' See the <a href="{up}fuel-price-forecast/">Sydney fuel price forecast</a> and <a href="{up}petrol-price-cycle/">where the cycle is now</a>.</p>']
+        if num(S.get("shop_around")):
+            body += ["<h2>Pick the station, not just the day</h2>",
+                     f"<p>On any given day the cheapest tenth of Sydney stations are typically {S['shop_around']:.0f}c a litre under the median: "
+                     f'more than {S["shop_around"] / spread:.0f} times the weekday difference. <a href="{up}fuel-prices/">Find today’s cheapest stations by suburb</a>.</p>' if spread > 0 else
+                     f'<p>On any given day the cheapest tenth of Sydney stations are typically {S["shop_around"]:.0f}c a litre under the median. <a href="{up}fuel-prices/">Find them by suburb</a>.</p>']
+        body += ["<h2>Other cities</h2>",
+                 "<p>Each big Australian city has its own price cycle, with its own length. The ACCC publishes where "
+                 '<a href="https://www.accc.gov.au/consumers/petrol-and-fuel/petrol-price-cycles-in-the-5-largest-cities" rel="noopener">Sydney, Melbourne, Brisbane, Adelaide and Perth</a> '
+                 "are in theirs. In Western Australia, FuelWatch publishes tomorrow’s prices each afternoon. Bowser’s numbers on this page are for Sydney.</p>"]
+        wk, we = sum(dow[:5]) / 5, (dow[5] + dow[6]) / 2
+        qa = [("What day is petrol cheapest in Sydney?",
+               f"No day is reliably cheapest. Averaged over the calm years since 2019, {lo_d} comes out cheapest and {hi_d} dearest, but only {spread:.1f}c a litre apart. "
+               "Filling near the bottom of the price cycle, before the next jump, matters far more."),
+              ("Is Tuesday the cheapest day to buy petrol in Sydney?",
+               ("Only just, and not by enough to matter. " if lo_d == "Tuesday" else "No. ") + f"In Sydney, Tuesday averages {rel(dow[1])} the week’s average price. The cheap-Tuesday rule comes from cities, or years, where the price cycle ran weekly; "
+               "Sydney’s runs for weeks."),
+              ("Is petrol cheaper on weekends in Sydney?",
+               f"{'Barely' if abs(we - wk) < 0.5 else 'A little'}. Saturday and Sunday average {rel(we - wk)} the weekdays, about {abs(TANK * (we - wk)):.0f} cents on a {TANK} L tank. "
+               "The price cycle and the station you choose matter far more.")]
+        fq, fq_ld = self.faq(qa); body += [fq, self.sources_p()]
+        t = "Best day to buy petrol in Sydney: is there one? | Bowser"
+        d = clip(f"Is there a cheapest day to buy petrol in Sydney? Bowser’s figures since 2019: {lo_d} is cheapest and {hi_d} dearest, only {spread:.1f}c apart. "
+                 "What to watch instead, and today’s fill-or-wait call.")
+        self.page(path, "bestday", "/best-day-to-buy-petrol/", t, d, "\n".join(x for x in body if x), crumbs=[("Best day to buy petrol", path)],
+                  ld=[self._art(path, "What is the best day to buy petrol in Sydney?", d), fq_ld], priority=0.8)
+
+    def christmas(self):
+        """What the Sydney U91 median did over each Christmas in history.json, and the outlook for this one."""
+        up = "../"; path = "petrol-prices-christmas/"; rows = self.xmas; today = dt.date.fromisoformat(self.fc_asof)
+        n = len(rows); jy = [x for x in rows if x["jump"]]
+        span = f"{rows[0]['year']} to {rows[-1]['year']}"
+        lab = lambda y: f"{y}–{str(y + 1)[2:]}"
+        ans = (f"In {len(jy)} of the last {n} Christmas holidays ({span}), Sydney petrol prices jumped at some point between 10 December and 10 January; "
+               f"in the other {n - len(jy)} there was no jump. The jumps follow Sydney’s price cycle, which runs on its own timetable, so the useful question is where the cycle will be in late December.")
+        body = ["<h1>Do petrol prices go up at Christmas in Sydney?</h1>", f'<p class="lead">{esc(ans)}</p>', f'<p class="small">Updated {esc(self.day)}.</p>']
+        xmas = dt.date(today.year, 12, 25)
+        reach = today + dt.timedelta(days=14)
+        r = self.live.get("U91")
+        if r and dt.date(today.year, 11, 1) <= today <= xmas:          # the run-up only; the table covers the rest of the year
+            k = (xmas - today).days; dx = self.path(r, "d", k) if k <= 14 else None
+            now = (f"This year, {lc(self.outlook('U91'))} "
+                   + (f"For Christmas Day, {k} days away, Bowser expects about {c1(r['now'] + dx)}c." if dx is not None else
+                      f"Christmas is {(xmas - today).days} days away; Bowser’s 14-day forecast will reach it from {short_date((xmas - dt.timedelta(days=14)).isoformat())}."))
+            body += [f"<h2>Christmas {xmas.year}: what Bowser expects</h2>", self.stage_card() or self.verdict_card("U91"),
+                     f'<p>{esc(now)} <a href="{up}fuel-price-forecast/">See the full forecast</a>.</p>']
+        else:
+            now = "Bowser’s 14-day forecast reaches Christmas Day from 11 December each year."
+        body += ["<h2>Every Christmas since " + str(rows[0]["year"]) + "</h2>",
+                 "<p>The Sydney Unleaded 91 median from 10 December to 10 January, in cents a litre.</p>",
+                 '<div class="scroll"><table><thead><tr><th>Holidays</th><th class="n">10 Dec</th><th class="n">24 Dec</th><th class="n">10 Jan</th><th class="n">Highest</th><th>Jump began</th></tr></thead><tbody>'
+                 + "".join(f'<tr><td>{lab(x["year"])}</td><td class="n">{c1(x["start"])}</td><td class="n">{c1(x["eve"])}</td><td class="n">{c1(x["end"])}</td>'
+                           f'<td class="n">{c1(x["hi"])} <span class="small">{esc(short_date(x["hi_d"].isoformat()))}</span></td><td>{esc(short_date(x["jump"].isoformat())) if x["jump"] else "No jump"}</td></tr>'
+                           for x in reversed(rows))
+                 + "</tbody></table></div>",
+                 '<p class="small">A jump: the median rose 8c or more within three days, the rule Bowser uses to count the price cycle.</p>',
+                 "<h2>Tips for a holiday road trip</h2>",
+                 "<ul><li><b>Check the forecast before you leave.</b> If a jump is likely within the week, fill up before it; if prices are sliding, fill only what you need.</li>"
+                 f'<li><b>Fill in Sydney if it’s cheaper.</b> Regional prices often sit above Sydney’s; compare <a href="{up}fuel-prices/">Sydney and regional prices</a> before you go.</li>'
+                 "<li><b>Pick the station.</b> Even at the top of the cycle some stations hold their old price for days.</li></ul>"]
+        qa = [("Do petrol prices go up before Christmas in Sydney?", ans),
+              *([("Will petrol prices go up this Christmas?", now)] if r and dt.date(today.year, 11, 1) <= today <= xmas else [])]
+        fq, fq_ld = self.faq(qa); body += [fq, self.sources_p()]
+        t = "Petrol prices at Christmas in Sydney: do they go up? | Bowser"
+        d = clip(f"Do Sydney petrol prices go up at Christmas? In {len(jy)} of the last {n} holidays they jumped between 10 December and 10 January. "
+                 f"Every year since {rows[0]['year']}, and this year’s forecast. Updated {self.sday}.")
+        self.page(path, "christmas", "/petrol-prices-christmas/", t, d, "\n".join(x for x in body if x), crumbs=[("Petrol prices at Christmas", path)],
+                  ld=[self._art(path, "Do petrol prices go up at Christmas in Sydney?", d), fq_ld], priority=0.6)
+
     def finish(self):
         """robots.txt, sitemap.xml (the dashboard's address first) and llms.txt (a plain summary for AI assistants)."""
         rules = "Allow: /\nDisallow: /api/v1/station/\n"   # the per-station JSON files are the app's, one per station page here
@@ -1145,6 +1537,9 @@ class Site:
                   f"- [Fuel prices today]({u}/fuel-prices/): the cheapest stations in Sydney, each region outside it, and a link to every suburb.",
                   f"- [The Sydney petrol price cycle]({u}/petrol-price-cycle/): how the cycle works, how long it is each year, and where it is now.",
                   f"- [Bowser and NSW FuelCheck]({u}/nsw-fuelcheck/): what FuelCheck is and what Bowser adds to it.",
+                  *([f"- [How accurate the forecast is]({u}/fuel-price-forecast/accuracy/): the fill-or-wait call replayed on every day since 2021, live calls, and the error against assuming no change."] if self.has_acc else []),
+                  *([f"- [Best day to buy petrol in Sydney]({u}/best-day-to-buy-petrol/): the price on each weekday since 2019 (cheapest and dearest {max(self.stats['dow']) - min(self.stats['dow']):.1f}c apart) and what matters instead."] if self.has_best else []),
+                  *([f"- [Petrol prices at Christmas]({u}/petrol-prices-christmas/): what the Sydney price did over each Christmas since {self.xmas[0]['year']}, and this year's outlook."] if self.xmas else []),
                   f"- [Prices by brand]({u}/brands/): 7-Eleven, Ampol, BP, Shell, Costco and others compared."]
         lines += [f"- [{NAME[f]} prices in Sydney]({u}/fuel-prices/{FSLUG[f]}/)" for f in FUELS if f in self.live]
         if self.regions:
@@ -1219,7 +1614,9 @@ def home_links(stations, forecast):
     summary = (f"<div>Sydney fuel prices on {esc(S.day)}, median across Sydney stations: {'; '.join(today)}. "
                f"Bowser’s call for {esc(NAME[r['fuel']])}: {esc((r.get('verdict') or {}).get('head') or 'no call today')}. {esc(S.outlook(r['fuel']))}</div>")
     return (summary + "<div>" + " · ".join([a("fuel-prices/", "Fuel prices by suburb")] + [a(f"fuel-prices/{FSLUG[f]}/", f"{NAME[f]} prices") for f in FUELS if f in S.live]
-                                 + [a("fuel-price-forecast/", "Fuel price forecast"), a("petrol-price-cycle/", "Sydney petrol price cycle"), a("brands/", "Prices by brand"),
+                                 + [a("fuel-price-forecast/", "Fuel price forecast")] + ([a("fuel-price-forecast/accuracy/", "Forecast accuracy")] if S.has_acc else [])
+                                 + [a("petrol-price-cycle/", "Sydney petrol price cycle")] + ([a("best-day-to-buy-petrol/", "Best day to buy petrol")] if S.has_best else [])
+                                 + [ a("brands/", "Prices by brand"),
                                     a("nsw-fuelcheck/", "About NSW FuelCheck"), a("about/", "About Bowser"), a("privacy/", "Privacy")]) + "</div>"
             + ("<div>Popular suburbs: " + " · ".join(a(S.sub_url[k], S.sub_label[k]) for k in top) + "</div>" if top else ""))
 
@@ -1244,7 +1641,11 @@ def build(out, stations, forecast, history=None, details=None, track=None, site=
     for k in sorted(S.subs): S.suburb(k)
     S.station_index()
     for s in S.st: S.station(s)
-    S.brand_pages(); S.guides(); S.finish()
+    S.brand_pages(); S.guides()
+    if S.has_acc: S.accuracy()
+    if S.has_best: S.best_day()
+    if S.xmas: S.christmas()
+    S.finish()
     if static:
         for f in STATIC:
             if os.path.exists(os.path.join(static, f)): shutil.copyfile(os.path.join(static, f), os.path.join(out, f))
