@@ -264,20 +264,22 @@ try:
 except Exception as e:
     print(f"::warning::dashboard head for search not added: {type(e).__name__}: {e}")
 # Content-Security-Policy, added here rather than in the template so it can pin the page's own inline script by hash:
-# an injected <script> or on*= handler won't run, and scripts and styles load only from two cdnjs files (Chart.js, and
-# MapLibre for the stations map when it opens, both with SRI). No web fonts (the page uses the system's). The map's
+# an injected <script> or on*= handler won't run, and scripts and styles load only from two cdnjs files (Chart.js when the
+# charts come into view, and MapLibre for the stations map, both with SRI). No web fonts (the page uses the system's). The map's
 # tiles, styles and glyphs come from OpenFreeMap; the only other requests are the page's own api/v1/track.json ('self')
 # and anonymous usage events to PostHog. MapLibre runs its worker from a blob: URL, and there are no frames or form
 # posts. A meta CSP can't set frame-ancestors, so the page's script refuses to run inside another site's frame.
 inline = re.findall(r"<script>(.*?)</script>", html, re.S | re.I)
 # Any inline <script ...> with attributes would be blocked by the CSP: refuse to publish rather than ship a dead page
-# (a JSON-LD block is data, not a script: the browser never runs it, so the CSP doesn't apply to it)
-n_inline = len(re.findall(r"<script(?![^>]*\bsrc=)(?![^>]*application/ld\+json)[^>]*>", html, re.I))
+# (a JSON-LD block, or the page's data in its application/json block, is data, not a script: the browser never runs it,
+# so the CSP doesn't apply to it)
+n_inline = len(re.findall(r"<script(?![^>]*\bsrc=)(?![^>]*application/(?:ld\+)?json)[^>]*>", html, re.I))
 if len(inline) != 1 or n_inline != 1: raise RuntimeError(f"dashboard: expected 1 inline script, found {n_inline}")
 sha = base64.b64encode(hashlib.sha256(inline[0].encode()).digest()).decode()
 # cdnjs is allowed by exact file, not by host: the whole host would let an injected <script src> load any library on it
 CDN = "https://cdnjs.cloudflare.com/ajax/libs/"
-chart = re.findall(r'<script src="(https://cdnjs\.cloudflare\.com/ajax/libs/Chart\.js/[\d.]+/chart\.umd\.min\.js)"', html)
+# Chart.js is loaded by the page's script when the charts come into view (loadCharts() in template.html)
+chart = re.findall(r'sc\.src = "(https://cdnjs\.cloudflare\.com/ajax/libs/Chart\.js/[\d.]+/chart\.umd\.min\.js)"', html)
 ml_v = re.findall(r'const ML = \{v:"([\d.]+)"', html)
 if len(chart) != 1 or len(ml_v) != 1: raise RuntimeError("dashboard: can't find the Chart.js / MapLibre versions for the CSP")
 ml = f"{CDN}maplibre-gl/{ml_v[0]}/maplibre-gl"
