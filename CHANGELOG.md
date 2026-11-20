@@ -2,6 +2,16 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-20 — Google Play: Bowser 1.0.1 (government source and disclaimer, optional hardware)
+
+Google Play blocked the closed test (Misleading Claims policy, "Missing Source Link for Government Information", enforced 2026-11-20): an app showing government information must link the official source and say clearly that it doesn't represent a government. Owner: "go".
+- **App (native, 1.0.1):** a source line ("Prices: NSW Government FuelCheck, fuelcheck.nsw.gov.au. Bowser is not a government app."; tap opens FuelCheck) on the welcome screen (what a reviewer sees first), under the prices on Today, the Stations list and each station's page, and in More → About, always shown, "Bowser is an independent app, not a government app…" with links to fuelcheck.nsw.gov.au and data.nsw.gov.au (the duplicate data.nsw.gov.au link in Data sources is gone). The Stations map view has no line of its own. Wording and addresses in `lib/sources.ts` (tested); `SourceLine` renders from the same constants.
+- **Hardware features (native, 1.0.1):** new config plugin `app/plugins/with-optional-features.js` declares `android.hardware.screen.portrait` and `android.hardware.wifi` as not required (implied by portrait orientation and a library's `ACCESS_WIFI_STATE`), which Play's pre-review check flagged as restricting devices. Tested in `optional-features.test.ts`.
+- **Site:** the footer of every page (the dashboard's `template.html` and the generated pages' `SOURCES`) links "NSW Government FuelCheck" and says Bowser is "not a government service"; About links the AIP, EIA and RBA sources.
+- **CI:** `app-ci`'s native-change guard also watches `app/plugins/`, so a plugin change without a `version` bump fails instead of going out as an OTA.
+- **Play description:** now opens with the disclaimer and ends with a SOURCES list of links (`docs/PLAY_STORE.md`); the owner pastes it into Play Console and resubmits the closed test with the 1.0.1 bundle (`ship=play-build`, since `PLAY_RELEASE` is still off).
+- QA (subagent audit): no blockers. Fixed from it: the dashboard footer, the release note overstating coverage ("every price"), `SourceLine` rendering from the tested constants, `plugins` in the CI guard, the source line on the welcome screen and station pages, "or any government agency" in the app's wording, and the duplicate link.
+
 ## 2026-11-18 — Web: tank size moves into the savings sentence
 
 Owner: "what is the need for the tank size filter?" … "change it". It never filtered anything: it only turns cents into dollars ("saves about $4 on a 50 L tank", and Shop around). Next to the fuel picker in the header it looked like a filter.

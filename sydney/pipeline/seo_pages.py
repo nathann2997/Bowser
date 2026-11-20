@@ -215,8 +215,11 @@ CSP = (f"default-src 'none'; script-src 'sha256-{_h(JS)}'; style-src 'sha256-{_h
 MARK = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="9 9 82 82" aria-hidden="true"><path d="M50 10C58 22 78 40 78 62A28 28 0 0 1 22 62C22 40 42 22 '
         '50 10ZM45.5 42A4.5 4.5 0 0 1 54.5 42V63.14L59.82 57.82A4.5 4.5 0 0 1 66.18 64.18L53.18 77.18A4.5 4.5 0 0 1 46.82 77.18L33.82 '
         '64.18A4.5 4.5 0 0 1 40.18 57.82L45.5 63.14Z" fill="#F0A000" fill-rule="evenodd"/></svg>')
-SOURCES = ("Prices: NSW Government FuelCheck (© State of New South Wales, NSW Fair Trading, CC BY-SA 3.0 AU), adapted, with "
-           "forecasts added by Bowser. Bowser is independent and is not affiliated with the NSW Government or any fuel retailer.")
+# The source is linked and the disclaimer is plain: Google Play's Misleading Claims policy asks the same of the app
+# (app/src/lib/sources.ts), and the wording stays in step with it
+SOURCES = ('Prices: <a href="https://www.fuelcheck.nsw.gov.au/" rel="noopener">NSW Government FuelCheck</a> (© State of New South Wales, '
+           "NSW Fair Trading, CC BY-SA 3.0 AU), adapted, with forecasts added by Bowser. Bowser is independent, not a government "
+           "service, and is not affiliated with the NSW Government or any fuel retailer.")
 
 
 def jsonld(obj):
@@ -1021,7 +1024,10 @@ class Site:
                 f'<li><a href="{up}fuel-price-forecast/">The Sydney fuel price forecast</a> and how it is tested.</li>'
                 f'<li><a href="{up}petrol-price-cycle/">The Sydney petrol price cycle</a>, explained.</li></ul>',
                 "<h2>Where the data comes from</h2>",
-                f"<p>{SOURCES} The forecast also uses wholesale prices from the Australian Institute of Petroleum, oil prices from the U.S. Energy Information Administration and the exchange rate from the Reserve Bank of Australia.</p>",
+                f"<p>{SOURCES} The forecast also uses wholesale prices from the "
+                '<a href="https://www.aip.com.au/pricing/terminal-gate-prices" rel="noopener">Australian Institute of Petroleum</a>, oil prices from the '
+                '<a href="https://www.eia.gov/dnav/pet/hist/RBRTED.htm" rel="noopener">U.S. Energy Information Administration</a> and the exchange rate from the '
+                '<a href="https://www.rba.gov.au/statistics/frequency/exchange-rates.html" rel="noopener">Reserve Bank of Australia</a>.</p>',
                 "<h2>How reliable is it?</h2>",
                 "<p>Prices are the stations’ own reports, read several times a day, so they can be a few hours old; always check the board before you fill. "
                 "Forecasts are estimates for planning, not financial advice, and every call Bowser makes is scored in public a week later.</p>",

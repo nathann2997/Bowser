@@ -110,7 +110,7 @@ jobs:
             if [ -n "$BEFORE" ] && ! echo "$BEFORE" | grep -qE '^0+$'; then
               git fetch -q --depth 1 origin "$BEFORE"
               OLD=$(git show "$BEFORE:app/app.json" | ver)
-              NATIVE=$(git diff --name-only "$BEFORE" HEAD -- package.json package-lock.json app.json app.config.js patches | tr '\n' ' ')
+              NATIVE=$(git diff --name-only "$BEFORE" HEAD -- package.json package-lock.json app.json app.config.js patches plugins | tr '\n' ' ')
               if [ "$OLD" != "$NEW" ]; then MODE=build
               elif [ -n "$NATIVE" ]; then
                 echo "::error::Native files changed ($NATIVE) but version in app.json is still $NEW. Bump it so a new APK is built; an OTA to $NEW installs could crash them. If the change really is JS-only, run this workflow by hand with ship=ota."

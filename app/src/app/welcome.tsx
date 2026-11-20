@@ -6,6 +6,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { AlertsSwitch } from '@/components/alerts-switch';
 import { AreaPicker } from '@/components/area-picker';
 import { BowserWordmark } from '@/components/brand';
+import { SourceLine } from '@/components/source-line';
 import { Button, Card, FuelPicker, Loading, Screen, T } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -58,6 +59,7 @@ export default function Welcome() {
 
       <Button label="Start" onPress={() => done('start')} />
       <Button label="Skip for now" kind="secondary" onPress={() => done('skip')} />
+      <SourceLine />
     </Screen>
   );
 }

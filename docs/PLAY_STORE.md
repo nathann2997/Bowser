@@ -2,7 +2,7 @@
 
 How Bowser gets onto Google Play and stays there: what the code does, what the owner sets up once, and the answers for every Play Console form. Status lives in `docs/HANDOFF.md`.
 
-## What the code does (1.0.0)
+## What the code does (1.0.0, 1.0.1)
 
 | Piece | Where | What |
 |---|---|---|
@@ -14,6 +14,8 @@ How Bowser gets onto Google Play and stays there: what the code does, what the o
 | No background location | `app/src/widget/bg-location.ts`, `app.json` | `ACCESS_BACKGROUND_LOCATION` is blocked and the widget uses the saved area, as on iOS. No Play declaration or video is needed |
 | No advertising ID | `app.json` `blockedPermissions` | `com.google.android.gms.permission.AD_ID` is removed, so the Advertising ID answer is "No" |
 | Privacy policy | `sydney/pipeline/seo_pages.py` → https://checkbowser.app/privacy/ | Covers the website and the app (`#app`), and is linked from More → About in the app |
+| Government source and disclaimer | `app/src/lib/sources.ts`, `components/source-line.tsx` | "Prices: NSW Government FuelCheck … Bowser is not a government app" on the welcome screen, Today, the Stations list and station pages, and in More → About with links (from 1.0.1) |
+| Optional hardware | `app/plugins/with-optional-features.js` | Portrait screen and Wi-Fi declared as not required, so Play doesn't restrict devices (from 1.0.1) |
 | Store graphics | `docs/play/icon-512.png`, `docs/play/feature-graphic.jpg` | 512×512 icon and 1024×500 feature graphic, from the brand files (no tagline, `docs/BRAND.md`) |
 
 ## One-time setup (owner)
@@ -48,6 +50,8 @@ Either way, EAS keeps signing uploads with its key, which is then the **upload k
 - **Full description (4000 max):**
 
 ```
+Bowser is not a government app. It is independent and is not affiliated with, endorsed by or representing the NSW Government or any government agency.
+
 Bowser tells you whether to fill up today or wait, and where fuel is cheapest near you.
 
 Sydney petrol prices move in cycles: they climb sharply, then drift down for weeks. Bowser reads every price NSW service stations report to the NSW Government's FuelCheck service, up to five times a day, and turns it into one plain call: fill now, or wait.
@@ -65,8 +69,17 @@ No account, no ads. Your location stays on your phone.
 
 The forecast covers Sydney; prices cover all of NSW. Forecasts are estimates for planning, not financial advice. Prices are the stations' own reports and can be a few hours old, so check the board before you fill.
 
-Contains NSW Government FuelCheck data © State of New South Wales (NSW Fair Trading), licensed under CC BY-SA 3.0 AU. Bowser is independent and is not endorsed by the NSW Government.
+SOURCES
+• Fuel prices: NSW Government FuelCheck – https://www.fuelcheck.nsw.gov.au
+• FuelCheck data and licence: https://data.nsw.gov.au/data/dataset/fuel-check
+• AUD/USD exchange rate: Reserve Bank of Australia – https://www.rba.gov.au/statistics/frequency/exchange-rates.html
+• Brent crude oil price: U.S. Energy Information Administration – https://www.eia.gov/dnav/pet/hist/RBRTED.htm
+• Wholesale (terminal gate) prices: Australian Institute of Petroleum – https://www.aip.com.au/pricing/terminal-gate-prices
+
+Contains NSW Government FuelCheck data © State of New South Wales (NSW Fair Trading), licensed under CC BY-SA 3.0 AU.
 ```
+
+**Government information (Misleading Claims policy).** Play counts FuelCheck prices (and the RBA rate) as government information. The description must open with the "not a government app" line and list a link to each official source, and the app must show both where they're easy to see (`app/src/lib/sources.ts`: Today, Stations, More → About). The closed test of 1.0.0 was blocked on 2026-11-20 for missing this; 1.0.1 fixes it. Keep the description, the app and the site's `SOURCES` (`seo_pages.py`) in step.
 
 - **Category:** Maps & Navigation. **Tags:** fuel, petrol prices (pick from Play's list).
 - **Contact:** website `https://checkbowser.app`, the email address you choose for the listing (Play shows it publicly), privacy policy `https://checkbowser.app/privacy/`.

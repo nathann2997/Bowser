@@ -9,6 +9,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { FillSheet } from '@/components/fill-sheet';
 import { MapPinIcon, PumpIcon, ShareIcon } from '@/components/icons';
+import { SourceLine } from '@/components/source-line';
 import { ADVICE_TONE } from '@/components/station-row';
 import { TickerChart } from '@/components/ticker-chart';
 import { Badge, Card, Section, StaleBanner, T } from '@/components/ui';
@@ -332,6 +333,7 @@ export default function StationPage() {
                 })()}
               </Card>
             </Section>
+            <SourceLine />
           </>
         )}
       </ScrollView>
