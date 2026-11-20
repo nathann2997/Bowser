@@ -40,10 +40,9 @@ class Tally(unittest.TestCase):
         self.assertEqual([T.score("flat", 2.9), T.score("flat", -4), T.score("flat", 5)], ["right", "close", "wrong"])
         self.assertEqual(T.score("up", None), "pending")
 
-    def test_gain_is_the_value_of_following_the_call(self):
-        self.assertEqual([T.value("up", 3), T.value("down", -4), T.value("down", 2), T.value("flat", -9)], [3, 4, -2, 0.0])
+    def test_gain_is_save_for_older_apps(self):
         t = T.one([row("up", 3), row("down", -4), row("down", 2), row("flat", -9)])
-        self.assertEqual(t["gain"], 1.25)                          # (3 + 4 - 2 + 0) / 4
+        self.assertEqual((t["gain"], t["save"]), (0.5, 0.5))                   # (0 + 4 - 2 + 0) / 4
         self.assertEqual({k: v["n"] for k, v in t["by"].items()}, {"up": 1, "down": 2, "flat": 1})
         self.assertEqual(t["by"]["down"], {"n": 2, "right": 1, "close": 0, "wrong": 1})
         self.assertNotIn("base", t)
@@ -58,8 +57,6 @@ class Tally(unittest.TestCase):
 
     def test_save_is_against_filling_the_day_you_check(self):
         self.assertEqual([T.saved("down", -4), T.saved("down", 2), T.saved("up", 5), T.saved("flat", -9)], [4, -2, 0.0, 0.0])
-        t = T.one([row("up", 3), row("down", -4), row("down", 2), row("flat", -9)])
-        self.assertEqual((t["gain"], t["save"]), (1.25, 0.5))                   # save: (0 + 4 - 2 + 0) / 4
         self.assertIsNone(T.one([])["save"])
 
     def test_base_carries_what_it_saved(self):

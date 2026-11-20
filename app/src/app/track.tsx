@@ -30,7 +30,7 @@ export default function TrackRecord() {
   const x = t ? tested(t, s.fuel) : null;
   const lead = liveLeads(live);
   const { pending, scored } = runs(t ? callsFor(t, s.fuel) : []);
-  const brag = t ? trackMessage(t, s.fuel) : null;
+  const brag = t ? trackMessage(t, s.fuel, s.tankL) : null;
   const liveCard = live?.since ? <LiveCard key="live" l={live} tankL={s.tankL} lead={lead} /> : null;
   const testedCard = x ? <TestedCard key="tested" x={x} tankL={s.tankL} lead={!lead} /> : null;
 

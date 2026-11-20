@@ -117,6 +117,10 @@ describe('the live record', () => {
     expect(trackMessage(track(none), 'U91')).toBe(
       'Bowser’s fill-or-wait calls for Sydney Unleaded 91 were right 84% of the time, tested on 2021–2026 prices.\nhttps://checkbowser.app/');
     expect(trackMessage(track(none), 'DL')).toBeNull();
+    // with savings (track.json from 2026-11-20): dollars first, on your tank
+    const money: ReplayTally = { ...recent, recent: { ...recent.recent!, save: 2.22, base: { cls: 'down', right: 164, save: -0.65 } } };
+    expect(trackMessage(track(none, money), 'U91', 60)).toBe(
+      'Following Bowser’s fill-or-wait calls for Sydney Unleaded 91 saved about $1.33 a 60 L tank on average, against filling up the day you check (tested on the year to 22 Oct). Always saying “Wait” would have cost $0.39. Right 72% of the time.\nhttps://checkbowser.app/');
   });
 });
 

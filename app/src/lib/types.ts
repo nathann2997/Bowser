@@ -176,7 +176,7 @@ export type Counts = { n: number; right: number; close: number; wrong: number };
 // `gain` and `by` (and `base`, `recent`, `pending` below) were added on 2026-11-11; a track.json from before has none
 export type Tally = Counts & {
   from: string | null; to: string | null;
-  gain?: number | null;           // average value of following the call, c/L: fill +move, wait −move, no rush 0
+  gain?: number | null;           // the same as `save` since 2026-11-20 (before: fill +move, wait −move, no rush 0, two baselines)
   save?: number | null;           // (from 2026-11-20) average saving against filling up the day you check, c/L: wait −move, else 0
   by?: Partial<Record<VerdictCls, Counts>>;   // the counts per call type
 };
