@@ -230,12 +230,12 @@ class Built(unittest.TestCase):
 
 
     def test_tested_record_beside_every_call(self):
-        line = ("Bowser’s Sydney Unleaded 91 call, tested on the year to 22 Oct: following it saved about $1.18 a 50 L tank against filling up "
-                "the day you check, and it was right on 72% of days (always “wait”: 48%).")
+        line = ("Bowser’s Sydney Unleaded 91 call, tested on the year to 22 Oct: on average, following it would have saved about $1.18 a 50 L tank "
+                "against filling up the day you check, and it was right on 72% of days (always “wait”: 48%).")
         for p in ("fuel-prices", "fuel-prices/unleaded-91", "fuel-prices/parramatta-2150", "fuel-price-forecast"):
             self.assertIn(html.escape(line), self.page(p), p)
         self.assertIn('href="../../fuel-price-forecast/accuracy/">How it’s scored</a>', self.page("fuel-prices/parramatta-2150"))
-        self.assertIn(html.escape(line), self.page("station/7-eleven-parramatta-1"))
+        self.assertNotIn("call, tested on", self.page("station/7-eleven-parramatta-1"))   # its advice is a different, untested rule
         self.assertNotIn("tested on the year", self.page("station/ampol-dubbo-7"))     # outside Sydney: no call, no record
         self.assertNotIn("Diesel call, tested", self.page("fuel-prices/diesel"))         # no replay for diesel in the sample
         a = self.page("fuel-price-forecast/accuracy")
@@ -261,8 +261,8 @@ class Pieces(unittest.TestCase):
         head = sp.home_head(stations, forecast)
         self.assertEqual(head.count("<title>"), 1); self.assertTrue(head.startswith("<title>"))
         self.assertIn('<link rel="canonical" href="https://checkbowser.app/">', head)
-        self.assertIn("Unleaded 91 is 213.6c/L in Sydney today (17 Nov)", head)
-        self.assertIn("<title>Should you fill up today? Sydney fuel prices and forecast | Bowser</title>", head)
+        self.assertIn("Unleaded 91 is 213.6c/L (17 Nov)", head)
+        self.assertIn("<title>Should you fill up today? Sydney fuel prices | Bowser</title>", head)
         self.assertIn("Should you fill up today? Bowser’s call for Sydney: wait if you can.", head)
         self.assertEqual(len(re.findall(r"<script\b", head, re.I)), 1); self.assertIn('<script type="application/ld+json">', head)
         links = sp.home_links(stations, forecast)

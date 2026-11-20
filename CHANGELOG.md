@@ -2,6 +2,21 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-20 — QA of #31 and #32: fixes
+
+The QA audit of the tested record line and the dashboard title (nothing high). Fixed:
+- **Station pages no longer carry the tested line.** A station's advice ("Fill by Tue", "Skip for now", "Any time") comes from `advise()` in `build.py`, a different rule that has never been tested, so the Sydney call's record under it read as the station's own.
+- **A loss is said, not hidden.** The line follows the app's `worth()`: "on average, following it would have saved / cost about $X a 50 L tank", and it leaves out any amount under 50c a tank. It also says "would have saved, on average", not "saved", because the figure comes from a replay. On the accuracy page, the saving is "each time you checked", not "a fill".
+- **Percentages round like the app's `Math.round`** (a .5 rounds up), so a page and the app never differ by a point.
+- **Malformed `track.json` never stops the build** (a replay or tally that isn't a dict, bad dates, a base that isn't a dict, an infinite saving, right over n). That includes six cases that already raised before #31.
+- "Why accuracy figures differ" now also gives the no-rush rule (right under 3c, wrong at 5c or more).
+- **The forecast page's question "Should I fill up today or wait?" is now "Is it worth waiting to buy petrol this week?"**, so only the dashboard targets "should you fill up today".
+- **Dashboard title shortened** to "Should you fill up today? Sydney fuel prices | Bowser" (52 characters, was 66). The description is shorter (the call and price stay inside a search snippet) and never reads "Bowser's call for Sydney: ." when there's no call.
+
+## 2026-11-20 — Product roadmap: "best fuel forecasting app", ranked by search
+
+The owner approved a 10-point roadmap (no timeframes; each item done before the next). Items 1–4 are done: the competitor-review pages shipped (#30), the tested record beside every call (#31), the "Should you fill up today?" dashboard title (#32), and October history with the full model live (already in place). Items 5–10 and the "not doing" list are in `docs/HANDOFF.md` under "Product roadmap".
+
 ## 2026-11-20 — Dashboard title: "Should you fill up today?"
 
 Roadmap item 3. The dashboard's `<title>` (from `home_head()` in `seo_pages.py`) changes from "Bowser: Sydney fuel prices today and when to fill up" to "Should you fill up today? Sydney fuel prices and forecast | Bowser". The description now opens with the question and today's answer ("Should you fill up today? Bowser's call for Sydney: wait if you can."). PetrolPulse builds its homepage title on this phrase, and it's the question the dashboard answers. The forecast page keeps "fuel price forecast … next week", and "should I fill up today" moves from its row in the `docs/SEO.md` keyword map to the dashboard's, so the two pages don't compete. Test updated.
