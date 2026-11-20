@@ -63,7 +63,7 @@ def sample():
     track = {"replay": {"U91": {"n": 2098, "right": 1736, "close": 211, "wrong": 151, "from": "2021-01-01", "to": "2026-10-22",
                                 "by": {"up": {"n": 711, "right": 478, "close": 137, "wrong": 96}, "down": {"n": 1186, "right": 1113, "close": 41, "wrong": 32},
                                        "flat": {"n": 201, "right": 145, "close": 33, "wrong": 23}}, "base": {"cls": "down", "right": 1314},
-                                "recent": {"n": 342, "right": 247, "close": 42, "wrong": 53, "from": "2025-10-23", "to": "2026-10-22", "base": {"cls": "down", "right": 164}}}},
+                                "recent": {"n": 342, "right": 247, "close": 42, "wrong": 53, "from": "2025-10-23", "to": "2026-10-22", "save": 2.35, "base": {"cls": "down", "right": 164}}}},
              "live": {"U91": {"n": 19, "right": 11, "close": 8, "wrong": 0, "since": "2026-10-22"}}}
     return stations, forecast, history, details, track
 
@@ -227,6 +227,19 @@ class Built(unittest.TestCase):
         for p in ("fuel-price-forecast/accuracy/", "best-day-to-buy-petrol/", "petrol-prices-christmas/"):
             self.assertIn(p, self.page("about"))                                           # in every page's footer
         with open(os.path.join(self.out, "llms.txt"), encoding="utf-8") as fh: self.assertIn("/best-day-to-buy-petrol/", fh.read())
+
+
+    def test_tested_record_beside_every_call(self):
+        line = ("Bowser’s Sydney Unleaded 91 call, tested on the year to 22 Oct: following it saved about $1.18 a 50 L tank against filling up "
+                "the day you check, and it was right on 72% of days (always “wait”: 48%).")
+        for p in ("fuel-prices", "fuel-prices/unleaded-91", "fuel-prices/parramatta-2150", "fuel-price-forecast"):
+            self.assertIn(html.escape(line), self.page(p), p)
+        self.assertIn('href="../../fuel-price-forecast/accuracy/">How it’s scored</a>', self.page("fuel-prices/parramatta-2150"))
+        self.assertIn(html.escape(line), self.page("station/7-eleven-parramatta-1"))
+        self.assertNotIn("tested on the year", self.page("station/ampol-dubbo-7"))     # outside Sydney: no call, no record
+        self.assertNotIn("Diesel call, tested", self.page("fuel-prices/diesel"))         # no replay for diesel in the sample
+        a = self.page("fuel-price-forecast/accuracy")
+        self.assertIn("Why accuracy figures differ between sites", a)
 
 
 class Pieces(unittest.TestCase):
