@@ -152,7 +152,8 @@
     n = String(n).replace(/\s*\(members only\)/i, '').replace(/\s+/g, ' ').trim();
     if (/[a-z]/.test(n) || !/[A-Z]{4}/.test(n)) return n;
     return n.split(' ').map(function (w) {
-      return ACRONYMS.indexOf(w) >= 0 ? w : w.toLowerCase().replace(/(^|[-'’(])([a-z])/g, function (_, p, ch) { return p + ch.toUpperCase(); });
+      return ACRONYMS.indexOf(w) >= 0 ? w : w.toLowerCase().replace(/(^|[-(])([a-z])/g, function (_, p, ch) { return p + ch.toUpperCase(); })
+        .replace(/^([A-Z]['’])([a-z])/, function (_, p, ch) { return p + ch.toUpperCase(); });
     }).join(' ');
   };
   var num = function (v) { return typeof v === 'number' && isFinite(v); };

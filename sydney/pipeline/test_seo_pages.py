@@ -2,7 +2,7 @@
 
   python -m unittest discover -s sydney/pipeline -p "test_*.py"
 """
-import base64, hashlib, html, json, os, re, sys, tempfile, unittest
+import base64, datetime as dt, hashlib, html, json, os, re, sys, tempfile, unittest
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -43,10 +43,16 @@ def sample():
     forecast = {"asof": ASOF, "live": [live("U91", 213.6), live("E10", 211.8), live("P95", 232.9), live("P98", 239.9), live("DL", 264.9)],
                 "stats": {"cycles_by_year": [{"year": 2025, "n": 10, "gap": 35.5, "amp": 41.5}, {"year": 2026, "n": 7, "gap": 39.0, "amp": 21.0}],
                           "cycle_gap_calm": 37.0, "cycle_amp_calm": 37.0, "last_restore": "2026-09-15", "dow": [0.2, 0.3, 0.1, -0.2, -0.3, -0.1, -0.1],
-                          "shop_around": 13.4, "p98_prem": 24.4, "p95_prem": 18.6, "e10_disc": 1.0, "low_2019": 89.9, "high_all": 259.9, "high_date": "2026-03-29"}}
-    n = 120
-    history = {"start": "2026-07-21", "hist": {f: {"med": [200 + i * 0.1 for i in range(n)], "p10": [190 + i * 0.1 for i in range(n)], "p90": [210 + i * 0.1 for i in range(n)]}
-                                               for f in sp.FUELS}}
+                          "shop_around": 13.4, "p98_prem": 24.4, "p95_prem": 18.6, "e10_disc": 1.0, "low_2019": 89.9, "high_all": 259.9, "high_date": "2026-03-29",
+                          "recent_jumps": [{"date": "2025-12-10", "amp": 45.0, "gap": 42}, {"date": "2026-01-21", "amp": 37.0, "gap": 36},
+                                           {"date": "2026-08-04", "amp": 14.8, "gap": 42}, {"date": "2026-09-15", "amp": 30.0, "gap": None}, "junk"]},
+                "bt": {"prod": "+cycle memory", "summary": {f"{f}|{h}": {"naive": 2.0 * h, "+cycle memory": 1.0 * h, "dir": 0.9} for f in sp.FUELS for h in (1, 3, 7, 14)},
+                       "yearly_u91_h7": {"2025": {"naive": 13.8, "model": 4.8}, "2026": {"naive": 10.5, "model": 7.9}}}}
+    # four Christmases (2022-23 to 2025-26), each with a 20c jump on 20 December except 2023's
+    n = (dt.date.fromisoformat(ASOF) - dt.date(2022, 11, 1)).days + 1
+    jump = lambda i: 20 if any(dt.date(y, 12, 20) <= dt.date(2022, 11, 1) + dt.timedelta(days=i) <= dt.date(y, 12, 28) for y in (2022, 2024, 2025)) else 0
+    med = [200 + (i % 30) * 0.1 + jump(i) for i in range(n)]
+    history = {"start": "2022-11-01", "hist": {f: {"med": list(med), "p10": [v - 10 for v in med], "p90": [v + 10 for v in med]} for f in sp.FUELS}}
     # station 1: 400 days ending ASOF, with a month stuck at a slip price (151.9) that the chart must leave out
     h = [205.0 + (i % 30) * 0.5 for i in range(400)]
     for i in range(330, 360): h[i] = 151.9
@@ -54,7 +60,10 @@ def sample():
     details = {"1": {"start": "2025-10-14", "addr": "81 Victoria Road, Parramatta NSW 2150", "hist": {"U91": h},
                      "profile": {"typ": {"U91": 1.5}, "lag": 30, "part": 0.8, "n": 24},
                      "fc": {"U91": {"now": 216.9, "d7": -9.2, "lo7": -23.1, "hi7": 4.8, "rise": None}}}}
-    track = {"replay": {"U91": {"n": 2098, "right": 1736, "close": 211, "wrong": 151, "from": "2021-01-01", "to": "2026-10-22"}},
+    track = {"replay": {"U91": {"n": 2098, "right": 1736, "close": 211, "wrong": 151, "from": "2021-01-01", "to": "2026-10-22",
+                                "by": {"up": {"n": 711, "right": 478, "close": 137, "wrong": 96}, "down": {"n": 1186, "right": 1113, "close": 41, "wrong": 32},
+                                       "flat": {"n": 201, "right": 145, "close": 33, "wrong": 23}}, "base": {"cls": "down", "right": 1314},
+                                "recent": {"n": 342, "right": 247, "close": 42, "wrong": 53, "from": "2025-10-23", "to": "2026-10-22", "base": {"cls": "down", "right": 164}}}},
              "live": {"U91": {"n": 19, "right": 11, "close": 8, "wrong": 0, "since": "2026-10-22"}}}
     return stations, forecast, history, details, track
 
@@ -82,7 +91,7 @@ class Built(unittest.TestCase):
         self.assertEqual(self.report["brands"], 1)               # 7-Eleven is the only brand with three stations
         for p in ["fuel-prices", "fuel-prices/unleaded-91", "fuel-prices/diesel", "fuel-prices/parramatta-2150", "fuel-prices/harris-park-2150",
                   "station", "station/7-eleven-parramatta-1", "brands", "brands/7-eleven", "fuel-price-forecast", "petrol-price-cycle",
-                  "nsw-fuelcheck", "about", "privacy"]:
+                  "nsw-fuelcheck", "about", "privacy", "fuel-price-forecast/accuracy", "best-day-to-buy-petrol", "petrol-prices-christmas"]:
             self.assertIn(os.path.join(p, "index.html"), self.pages, p)
         self.assertIn("404.html", self.pages)
         self.assertNotIn(os.path.join("fuel-prices", "postcode-2143-2143", "index.html"), self.pages)
@@ -143,7 +152,7 @@ class Built(unittest.TestCase):
         self.assertEqual(len(locs), len(set(locs))); self.assertEqual(len(locs), self.report["pages"] + 1)
         for loc in locs[1:]:
             self.assertIn(os.path.join(loc[len("https://checkbowser.app/"):].replace("/", os.sep), "index.html"), self.pages, loc)
-        self.assertTrue(all(u.find("s:lastmod", ns).text == ASOF for u in root.findall("s:url", ns)))
+        self.assertTrue(all(u.find("s:lastmod", ns).text == ASOF for u in root.findall("s:url", ns)))   # all Sydney here
         with open(os.path.join(self.out, "robots.txt")) as fh: robots = fh.read()
         self.assertIn("Sitemap: https://checkbowser.app/sitemap.xml", robots); self.assertNotIn("Disallow: /\n", robots)
 
@@ -187,12 +196,48 @@ class Built(unittest.TestCase):
         self.assertIn("isn’t affiliated with or endorsed by the NSW Government", self.page("nsw-fuelcheck"))
 
 
+    def test_forecast_page_answers_questions(self):
+        f = self.page("fuel-price-forecast")
+        self.assertIn("will petrol go up or down next week?</h1>", f)
+        self.assertIn('"@type":"FAQPage"', f); self.assertIn('"@type":"Dataset"', f); self.assertIn('"temporalCoverage":"2026-11-17/2026-12-01"', f)
+        self.assertIn("<h3>Will petrol go up tomorrow in Sydney?</h3>", f); self.assertIn("about 212.2c a litre tomorrow", f)
+        self.assertIn("<td>50 litres</td><td class=\"n\">$4.05</td>", f)                 # 8.1c on 50 L
+        self.assertEqual(f.count('<svg class="chart"'), 1)                                  # the 60 days and the 14-day forecast
+        self.assertIn('href="../fuel-price-forecast/accuracy/"', f)
+        self.assertIn("4 price jumps, typically 34c a litre, against about 37c and 10 a year in normal years, so the cycle has been weaker than usual: fewer jumps. Today is day 63", f)
+        self.assertEqual(len(re.findall(r"<p[ >]", f)), f.count("</p>"))
+
+    def test_accuracy_page(self):
+        a = self.page("fuel-price-forecast/accuracy")
+        self.assertIn("right <b>83%</b> of the time", a); self.assertIn("always saying “wait”, was right on 63%", a)
+        self.assertIn("off by <b>7.0c</b> a litre on average, against 14.0c", a)
+        self.assertIn("<td>Wait</td><td class=\"n\">1,186</td><td class=\"n\">94%</td>", a)
+        self.assertIn("The hardest year was 2026", a); self.assertIn("the going was harder", a)
+
+    def test_cycle_best_day_and_christmas(self):
+        c = self.page("petrol-price-cycle")
+        self.assertIn("<b>Running long</b>", c); self.assertIn("63 so far", c); self.assertIn("Day 63 since the last price jump", c)
+        b = self.page("best-day-to-buy-petrol")
+        self.assertIn("Friday is the cheapest day to buy petrol in Sydney and Tuesday the dearest", b)
+        self.assertIn("No. In Sydney, Tuesday averages 0.3c over", b); self.assertIn('"@type":"FAQPage"', b)
+        x = self.page("petrol-prices-christmas")
+        self.assertIn("In 3 of the last 4 Christmas holidays (2022 to 2025)", x)
+        self.assertIn("<td>2023–24</td>", x); self.assertIn("No jump", x); self.assertIn("20 Dec", x)
+        self.assertIn("Christmas 2026: what Bowser expects", x)                          # 17 Nov is in the run-up
+        for p in ("fuel-price-forecast/accuracy/", "best-day-to-buy-petrol/", "petrol-prices-christmas/"):
+            self.assertIn(p, self.page("about"))                                           # in every page's footer
+        with open(os.path.join(self.out, "llms.txt"), encoding="utf-8") as fh: self.assertIn("/best-day-to-buy-petrol/", fh.read())
+
+
 class Pieces(unittest.TestCase):
     def test_station_name(self):
         self.assertEqual(sp.station_name("APEX PETROLEUM (WEST RYDE)"), "Apex Petroleum (West Ryde)")
         self.assertEqual(sp.station_name("BP NORTH MANLY"), "BP North Manly")
         self.assertEqual(sp.station_name("Shell Reddy  Express Wattle Grove"), "Shell Reddy Express Wattle Grove")
         self.assertEqual(sp.station_name("Costco Auburn (Members only)"), "Costco Auburn")
+        self.assertEqual(sp.station_name("YOGI'S PLACE SERVICE STATION"), "Yogi's Place Service Station")
+        self.assertEqual(sp.station_name("O'CONNELL FUEL D'ARCY ST"), "O'Connell Fuel D'Arcy ST")
+        self.assertEqual(sp.station_name("Yogi's Place"), "Yogi's Place")
 
     def test_slug(self):
         self.assertEqual(sp.slug("St Mary's & King’s Cross"), "st-marys-and-kings-cross")
@@ -235,7 +280,7 @@ class Pieces(unittest.TestCase):
             s = station(100 + i, f"Servo Newcastle {i}", "Lowes", "Hamilton", 2303, -32.92 + i * 0.01, 151.75, {"U91": (220.0 + i, 0), "DL": (260.0 + i, 0)}, out=1)
             for f in s["p"]: s["p"][f] = s["p"][f][:2] + ["na", "Price only", "Outside Sydney, where Bowser has no forecast"]
             st.append(s)
-        st.append(station(300, "Ampol Newcastle West", "Ampol", "Newcastle", 2302, -32.925, 151.76, {"U91": (225.0, 0)}, out=1))   # a suburb named like a region
+        st.append(station(300, "Ampol Newcastle West", "Ampol", "Newcastle", 2302, -32.925, 151.76, {"U91": (225.0, 3)}, out=1))   # a suburb named like a region
         st.append(station(200, "Closed Servo", "Independent", "Tibooburra", 2880, -29.43, 142.01, {"U91": (250.0, 45)}, out=1))   # nothing for 45 days
         with tempfile.TemporaryDirectory() as out:
             r = sp.build(out, stations, forecast)
@@ -261,6 +306,11 @@ class Pieces(unittest.TestCase):
             dead, sm = rd("station/closed-servo-200/index.html"), rd("sitemap.xml")
             self.assertIn('<meta name="robots" content="noindex">', dead); self.assertNotIn('rel="canonical"', dead)
             self.assertNotIn("closed-servo-200", sm); self.assertNotIn("tibooburra-2880", sm); self.assertIn("fuel-prices/newcastle/", sm)
+            # outside Sydney a page's lastmod is the day its newest price was reported; region and Sydney pages change daily
+            lm = lambda path: re.search(re.escape(path) + r"</loc><lastmod>([\d-]+)<", sm).group(1)
+            three = (sp.dt.date.fromisoformat(ASOF) - sp.dt.timedelta(days=3)).isoformat()
+            self.assertEqual(lm("station/ampol-newcastle-west-300/"), three); self.assertEqual(lm("fuel-prices/newcastle-2302/"), three)
+            self.assertEqual(lm("station/servo-newcastle-0-100/"), ASOF); self.assertEqual(lm("fuel-prices/newcastle/"), ASOF)
             robots = rd("robots.txt")
             for bot in ("GPTBot", "OAI-SearchBot", "ClaudeBot", "PerplexityBot", "Google-Extended"): self.assertIn(f"User-agent: {bot}\n", robots)
             self.assertEqual(robots.count("Disallow:"), 2); self.assertNotIn("Disallow: /\n", robots)

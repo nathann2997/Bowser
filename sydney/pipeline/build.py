@@ -65,6 +65,8 @@ stats = {
     "cycle_gap_calm": r1(C[(C.date < "2022-02-01") | ((C.date >= "2022-10-01") & (C.date < "2026-03-01"))].gap.median()),
     "cycle_amp_calm": r1(C[(C.date < "2022-02-01") | ((C.date >= "2022-10-01") & (C.date < "2026-03-01"))].amp.median()),
     "last_restore": str(last_restore.date()) if last_restore is not None else None,
+    # the last 16 jumps, newest last (gap None for the latest), for the search pages' "is the cycle still running?" (same detector as above)
+    "recent_jumps": [{"date": str(c["date"].date()), "amp": r1(c["amp"]), "gap": c["gap"]} for c in cyc[-16:]],
     "dow": [r1(v) for v in dev.reindex(range(7))],
     "shop_around": spread("U91", "median", "p10"),
     "p98_prem": r1((syd.xs("P98", level="fuel")["median"] - u.reindex(syd.xs("P98", level="fuel").index)).loc["2023-01-01":].mean()),
