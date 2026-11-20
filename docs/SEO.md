@@ -15,7 +15,7 @@ One page per search intent, so pages don't compete with each other. Volumes are 
 
 | Searches | Page | Why Bowser can rank |
 |---|---|---|
-| bowser, check bowser, bowser fuel app; should I fill up today, fill up now or wait | `/` (dashboard) | Brand, and the question the dashboard answers. Title since 2026-11-20: "Should you fill up today? Sydney fuel prices and forecast \| Bowser" (PetrolPulse builds its title on the same phrase). |
+| bowser, check bowser, bowser fuel app; should I fill up today, fill up now or wait | `/` (dashboard) | Brand, and the question the dashboard answers. Title since 2026-11-20: "Should you fill up today? Sydney fuel prices \| Bowser" (PetrolPulse builds its title on the same phrase). |
 | nsw fuel prices, sydney petrol prices, fuel prices sydney today, cheapest petrol sydney, petrol prices near me | `/fuel-prices/` | Today's median, the 15 cheapest, every suburb linked. |
 | petrol prices {suburb}, cheapest fuel {suburb}, {suburb} fuel prices | `/fuel-prices/{suburb}-{postcode}/` (384 today) | Long tail. Low competition per suburb, large in total. The main traffic source. |
 | {station name} fuel price, 7-eleven parramatta petrol price | `/station/{name}-{id}/` (864 today) | Very long tail; price history and a per-station forecast nobody else has. |
