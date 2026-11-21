@@ -3,8 +3,9 @@
 inbox/ may contain (any subset; newest of each is used):
   nsw_snapshot_*.json   raw response of GET /FuelPriceCheck/v1/fuel/prices
   AIP_TGP_Data_*.xlsx   AIP historical TGP workbook
+  aip_tgp_page.html     AIP's daily TGP page (aip_daily.py): fills the days after the weekly workbook's last
   brent_audusd_eia_rba.csv  Brent (EIA) and AUD/USD (RBA), under the FRED column ids (fetch.py pull_macro)
-Writes store/daily.csv (adds/replaces snapshot rows; Sydney stations only), store/tgp.csv, store/fred.csv and
+Writes store/daily.csv (adds/replaces snapshot rows; Sydney stations only), store/tgp.csv, store/tgp_daily.csv, store/fred.csv and
 store/stations_today.json (every NSW FuelCheck station, with `syd` true for the Sydney ones the forecast is about)
 """
 import glob, json, os, re, sys
@@ -105,6 +106,27 @@ if x:
     T = pd.concat(out, axis=1).sort_index()
     T.to_csv(f"{STORE}/tgp.csv", index_label="date")
     log.append(f"tgp to {T.index.max().date()}")
+
+# ---- AIP daily page: Sydney TGP for the days the weekly workbook doesn't have yet. Every page read is kept in
+# store/tgp_daily.csv (newest read wins); tgp.csv gets only the days after its last date, so the workbook always wins.
+# Without a workbook this run, tgp.csv is last run's, and only days after its last date are added.
+import aip_daily
+dpath, page = f"{STORE}/tgp_daily.csv", f"{INBOX}/aip_tgp_page.html"
+Dd = pd.DataFrame(columns=["tgp_ulp", "tgp_dl"])
+if os.path.exists(page):
+    try:
+        if os.path.exists(dpath): Dd = pd.read_csv(dpath, parse_dates=["date"]).set_index("date")[["tgp_ulp", "tgp_dl"]].dropna()
+        new = aip_daily.parse(open(page, encoding="utf-8").read())
+        Dd = new.combine_first(Dd).sort_index() if len(Dd) else new
+        Dd.to_csv(dpath, index_label="date")
+    except Exception as e:   # a changed page must not stop the run: the workbook is still there. export_api warns
+        log.append(f"aip daily: FAILED {type(e).__name__}: {str(e)[:120]}")   # (tgp_last) once TGP is 6+ days old
+if len(Dd) and os.path.exists(f"{STORE}/tgp.csv"):
+    T0 = pd.read_csv(f"{STORE}/tgp.csv", parse_dates=["date"]).set_index("date")
+    T1 = aip_daily.merge(T0, Dd)
+    if len(T1) > len(T0):
+        T1.to_csv(f"{STORE}/tgp.csv", index_label="date")
+        log.append(f"tgp to {T1.index.max().date()} with the AIP daily page")
 
 # ---- Brent (US EIA) and AUD/USD (RBA) from fetch.py pull_macro, in place of FRED. Each file
 # holds the full history from 2018-06, so it replaces store/fred.csv outright and no FRED values are kept. The file

@@ -8,6 +8,8 @@ Writes into INBOX, for run_daily.sh / update.py:
                                -- optional
 And straight into BASE/archive/vic/: vic_prices_YYYYMMDD.csv.gz (VIC Servo Saver, once a day; optional, env VIC_API_KEY)
   AIP_TGP_Data_*.xlsx          AIP terminal gate price workbook                -- optional
+  aip_tgp_page.html            AIP's daily TGP page (this week, Mon-Fri)       -- optional; the workbook only comes
+                               out weekly, so live TGP was up to 6 days old (docs/RULE_ANALYSIS_2026-10.md)
   syd_events_YYYYMM.csv        NSW monthly history after ctx.history_last       -- optional
 Credentials: env NSW_API_KEY / NSW_API_SECRET (GitHub Actions secrets). There is no credentials file.
 """
@@ -196,6 +198,14 @@ def pull_aip():
     return name
 
 
+def pull_aip_daily():
+    """AIP's daily TGP page, saved as is; update.py reads the Sydney rows (aip_daily_tgp)."""
+    r = get("https://www.aip.com.au/pricing/terminal-gate-prices", headers=UA); r.raise_for_status()
+    if "tgptable" not in r.text: raise RuntimeError("no TGP table on the AIP daily page")
+    open(f"{INBOX}/aip_tgp_page.html", "w", encoding="utf-8").write(r.text)
+    return "aip_tgp_page.html"
+
+
 # ---- NSW monthly price-change history
 MON = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])}
 
@@ -278,7 +288,7 @@ def pull_history():
     return "; ".join(done)
 
 
-for name, fn, required in [("nsw", pull_nsw, True), ("macro", pull_macro, False), ("aip", pull_aip, False), ("history", pull_history, False),
+for name, fn, required in [("nsw", pull_nsw, True), ("macro", pull_macro, False), ("aip", pull_aip, False), ("aip_daily", pull_aip_daily, False), ("history", pull_history, False),
                            ("vic", pull_vic, False)]:
     try:
         log.append(f"{name}: {fn()}")
