@@ -7,6 +7,7 @@ For each station:
   lag    median hours after a price-jump wave starts before this station hikes
   part   share of Sydney price-jump waves this station joined (low = steady pricer, e.g. Costco)
   n      number of waves it was observed for
+And `revert`: the mean-reversion table (station_revert.py) over the same year, all Sydney stations and fuels pooled.
 Re-run whenever new monthly history arrives (run_daily.sh does this).
 """
 import glob, json, os, re, sys
@@ -15,6 +16,7 @@ import numpy as np, pandas as pd
 BASE = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EV = f"{BASE}/store/events"
 from fuels import FUELS
+import station_revert as SR
 norm = lambda s: re.sub(r"\s+", " ", str(s).upper().replace(",", " ")).strip()
 
 st = pd.read_csv(f"{EV}/syd_stations.csv", dtype=str)
@@ -36,16 +38,20 @@ last = ev.date.max(); since = last - pd.Timedelta(days=365)
 
 D = pd.read_csv(f"{BASE}/store/daily.csv", parse_dates=["date"])
 D = D[D.source == "history"]
-prof = {}
+prof, for_revert = {}, {}
 for f in FUELS:
     e = ev[ev.fuel == f]
+    if e.empty: continue
     days = pd.date_range(since, last)
-    M = e.groupby(["date", "key"]).price.last().unstack().reindex(pd.date_range(e.date.min(), last)).ffill(limit=30).reindex(days)
+    full = pd.date_range(e.date.min(), last)
+    raw = e.groupby(["date", "key"]).price.last().unstack().reindex(full)
+    M = raw.ffill(limit=30).reindex(days)
     med = D[D.fuel == f].set_index("date")["median"].reindex(days)
     prem = M.sub(med, axis=0)
     typ = prem.median(); n = prem.notna().sum()
     for k in typ.index[n >= 60]:
         prof.setdefault(k, {"typ": {}})["typ"][f] = round(float(typ[k]), 1)
+    for_revert[f] = (raw, D[D.fuel == f].set_index("date")["median"].reindex(full), typ[n >= 60])
 
 # Sydney price-jump waves: a day when 8%+ of active U91 stations hike by 10c+, and 30%+ have hiked within 6 days
 h = ev[(ev.fuel == "U91") & (ev.dp >= 10)]
@@ -73,7 +79,22 @@ for k, r in g.iterrows():
     p = prof.setdefault(k, {"typ": {}})
     p.update(n=int(r.n), part=round(float(r.joined), 2), lag=None if pd.isna(r.lag) else round(float(r.lag), 1))
 lags = [p["lag"] for p in prof.values() if p.get("lag") is not None and p.get("n", 0) >= 4]
+lag_median = round(float(np.median(lags)), 1)
+
+# Mean reversion over the profile's year, with each station's w and s as station_api.py will apply them
+pts = [p["part"] for p in prof.values() if p.get("part") is not None and p.get("n", 0) >= 5]
+part_med = float(np.median(pts)) if pts else 1.0
+try:
+    R = []
+    for f, (raw, med, typ) in for_revert.items():
+        ws = {k: SR.w_s(prof.get(k), part_med, lag_median) for k in typ.index}
+        R.append(SR.rows(raw, med, typ, ws, since=since))
+    revert = SR.table(pd.concat(R, ignore_index=True))
+except Exception as e:   # the table is an extra: without it station forecasts are as before, and the run goes on
+    print(f"WARNING station_profile: no reversion table ({type(e).__name__}: {e})"); revert = None
+
 out = {"history_last": str(last.date()), "waves": [str(w.date()) for w in waves],
-       "lag_median": round(float(np.median(lags)), 1), "stations": prof}
+       "lag_median": lag_median, "stations": prof, **({"revert": revert} if revert else {})}
 json.dump(out, open(f"{BASE}/store/station_profile.json", "w"), separators=(",", ":"))
-print(f"profile: {len(prof)} stations, {len(waves)} waves since 2025, median lag {out['lag_median']}h, history to {last.date()}")
+print(f"profile: {len(prof)} stations, {len(waves)} waves since 2025, median lag {out['lag_median']}h, history to {last.date()}; "
+      f"revert 14d by bin {revert and revert['med']['14']}")

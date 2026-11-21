@@ -11,5 +11,7 @@ for f in "$INBOX"/syd_events_[0-9][0-9][0-9][0-9][0-9][0-9].csv; do
 done
 if [ "$NEW" = 1 ]; then python3 "$BASE/pipeline/build_history.py" "$BASE/store/events" "$BASE/store" | tail -1; fi
 if [ "$NEW" = 1 ] || [ ! -f "$BASE/store/station_profile.json" ]; then python3 "$BASE/pipeline/station_profile.py" "$BASE" | tail -1; fi
+# once, for a profile built before the mean-reversion table (station_revert.py) existed
+if ! grep -q '"revert"' "$BASE/store/station_profile.json"; then python3 "$BASE/pipeline/station_profile.py" "$BASE" | tail -1; fi
 python3 "$BASE/pipeline/update.py" "$BASE" "$INBOX"
 python3 "$BASE/pipeline/model.py" "$BASE" "$@" | tail -1 | cut -c1-200

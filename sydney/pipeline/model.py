@@ -11,6 +11,7 @@ warnings.filterwarnings("ignore")
 BASE = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORE = f"{BASE}/store"; DO_BT = "--backtest" in sys.argv
 from fuels import FUELS
+from jump_floor import jump_floor
 H = [1, 3, 7, 14]
 PARAMS = dict(n_estimators=400, learning_rate=0.03, num_leaves=15, min_child_samples=40, subsample=0.8,
               subsample_freq=1, colsample_bytree=0.8, reg_lambda=2.0, verbose=-1)
@@ -207,6 +208,11 @@ if __name__ == "__main__":
     pj = dict(zip(X.fuel, predict(lambda t, fs: clf if fs is LIVE_FEATS else fit_clf(t, fs), trc, X, LIVE_FEATS, proba=True)))
     for o in live:
         o["p_jump7"] = round(float(pj[o["fuel"]]), 2)
+    # floor from the walk-forward (jump_floor); the raw classifier figure is kept in ctx
+    floor = jump_floor(pd.read_parquet(f"{STORE}/backtest_cls.parquet"), FUELS) if os.path.exists(f"{STORE}/backtest_cls.parquet") else {}
+    raw_pj = {o["fuel"]: o["p_jump7"] for o in live}
+    for o in live:
+        o["p_jump7"] = round(max(o["p_jump7"], floor.get(o["fuel"], 0.0)), 2)
     ctx = {"asof": str(asof.date()), "tgp_last": str(T.dropna().index.max().date()), "fred_last": str(Fr[["DCOILBRENTEU", "DEXUSAL"]].dropna().index.max().date()),
            "brent_aud": round(float(FrL.brent_aud.loc[asof]), 1), "brent_usd": round(float(FrL.DCOILBRENTEU.loc[asof]), 1),
            "audusd": round(float(FrL.DEXUSAL.loc[asof]), 4), "importance_h7": imp,
@@ -214,5 +220,6 @@ if __name__ == "__main__":
            "live_model": "full (with cycle memory)" if LIVE_FEATS is FD else "no cycle memory (daily history has a gap)",
            "snapshot_days": int(D[D.source == "snapshot"].date.nunique()),
            "range_vol": {f: round(float(VOL[f].loc[VOL_DAY[f]]), 2) for f in FUELS}}   # wholesale volatility ratio behind lo/hi
+    ctx["jump_floor"] = floor; ctx["p_jump7_raw"] = raw_pj
     json.dump({"live": live, "ctx": ctx}, open(f"{STORE}/forecast.json", "w"))
     print(json.dumps(live, indent=0)[:1500]); print(ctx)
