@@ -22,6 +22,9 @@ Decision rule, fixed before any result was seen (2026-11-21, revised after the Q
 station forecasts get the binned reversion term only if, on the test days, it lowers the MAE by at least 0.1 c/L at
 both 7 and 14 days, for x0 >= 8 (build.py's "Skip for now" / "likely to ease") and for x0 <= -6 ("Fill now"), and the
 overall MAE at 7 and 14 days gets no worse (by more than 0.02 c/L).
+Second rule (2026-11-21, fixed before this breakdown was run, after the first pipeline-ci run showed steady pricers
+moved by up to 15c a week): steady pricers (n >= 5 and part < 0.25, as advise() tests) keep the term in production
+only if, on the test days, binned is no worse than zero for them at 7 and at 14 days (MAE); otherwise they're excluded.
 Caveats: w and s come from today's station_profile.json (the last 365 days of history), so they overlap the test days a
 little; and y uses the actual Sydney move, so the test isolates the station's own part, without the error of the Sydney
 forecast it would be added to in production.
@@ -64,6 +67,7 @@ def w_s(key):
     s = 0 if p.get("lag") is None else int(np.clip(round((p["lag"] - lag_med) / 24), -1, 2))
     return w, s
 
+STEADY = {k for k, p in PF["stations"].items() if p.get("n", 0) >= 5 and p.get("part", 1) < 0.25}
 rows = []
 for f in FUELS:
     e = ev[ev.fuel == f]
@@ -90,6 +94,7 @@ for f in FUELS:
         y = y.where(x.notna() & x.shift(-h).notna())                   # fresh, plausible at both ends
         s_ = pd.DataFrame({"x0": x.stack(), "y": y.stack()}).dropna()
         s_["h"], s_["fuel"] = h, f
+        s_["steady"] = s_.index.get_level_values(1).isin(STEADY)
         s_["date"] = s_.index.get_level_values(0)
         rows.append(s_.reset_index(drop=True))
 S = pd.concat(rows, ignore_index=True)
@@ -124,4 +129,19 @@ L += ["", f"**Decision rule: {'passes' if ok else 'does not pass'}** "
 tab = train.groupby([pd.cut(train.x0, BINS), "h"], observed=False).y.median().unstack()
 for k, r in tab.iterrows():
     L.append(f"| {k} | " + " | ".join(f"{r[h]:+.2f}" for h in H) + " |")
+L += ["", "Steady pricers vs the rest (test days; MAE zero → binned):", "", "| h | steady rows | steady | rest rows | rest |", "|---|---|---|---|---|"]
+sv = {}
+for h in H:
+    tr, te = train[train.h == h], test[test.h == h]
+    meds = tr.groupby(pd.cut(tr.x0, BINS), observed=False).y.median()
+    te = te.assign(binned=pd.cut(te.x0, BINS).map(meds).astype(float).fillna(0.0))
+    cell = []
+    for flag in (True, False):
+        g = te[te.steady == flag]
+        z, b = float(g.y.abs().mean()), float((g.y - g.binned).abs().mean())
+        if flag: sv[h] = b - z
+        cell += [str(len(g)), f"{z:.2f} → {b:.2f}"]
+    L.append(f"| {h} | " + " | ".join(cell) + " |")
+keep = all(sv[h] <= 0 for h in (7, 14))
+L += ["", f"**Steady pricers: {'keep the term' if keep else 'exclude them'}** (MAE change 7 / 14 days: {sv[7]:+.2f} / {sv[14]:+.2f})."]
 print("\n".join(L))
