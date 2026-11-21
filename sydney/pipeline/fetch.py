@@ -10,6 +10,8 @@ And straight into BASE/archive/vic/: vic_prices_YYYYMMDD.csv.gz (VIC Servo Saver
   AIP_TGP_Data_*.xlsx          AIP terminal gate price workbook                -- optional
   aip_tgp_page.html            AIP's daily TGP page (this week, Mon-Fri)       -- optional; the workbook only comes
                                out weekly, so live TGP was up to 6 days old (docs/RULE_ANALYSIS_2026-10.md)
+  eia_daily_page.csv           the latest Brent and NY Harbor diesel close, from EIA's daily prices page -- optional; EIA's
+                               history files only gain rows weekly, so live Brent was 2-8 days old (docs/MODEL_INPUTS_2026-11.md)
   syd_events_YYYYMM.csv        NSW monthly history after ctx.history_last       -- optional
 Credentials: env NSW_API_KEY / NSW_API_SECRET (GitHub Actions secrets). There is no credentials file.
 """
@@ -206,6 +208,27 @@ def pull_aip_daily():
     return "aip_tgp_page.html"
 
 
+EIA_PAGE = "https://www.eia.gov/todayinenergy/prices.php"
+PAGE_MAX_AGE = 10     # days: a page still showing older dates than this has stopped updating; the weekly files cover it
+
+
+def recent(day):
+    """A page's date must be a real recent weekday: not ahead of Sydney's today (UTC+11 at most, so never ahead of the
+    US close either) and not stale."""
+    today = dt.datetime.now(SYD).date()
+    return day.weekday() < 5 and dt.timedelta(0) <= today - day <= dt.timedelta(days=PAGE_MAX_AGE)
+
+
+def pull_eia_daily():
+    import eia_daily
+    r = get(EIA_PAGE, headers=UA); r.raise_for_status()
+    day, v = eia_daily.parse_eia_daily(r.text)
+    if not recent(day): raise RuntimeError(f"EIA daily page shows {day}: not a recent weekday")
+    with open(f"{INBOX}/eia_daily_page.csv", "w") as fh:
+        fh.write(f"date,DCOILBRENTEU,ULSD_NYH\n{day},{v['DCOILBRENTEU']:g},{v.get('ULSD_NYH', '')}\n")
+    return f"eia daily page {day}: brent {v['DCOILBRENTEU']:g}" + (f", ulsd {v['ULSD_NYH']:g}" if "ULSD_NYH" in v else ", no ulsd")
+
+
 # ---- NSW monthly price-change history
 MON = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])}
 
@@ -288,7 +311,8 @@ def pull_history():
     return "; ".join(done)
 
 
-for name, fn, required in [("nsw", pull_nsw, True), ("macro", pull_macro, False), ("aip", pull_aip, False), ("aip_daily", pull_aip_daily, False), ("history", pull_history, False),
+for name, fn, required in [("nsw", pull_nsw, True), ("macro", pull_macro, False), ("aip", pull_aip, False), ("aip_daily", pull_aip_daily, False),
+                           ("eia_daily", pull_eia_daily, False), ("history", pull_history, False),
                            ("vic", pull_vic, False)]:
     try:
         log.append(f"{name}: {fn()}")
