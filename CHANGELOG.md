@@ -12,6 +12,16 @@ Roadmap item 5 finding (`docs/RULE_ANALYSIS_2026-10.md`, 2026-11-21): AIP's TGP 
 - `export_api.py` now warns (`tgp_last`, shown by data-health as "Wholesale prices (AIP) aren't updating") when TGP is over 6 days old, was 10: with the daily page, a gap that long means the page stopped working (a long weekend reaches 5).
 - Tests: 6 new (`test_aip_daily.py`). Not exercised in `pipeline-ci` (it has no network, and a stored page's dates would age out of the 14-day check).
 
+## 2026-11-21 — Model experiment harness (roadmap item 5)
+
+Roadmap item 5 starts: 2026's weak calls (`docs/RULE_ANALYSIS_2026-10.md` finding 3). Nothing published changes yet.
+- `sydney/pipeline/experiment.py` replays `model.py`'s walk-forward backtest (3- and 7-day forecasts and the jump chance, from 2021-01) under 10 variants and scores each exactly as the app's tested figure does (`track_api.replay`): the current model, the same with another seed (the noise floor), sustained-wholesale trend features, recent years weighted more (1- and 2-year half-lives), huber alpha 8, trend + 2-year weighting, and three of these with wholesale known 7 days late (live TGP arrives in weekly batches). The rule-level guard from finding 4 is a benchmark row. The decision rule, fixed before any result, is in the script's docstring.
+- `.github/workflows/model-experiment.yml` runs it on push to a `model/**` branch, on a read-only copy of the `data` branch with no secrets: one job per variant, the comparison in the run summary, and a check that the live forecast is unchanged.
+- `model.py`: the backtest and live forecast now run under `if __name__ == "__main__"` so the experiment can import its features and fitting (a re-indent only; the check above confirms the same `forecast.json`).
+- `sydney/pipeline/station_experiment.py` (+ `station-experiment.yml`): does a station's gap from its usual premium close by itself? Scored against today's station forecast (`w × Sydney move`, shifted by the station's lag), with a trailing-year `typ`, on stations updated within 10 days; decision rule in the docstring. QA'd on synthetic data before its first real run (the first rule would have rejected a real reversion: fixed to bin medians, judged at 7 and 14 days).
+- Results: `docs/RULE_ANALYSIS_2026-10.md` → "Model experiment for finding 3": no variant passes, so no model change; live TGP was 0–6 days old against the backtest's 1 (fixed separately: daily TGP from AIP's page).
+- QA audit before push: no bugs. Its design points are in: the 7-day TGP lag variants, the seed variant, a report that fails loudly, the replay check against hand-built rows, and the live model taken from `forecast.json`.
+
 ## 2026-11-21 — Web: desktop map waits for the visitor (**live** 2026-11-21: PR #34, `de1d535`, `daily.yml` run 44899946518)
 
 After the PageSpeed fixes went live, PageSpeed scored mobile 98 but desktop 69: blocking time 1,870 ms (CLS 0, LCP 0.7 s). On a computer the map is on screen at load, so MapLibre and its price tags were built during page load; that was most of the page's work.

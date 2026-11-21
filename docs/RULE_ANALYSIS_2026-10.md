@@ -20,3 +20,22 @@ Question: can the track record improve Bowser's advice? Data: the walk-forward b
 - Model experiment for wholesale-driven trends (finding 3), judged on 2026 walk-forward value and Wait-before-a-jump.
 - Confirm October 2026 history gets pulled so cycle memory comes back (finding 5).
 - Once ~3 months of live calls are scored, compare live vs tested (finding 4 in the track record discussion: about one independent result a day, so earlier comparisons only catch a collapse).
+
+## Model experiment for finding 3 (2026-11-21)
+
+`sydney/pipeline/experiment.py`, run 44744791846 of `model-experiment.yml` (data to 2026-11-20). Each variant replays `model.py`'s walk-forward backtest from 2021-01 and is scored as the app's tested figure is (`track_api.replay`; `save` = c/L saved per call against filling the day you check). The decision rule was fixed in the script before any result.
+
+- **The harness reproduces production:** predictions differ from the stored backtest by 0.005c on average (largest 3.8c, from history filled in since); its rows equal `replay()`'s exactly. U91's last-365-day figure is 2.26c (stored backtest: 2.35c, whose window ends about 4 weeks earlier).
+- **Noise floor:** the same model with another seed moves 2026 `save` by +0.03c (U91) and −0.04c (all fuels).
+- **No variant passes.** 2026 `save` change against the current model, U91 / all fuels; 2021–25 in brackets:
+  - trend features (TGP over 56 days, against its 90-day mean, 2-week trend, weeks of rises, Brent 56 days, margin against its 90-day median, wholesale not yet passed through): −0.01 / −0.03 (−0.00 / −0.01)
+  - recent years weighted, 2-year half-life: −0.11 / −0.03; 1-year: −0.15 / −0.11 (both +0.01). Better jump AUC in 2026 (0.80 → 0.82) but worse calls.
+  - huber alpha 8: +0.08 / +0.01 (−0.05 / −0.03); 7-day error worse (2026 7.37 → 7.82c U91), bias gone.
+  - trend + 2-year weighting: −0.11 / −0.08.
+  - the rule-level guard (finding 4): +0.02 / +0.03 (−0.29 / −0.23). Fewer Waits before a jump (U91 18 → 3), but it costs the calm years.
+- **2026's loss is mostly March** (U91: −0.06c of 3.29c possible); every variant is near the current model in the other months.
+- **Wholesale timing matters more than any variant.** With TGP known 7 days late, 2026 `save` falls 0.15c (U91) and 0.27c (all fuels), and Waits before a jump rise from 99 to 153. Live forecasts (150 runs, 2026-10-26 to 11-20) had TGP 0–6 days old, spread evenly (about 3 on average), because AIP's workbook comes out weekly; the backtest assumes 1 day. So the tested figure is somewhat optimistic, and fresher wholesale prices are the lever, not `model.py`.
+
+**Decision: no model change.** 2026 has now been used to choose, so a future attempt should be judged on calls from late November 2026 on (re-push a `model/` branch). Follow-ups: a daily TGP source (AIP's workbook is weekly), and a backtest that sees TGP with the live lag, so the tested figure is honest (it would fall a little; owner's call).
+
+**Jump chance on the days it rates under 5%** (2025–26, all fuels): 0.8% predicted, 7.2% actual. No variant fixed it. The number is shown (dashboard "Chance of a 5c+ jump this week", the app's jump-risk chip, the forecast page's "under 5%"), but no call or station date depends on it below 13%, so a floor taken from the walk-forward is a display fix.
