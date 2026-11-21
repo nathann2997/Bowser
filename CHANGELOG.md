@@ -2,6 +2,34 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-21 — Search Console week one: country station pages, deals guide, IndexNow
+
+The first Search Console data (four days, 75 queries, no clicks yet) shows station-name searches arriving first, many for small country stations ("nana glen general store", "mobil kangaroo valley", "bp somersby"), plus "nsw fuel price check" and "cheapest petrol deals sydney". Owner asked for the follow-ups now (roadmap item 10 brought forward; nothing touches the model work).
+- **Station pages outside Sydney say more (`seo_pages.py` `station`, `station_recent`).** They had no forecast and, with prices only since 2026-11-18, no chart. Now:
+  - when the price was last reported to NSW FuelCheck;
+  - where there is no region, the price against the median of the stations within 25 km (`LOCAL_KM`);
+  - until the chart's 20 days exist, one sentence on the price since it was first seen: "has held at" or the range and the last change (the history carries a price forward daily, so days are not counted as separate readings);
+  - "cheaper nearby" widens from 4 to 10 to 25 km until three stations have a price;
+  - every station page names the nearest cheaper station, its distance and the saving on a 50 L fill.
+  - `near()` now searches enough grid cells for any radius; it was capped at about 6 km.
+- **Hub title leads with "Check"** (`Check NSW fuel prices today: cheapest petrol by suburb | Bowser`): it matches "nsw fuel price check" and the Check Bowser name, and never puts "FuelCheck" first (docs/SEO.md).
+- **New guide `/petrol-deals-sydney/` (`deals()`, `DEALS`).** It covers five offers, each checked 2026-11-21 against the program's own terms page, which the page links:
+  - the Woolworths and Coles dockets;
+  - the Reddy Express $20 in-store offer;
+  - 7-Eleven Fuel Price Lock;
+  - Costco.
+
+  The table also shows today's average price at the Sydney stations that take each offer, against the median, and the price after the discount. Costco is compared on E10, since its Sydney sites don't sell U91. On 21 Nov every docket brand was 3–6c over the median, so the point stands that a discount helps only at a station that isn't dearer to begin with. Unverified or conflicting offers were left out: NRMA (its own pages disagree on the rate and end date), NSW Seniors at United, the BP and 7-Eleven partner barcodes, Ampol's in-store bonus. Linked from every page's footer, the dashboard footer and `llms.txt`.
+- **IndexNow (`indexnow.py`, `daily.yml`).**
+  - The key is served at `/e102a05131cbd86e3a6af62c8547639e.txt`; it is public by design.
+  - The build job lists the pages whose sitemap `lastmod` moved since the live sitemap (new and removed pages too).
+  - The deploy job submits that list to api.indexnow.org after the deploy, so Bing (which feeds ChatGPT search and Copilot) hears about changed pages within the hour.
+  - Each page is submitted at most once a day: Sydney pages on the day's first run, pages outside Sydney when their price changes.
+  - Every step is `continue-on-error`. If the live sitemap can't be read, nothing is submitted.
+  - A failed submission is not retried: the next run diffs against the new live sitemap. Pages that change daily recover; rarely changing pages wait for their next change.
+- QA (subagent audit): no blockers. Fixed from it: a possible crash in the short-history sentence, which also no longer shows on Sydney pages; softer deals wording; NRMA and the partner barcodes dropped; the download step gated on a build output; the IndexNow response printed on failure; "nearest cheaper" only for 1c or more.
+- Tests: 3 new in `test_seo_pages.py` (a country station with no region, the deals table, the hub title, and IndexNow's diff and body); 89 pass. A full build from the live API's data takes 4.4 s for 3,526 pages.
+
 ## 2026-11-21 — Station mean reversion and a jump-chance floor (roadmap item 5) (**live** 2026-11-21: PR #40, `5fd72d1`, `daily-forecast` run 44905636063)
 
 The last two parts of item 5, both decided earlier in `docs/RULE_ANALYSIS_2026-10.md` ("Model experiment for finding 3").

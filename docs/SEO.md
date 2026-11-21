@@ -28,6 +28,7 @@ One page per search intent, so pages don't compete with each other. Volumes are 
 | best day to buy petrol (sydney), cheapest day to buy petrol, is tuesday the cheapest day for petrol, is petrol cheaper on weekends | `/best-day-to-buy-petrol/` | Split out of the cycle page on 2026-11-20 (FuelRadar ranks a dedicated page). The answer, "no day in Sydney", backed by Bowser's weekday figures. |
 | petrol prices christmas (sydney), will petrol go up before christmas, petrol prices holidays | `/petrol-prices-christmas/` | Every Christmas since 2019 from Bowser's own history, plus this year's outlook. One evergreen address, so it builds links year on year. |
 | nsw fuel check, fuelcheck nsw, fuel check app, fuelcheck prices | `/nsw-fuelcheck/` | See the next section. |
+| cheapest petrol deals sydney, fuel dockets, woolworths/coles fuel discount, 7-eleven fuel lock | `/petrol-deals-sydney/` | Every discount beside today's price at the stations that take it: nobody else shows whether the docket station was dearer to begin with. Offers in `DEALS`, checked against their terms (`DEALS_CHECKED`); re-check every few months. |
 
 ### "NSW FuelCheck" searches
 Most people typing "fuel check nsw" want the government site, and Google will keep it first. Bowser can't and shouldn't pretend to be it. What it can do honestly:
@@ -80,6 +81,7 @@ Not yet. What is missing, in the order to fix it:
 What decides whether an assistant can find and quote Bowser, and where it stands (reviewed 2026-11-17):
 - **Can they read it?** Most AI crawlers don't run script. Every search page is plain HTML, and the dashboard's footer now states today's prices and call as text. Done.
 - **Are they allowed?** `robots.txt` allows everything. It also names the main AI crawlers and tokens; that changes nothing today (they were already allowed) but makes the intent explicit and gives one place to change it. Done.
+- **Is the index fresh?** IndexNow (since 2026-11-21, `indexnow.py`): after each deploy, the pages whose sitemap date moved are submitted to api.indexnow.org, which Bing (ChatGPT search, Copilot) and others share. The key file is `/e102a05131cbd86e3a6af62c8547639e.txt`.
 - **Can they find it?** Assistants lean on search indexes: Google's for Gemini and AI Overviews, Bing's for ChatGPT search and Copilot; others (Perplexity, Claude) use their own or other indexes and crawl directly. Google is set up; Bing is the owner step above.
 - **Is the answer easy to lift?** Each page opens with one sentence that answers its question with a number and a place, and carries its date; the hub has short question-and-answer blocks; structured data says what each page is. Done.
 - **`/llms.txt`:** a plain summary of the site, today's numbers, the main pages and the data files. It is a proposed convention that few crawlers read yet; it costs nothing and is there for those that do.
@@ -123,3 +125,6 @@ In rough order of value:
 - **More guides** as Search Console shows demand: E10 vs 91, 95 vs 98, how fuel excise works, fuel prices at Easter and Christmas.
 - **A weekly "Sydney petrol price outlook" post**, generated from the forecast: fresh dated content that news search likes.
 - The dashboard has no `<!doctype>` (it renders in quirks mode). Adding one is right but can shift the layout, so it needs a visual check of its own.
+
+## Search Console readings
+- **2026-11-21 (four days of data).** 75 queries, 2–5 impressions each, no clicks: normal for a domain this new. Station-name searches came first, many for country stations, and their pages were the thinnest (no forecast, no chart yet). Those pages now say more, the hub title leads with "Check" for "nsw fuel price check", and "cheapest petrol deals sydney" got its own guide. **Next reading:** turn on the Average position and CTR columns. Position says whether a query needs authority (links) or a better snippet (title and description).

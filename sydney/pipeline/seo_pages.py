@@ -16,6 +16,7 @@ tests (test_seo_pages.py) run it on small made-up dicts. docs/SEO.md has the key
   OUT/petrol-price-cycle/             guide: the Sydney price cycle, where it is now, the recent jumps
   OUT/best-day-to-buy-petrol/         guide: the weekday myth with Bowser's own numbers, and what to watch instead
   OUT/petrol-prices-christmas/        guide: what Sydney prices did over each Christmas since 2019, and this year's outlook
+  OUT/petrol-deals-sydney/            guide: fuel discounts (DEALS) beside today's price at the stations that take them
   OUT/nsw-fuelcheck/                  guide: what NSW FuelCheck is and how Bowser uses it
   OUT/about/, OUT/privacy/            who runs the site, what is counted
   OUT/404.html, OUT/robots.txt, OUT/sitemap.xml, OUT/llms.txt (a plain summary for AI assistants)
@@ -34,7 +35,7 @@ SHORT = {"U91": "U91", "E10": "E10", "P95": "95", "P98": "98", "DL": "Diesel"}
 FSLUG = {"U91": "unleaded-91", "E10": "e10", "P95": "premium-95", "P98": "premium-98", "DL": "diesel"}
 TONE = {"now": "act", "by": "act", "wait": "wait", "hi": "wait", "up": "act", "down": "wait"}   # anything else: calm
 OWN = ["fuel-prices", "station", "brands", "fuel-price-forecast", "petrol-price-cycle", "best-day-to-buy-petrol", "petrol-prices-christmas",
-       "nsw-fuelcheck", "about", "privacy"]
+       "petrol-deals-sydney", "nsw-fuelcheck", "about", "privacy"]
 DOW = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 STATIC = ["favicon.svg", "apple-touch-icon.png", "og.png"]
 TANK = 50                                           # litres, for "a fill costs"
@@ -42,6 +43,35 @@ NEAR_KM, STALE = 5.0, 7                             # "nearby" radius; a price o
 BRAND_MIN = 3
 DEAD = 30                                           # every price older than this: the page stays, but out of search (noindex)
 PUBLISHED = "2026-11-17"                            # when the guides first went up (Article datePublished)
+# IndexNow (Bing, Yandex, Seznam, Naver; Bing feeds ChatGPT search and Copilot): the key is public by design, served at
+# /{key}.txt to prove the site is ours. indexnow.py submits the pages whose sitemap date changed after each deploy.
+INDEXNOW_KEY = "e102a05131cbd86e3a6af62c8547639e"
+LOCAL_KM = 25                                       # "nearby" for a station outside Sydney and its regions: its local median
+# Fuel discounts on /petrol-deals-sydney/, from each program's own terms page (the link). Offers change: re-check them
+# against those pages every few months and update DEALS_CHECKED (docs/SEO.md). (name, feed brands that take it in
+# stations.json, c/L off or None when it isn't a fixed discount, how it works, terms page)
+DEALS_CHECKED = "2026-11-21"
+DEAL_FUEL = {"Costco fuel": "E10"}                  # compared on this fuel instead of U91 (the stations don't sell U91)
+DEALS = [
+    ("Woolworths Everyday Rewards docket", ["Ampol Foodary", "EG Ampol", "U-Go"], 4,
+     "Spend $30 or more in one shop at Woolworths, then scan your Everyday Rewards card at a participating Ampol Foodary, EG Ampol or U-GO site within 28 days.",
+     "https://www.ampol.com.au/convenience/everyday-rewards"),
+    ("Coles docket (Flybuys)", ["Reddy Express"], 4,
+     "Spend $30 or more in one shop at Coles. The docket is in the Flybuys app, lasts 4 weeks and covers up to 150 L at participating Shell Reddy Express sites.",
+     "https://reddyexpress.com.au/terms-and-conditions/coles-supermarkets-fuel-docket-discount"),
+    ("Reddy Express in-store offer", ["Reddy Express"], 10,
+     "While the offer runs: spend $20 or more in the Shell Reddy Express shop (not on fuel, tobacco, gift cards or lottery) in the same transaction as your fuel. "
+     "Its terms let it combine with the Coles docket: 14c a litre together.",
+     "https://www.reddyexpress.com.au/terms-and-conditions/spend-20-get-10-cents-per-litre-fuel-discount"),
+    ("7-Eleven Fuel Price Lock", ["7-Eleven"], None,
+     "In the My 7-Eleven app, lock the lowest price at nearby 7-Elevens for 7 days, up to 150 L, with the saving capped at 25c a litre. "
+     "One lock at a time, no fee.",
+     "https://www.7eleven.com.au/fuel-price-lock-terms"),
+    ("Costco fuel", ["Costco"], None,
+     "No discount as such: Costco’s own pump prices, for members only. Sydney’s are at Auburn, Casula and Marsden Park, with another at Lake Macquarie; "
+     "they sell E10 and Premium 98 but not Unleaded 91, so the table compares their E10.",
+     "https://www.costco.com.au/fuel-station"),
+]
 # Regional centres outside Sydney: a station joins the nearest one within its radius (km). Each gets a page.
 REGIONS = [("Newcastle", -32.93, 151.75, 32), ("Central Coast", -33.36, 151.38, 28), ("Wollongong", -34.45, 150.87, 30),
            ("Southern Highlands", -34.48, 150.42, 18), ("Taree and Forster", -32.02, 152.48, 25), ("Lithgow", -33.48, 150.15, 12),
@@ -368,8 +398,8 @@ class Site:
 
     def near(self, at, radius=NEAR_KM):
         """Stations within `radius` km of a (lat, lon), nearest first, as (km, station)."""
-        a, b = self._cell(*at)
-        hits = [(km(at, (s["la"], s["lo"])), s) for i in (a - 1, a, a + 1) for j in (b - 1, b, b + 1) for s in self.grid.get((i, j), [])]
+        a, b = self._cell(*at); k = max(1, math.ceil(radius / 5.0))   # a cell is at least 5 km wide anywhere in NSW
+        hits = [(km(at, (s["la"], s["lo"])), s) for i in range(a - k, a + k + 1) for j in range(b - k, b + k + 1) for s in self.grid.get((i, j), [])]
         return sorted(((d, s) for d, s in hits if d <= radius), key=lambda t: t[0])
 
     def cheapest(self, pool, f, n=None, members=False):
@@ -581,7 +611,8 @@ class Site:
                   + (f'<a href="{up}fuel-price-forecast/accuracy/">Forecast accuracy</a>' if self.has_acc else "")
                   + f'<a href="{up}petrol-price-cycle/">Sydney petrol price cycle</a>'
                   + (f'<a href="{up}best-day-to-buy-petrol/">Best day to buy petrol</a>' if self.has_best else "")
-                  + (f'<a href="{up}petrol-prices-christmas/">Petrol prices at Christmas</a>' if self.xmas else ""))
+                  + (f'<a href="{up}petrol-prices-christmas/">Petrol prices at Christmas</a>' if self.xmas else "")
+                  + f'<a href="{up}petrol-deals-sydney/">Petrol deals</a>')
         doc = f"""<!doctype html>
 <html lang="en-AU" data-page="{esc(kind)}" data-pattern="{esc(pattern)}">
 <head>
@@ -766,6 +797,25 @@ class Site:
                 f"<p>Over the last {len(mine)} days {esc(NAME[f])} here has ranged from <b>{min(vals):.1f}c</b> to <b>{max(vals):.1f}c</b> a litre, "
                 f"averaging {sum(vals) / len(vals):.1f}c. {rank}</p>")
 
+    def station_recent(self, s, f):
+        """For a station outside Sydney until it has the 20 days the chart needs (all-NSW prices began in mid-November 2026):
+        one sentence on its price since it was first seen. '' under 3 days."""
+        d = self.details.get(s["id"]) or {}
+        h = (d.get("hist") or {}).get(f)
+        if not isinstance(h, list) or not isodate(d.get("start")): return ""
+        got = [(i, v) for i, v in enumerate(h[-90:]) if num(v) and 50 <= v <= 500]
+        if len(got) < 3: return ""
+        # The history is each day's last price, carried forward from the day it was reported: equal days are one price
+        day = lambda i: short_date(str(dt.date.fromisoformat(d["start"]) + dt.timedelta(days=len(h) - len(h[-90:]) + i)))
+        vals = [v for _, v in got]
+        if max(vals) - min(vals) < 0.05:
+            txt = f"{esc(NAME[f])} at {esc(s['name'])} has held at <b>{vals[-1]:.1f}c</b> since {esc(day(got[0][0]))}."
+        else:
+            last = max((k for k in range(1, len(got)) if abs(got[k][1] - got[k - 1][1]) >= 0.05), default=len(got) - 1)
+            txt = (f"Since {esc(day(got[0][0]))}, {esc(NAME[f])} at {esc(s['name'])} has ranged from <b>{min(vals):.1f}c</b> to <b>{max(vals):.1f}c</b> a litre; "
+                   f"it last changed on {esc(day(got[last][0]))}, to {got[last][1]:.1f}c.")
+        return f"<p>{txt} A price history chart appears here once there are 20 days.</p>"
+
     def station(self, s):
         up = "../../"; f0 = s["main"]; p0 = s["p"][f0]; d = self.details.get(s["id"]) or {}
         where = s["sub"][0] if s["sub"] else s["s"]
@@ -801,11 +851,20 @@ class Site:
         body.append(f"<h2>Should you fill up at {esc(s['name'])} today?</h2>")
         if s.get("out"):
             reg = s.get("region") if s.get("region") in self.regions else None; rm = self.median(self.regions[reg], f0) if reg else None
+            # no region (or too few prices in it): the stations within LOCAL_KM stand in, so the page still says where it sits
+            local = None if rm is not None else [t for _, t in self.near((s["la"], s["lo"]), LOCAL_KM) if t["id"] != s["id"]]
+            lm = self.median(local, f0) if local is not None else None
             txt = "This station is outside Sydney, where Bowser has no forecast, so this page shows its prices only."
-            if rm is not None and self.fresh(s, f0):
-                g = p0[0] - rm
-                txt += (f" Its {esc(NAME[f0])} price is " + ("about the same as" if abs(g) < 0.5 else f"{cents(g)} {'under' if g < 0 else 'over'}")
-                        + f" the {esc(reg)} median of {c1(rm)}c today. A {TANK} L fill costs about ${TANK * p0[0] / 100:.2f}.")
+            if self.fresh(s, f0):
+                ago = p0[1] if num(p0[1]) else None
+                if ago is not None: txt += f" It last reported its {esc(NAME[f0])} price to NSW FuelCheck " + ("today." if ago < 1 else "yesterday." if ago < 2 else f"{ago:.0f} days ago.")
+                if rm is not None or lm is not None:
+                    g = p0[0] - (rm if rm is not None else lm)
+                    than = (f"the {esc(reg)} median of {c1(rm)}c" if rm is not None else
+                            f"the median of the {sum(self.fresh(t, f0) and not t.get('m') for t in local)} stations within {LOCAL_KM} km ({c1(lm)}c)")
+                    txt += (f" Its {esc(NAME[f0])} price is " + ("about the same as" if abs(g) < 0.5 else f"{cents(g)} {'under' if g < 0 else 'over'}")
+                            + f" {than} today.")
+                txt += f" A {TANK} L fill costs about ${TANK * p0[0] / 100:.2f}."
             body.append(f"<p>{txt}</p>")
         else:
             fc = (d.get("fc") or {}).get(f0) or {}
@@ -830,13 +889,20 @@ class Site:
                 notes.append("rarely joins Sydney’s price jumps, so its price stays steadier than most" if pr["part"] < 0.25
                              else "follows most of Sydney’s price jumps" if pr["part"] >= 0.7 else "joins some of Sydney’s price jumps")
             if notes: body.append(f"<p>From its price history, this station {' and '.join(notes)}.</p>")
-        body.append(self.station_chart(s, f0))
-        near = [t for dist, t in self.near((s["la"], s["lo"]), 4.0) if t["id"] != s["id"]]
-        pick = self.cheapest(near, f0, 6)
+        body.append(self.station_chart(s, f0) or (self.station_recent(s, f0) if s.get("out") else ""))
+        # 4 km in Sydney; in the country, wider until three stations have a price to compare (or 25 km)
+        at = (s["la"], s["lo"]); rad = 4
+        for rad in ((4, 10, LOCAL_KM) if s.get("out") else (4,)):
+            near = [(dist, t) for dist, t in self.near(at, rad) if t["id"] != s["id"]]
+            if len(self.cheapest([t for _, t in near], f0)) >= 3: break
+        pick = self.cheapest([t for _, t in near], f0, 6)
         if pick:
             n_cheaper = sum(t["p"][f0][0] < p0[0] for t in pick)
+            nc = next(((dist, t) for dist, t in near if self.fresh(t, f0) and not t.get("m") and t["p"][f0][0] <= p0[0] - 1), None) if self.fresh(s, f0) else None
+            closest = (f' The nearest cheaper one is <a href="{up}{esc(nc[1]["url"])}">{esc(nc[1]["name"])}</a>, {nc[0]:.1f} km away, at {c1(nc[1]["p"][f0][0])}c '
+                       f"({cents(p0[0] - nc[1]['p'][f0][0])} less, ${TANK * (p0[0] - nc[1]['p'][f0][0]) / 100:.2f} on a {TANK} L fill).") if nc else ""
             body += [f"<h2>Cheaper {esc(NAME[f0])} near {esc(s['name'])}?</h2>",
-                     f"<p>The cheapest {esc(NAME[f0])} within 4 km" + (f": {n_cheaper} of these {'is' if n_cheaper == 1 else 'are'} cheaper than here today." if n_cheaper else ". None of them beats this station today.") + "</p>",
+                     f"<p>The cheapest {esc(NAME[f0])} within {rad} km" + (f": {n_cheaper} of these {'is' if n_cheaper == 1 else 'are'} cheaper than here today." if n_cheaper else ". None of them beats this station today.") + closest + "</p>",
                      self.price_table(pick, sort=f0, up=up)]
         more = []
         if s["sub"]: more.append(f'<li><a href="{up}{esc(self.sub_url[s["sub"]])}">All fuel prices in {esc(self.sub_label[s["sub"]])}</a></li>')
@@ -925,7 +991,9 @@ class Site:
         r = self.live.get("U91") or next(iter(self.live.values()))
         f0 = r["fuel"]; v = (r.get("verdict") or {}).get("head", ""); nsw = self.any_out
         place = "NSW" if nsw else "Sydney"
-        title = f"{place} fuel prices today: cheapest petrol by suburb | Bowser"
+        # "Check" leads: people search "nsw fuel price check" (Search Console, Nov 2026), and the brand is Check Bowser.
+        # Never "FuelCheck" first: that is the government's service (docs/SEO.md)
+        title = f"Check {place} fuel prices today: cheapest petrol by suburb | Bowser"
         desc = clip(f"{'NSW and Sydney' if nsw else 'Sydney'} petrol prices for {self.sday}: Sydney {NAME[f0]} median {c1(r['now'])}c/L. Bowser’s call: {v.lower()}. "
                     f"Cheapest fuel in {len(self.subs):,} suburbs, from NSW FuelCheck data.", 165)
         body = [f"<h1>{place} fuel prices today</h1>",
@@ -1559,6 +1627,61 @@ class Site:
         self.page(path, "christmas", "/petrol-prices-christmas/", t, d, "\n".join(x for x in body if x), crumbs=[("Petrol prices at Christmas", path)],
                   ld=[self._art(path, "Do petrol prices go up at Christmas in Sydney?", d), fq_ld], priority=0.6)
 
+    def deals(self):
+        """Fuel discounts (DEALS, from each program's own terms) beside what Bowser can measure: the price at those stations
+        before the discount, and what timing and the choice of station are worth by comparison."""
+        up = "../"; path = "petrol-deals-sydney/"; S = self.stats; r = self.live.get("U91")
+        rows = []
+        for name, brands, cut, how, src in DEALS:
+            f = DEAL_FUEL.get(name, "U91"); x = self.live.get(f); x = x if x and num(x.get("now")) else None
+            ps = [s["p"][f][0] for s in self.st if not s.get("out") and self.fresh(s, f) and s["brand"] in brands]
+            avg = sum(ps) / len(ps) if len(ps) >= 3 else None
+            gap = (f'<span class="{"cheap" if avg < x["now"] else "dear"}">{"−" if avg < x["now"] else "+"}{abs(avg - x["now"]):.1f}</span>'
+                   if avg is not None and x else "–")
+            fl = "" if f == "U91" else f' <span class="small">{esc(SHORT[f])}</span>'
+            rows.append(f'<tr><td><a href="{esc(src)}" rel="noopener">{esc(name)}</a></td><td>{esc(", ".join(brands))}</td>'
+                        f'<td class="n">{f"{cut}c/L" if cut else "varies"}</td><td class="n">{f"{avg:.1f}{fl}" if avg is not None else "–"}</td>'
+                        f'<td class="n">{gap}</td><td class="n">{f"{avg - cut:.1f}" if avg is not None and cut else "–"}</td></tr>')
+        r = r if r and num(r.get("now")) else None
+        amp, shop = S.get("cycle_amp_calm"), S.get("shop_around"); med_now = f" of {c1(r['now'])}c" if r else ""
+        worth = [f"a 4c docket saves <b>${TANK * 4 / 100:.2f}</b>"]
+        if num(shop): worth.append(f"picking one of the cheapest tenth of Sydney stations, typically {shop:.0f}c under the median, saves about <b>${TANK * shop / 100:.2f}</b>")
+        if num(amp): worth.append(f"filling up before a price jump instead of just after it saves about <b>${TANK * amp / 100:.2f}</b>")
+        body = ["<h1>Cheapest petrol deals in Sydney</h1>",
+                f'<p class="lead">On a {TANK} L tank, ' + "; ".join(worth) + ". So the best deal is timing and the station first, "
+                "and a discount on top of them, not instead of them.</p>",
+                f'<p class="small">Prices updated {esc(self.day)}. Offers checked {esc(long_date(DEALS_CHECKED))} against each program’s own terms.</p>',
+                self.verdict_card("U91", up) if r else "",
+                "<h2>Fuel discounts in Sydney, and the price before them</h2>",
+                "<p>A discount only helps if the station wasn’t dearer to begin with. Beside each offer is today’s average Unleaded 91 price at the Sydney stations that take it, "
+                f"against the Sydney median{med_now}. Costco’s is its E10 price against the E10 median.</p>",
+                '<div class="scroll"><table><thead><tr><th>Deal</th><th>Where</th><th class="n">Saving</th><th class="n">Average price</th><th class="n">vs median</th>'
+                '<th class="n">After the saving</th></tr></thead><tbody>' + "".join(rows) + "</tbody></table></div>",
+                '<p class="small">Averages leave out prices over a week old and need at least three stations; Costco’s include its members-only sites. '
+                "“After the saving” takes the full discount off the average; the in-store offer needs a $20 shop spend as well.</p>",
+                "<h2>How each deal works</h2>",
+                "<ul>" + "".join(f"<li><b>{esc(n)}:</b> {esc(h)}</li>" for n, _, _, h, _ in DEALS) + "</ul>",
+                "<h2>Is the docket worth the drive?</h2>",
+                "<p>Only if the station that takes it is within 4c of the cheapest one near you. A 4c docket at a station 8c over the cheapest nearby still costs you 4c a litre. "
+                f'Check <a href="{up}fuel-prices/">today’s prices by suburb</a> first, and <a href="{up}fuel-price-forecast/">the forecast</a> to see whether waiting a few days beats both.</p>']
+        qa = [("What is the cheapest way to buy petrol in Sydney?",
+               "Fill up near the bottom of Sydney’s price cycle, at one of the cheapest stations near you, and add a discount if you have one"
+               + (f". Timing is worth about {amp:.0f}c a litre" if num(amp) else "") + (f", the choice of station about {shop:.0f}c" if num(shop) else "")
+               + ", and a supermarket docket 4c."),
+              ("Can I use a Woolworths or a Coles fuel docket anywhere?",
+               "No. Woolworths Everyday Rewards dockets work at participating Ampol Foodary, EG Ampol and U-GO sites, and Coles dockets at participating Shell Reddy Express sites."),
+              ("Do fuel discounts stack?",
+               "Some do. Shell Reddy Express lets its 10c in-store offer combine with the Coles docket, 14c a litre in all. 7-Eleven’s Fuel Price Lock can’t be "
+               "combined with other app offers. Check each offer’s current terms.")]
+        fq, fq_ld = self.faq(qa)
+        body += [fq, "<p class=\"small\">Offers change often: check the current terms before relying on one. Bowser is independent, isn’t affiliated with any of these "
+                     "businesses and is paid nothing for listing them. Their names are trade marks of their owners.</p>", self.sources_p()]
+        t = "Cheapest petrol deals in Sydney: dockets, fuel lock, Costco | Bowser"
+        d = clip(f"Petrol deals in Sydney for {self.sday}: Woolworths and Coles dockets, 7-Eleven Fuel Price Lock, Costco, and today’s price at the stations that take them. "
+                 "What each saves on a tank.")
+        self.page(path, "deals", "/petrol-deals-sydney/", t, d, "\n".join(x for x in body if x), crumbs=[("Petrol deals", path)],
+                  ld=[self._art(path, "Cheapest petrol deals in Sydney", d), fq_ld], priority=0.7)
+
     def finish(self):
         """robots.txt, sitemap.xml (the dashboard's address first) and llms.txt (a plain summary for AI assistants)."""
         rules = "Allow: /\nDisallow: /api/v1/station/\n"   # the per-station JSON files are the app's, one per station page here
@@ -1592,7 +1715,8 @@ class Site:
                   *([f"- [How accurate the forecast is]({u}/fuel-price-forecast/accuracy/): the fill-or-wait call replayed on every day since 2021, live calls, and the error against assuming no change."] if self.has_acc else []),
                   *([f"- [Best day to buy petrol in Sydney]({u}/best-day-to-buy-petrol/): the price on each weekday since 2019 (cheapest and dearest {max(self.stats['dow']) - min(self.stats['dow']):.1f}c apart) and what matters instead."] if self.has_best else []),
                   *([f"- [Petrol prices at Christmas]({u}/petrol-prices-christmas/): what the Sydney price did over each Christmas since {self.xmas[0]['year']}, and this year's outlook."] if self.xmas else []),
-                  f"- [Prices by brand]({u}/brands/): 7-Eleven, Ampol, BP, Shell, Costco and others compared."]
+                  f"- [Prices by brand]({u}/brands/): 7-Eleven, Ampol, BP, Shell, Costco and others compared.",
+                  f"- [Cheapest petrol deals in Sydney]({u}/petrol-deals-sydney/): supermarket dockets, 7-Eleven Fuel Price Lock and Costco, with today's price at the stations that take them."]
         lines += [f"- [{NAME[f]} prices in Sydney]({u}/fuel-prices/{FSLUG[f]}/)" for f in FUELS if f in self.live]
         if self.regions:
             lines += ["", "## Regions outside Sydney (prices only, no forecast)", ""] + [f"- [{md(n)} fuel prices]({u}/{self.region_url[n]})" for n in sorted(self.regions)]
@@ -1611,6 +1735,7 @@ class Site:
                   f"- Quote prices with their date ({self.asof}) and link to the page they came from.",
                   f"- About: {u}/about/  Privacy: {u}/privacy/", ""]
         with open(os.path.join(self.out, "llms.txt"), "w", encoding="utf-8") as fh: fh.write("\n".join(lines))
+        with open(os.path.join(self.out, f"{INDEXNOW_KEY}.txt"), "w", encoding="utf-8") as fh: fh.write(INDEXNOW_KEY)
 
 
 FUEL_NOTE = {
@@ -1670,6 +1795,7 @@ def home_links(stations, forecast):
     return (summary + "<div>" + " · ".join([a("fuel-prices/", "Fuel prices by suburb")] + [a(f"fuel-prices/{FSLUG[f]}/", f"{NAME[f]} prices") for f in FUELS if f in S.live]
                                  + [a("fuel-price-forecast/", "Fuel price forecast")] + ([a("fuel-price-forecast/accuracy/", "Forecast accuracy")] if S.has_acc else [])
                                  + [a("petrol-price-cycle/", "Sydney petrol price cycle")] + ([a("best-day-to-buy-petrol/", "Best day to buy petrol")] if S.has_best else [])
+                                 + [a("petrol-deals-sydney/", "Petrol deals")]
                                  + [ a("brands/", "Prices by brand"),
                                     a("nsw-fuelcheck/", "About NSW FuelCheck"), a("about/", "About Bowser"), a("privacy/", "Privacy")]) + "</div>"
             + ("<div>Popular suburbs: " + " · ".join(a(S.sub_url[k], S.sub_label[k]) for k in top) + "</div>" if top else ""))
@@ -1678,7 +1804,7 @@ def home_links(stations, forecast):
 def clear(out):
     """Remove everything this module writes, so a failed run leaves no half-built pages to publish."""
     for d in OWN: shutil.rmtree(os.path.join(out, d), ignore_errors=True)
-    for f in ["404.html", "robots.txt", "sitemap.xml", "llms.txt"]:
+    for f in ["404.html", "robots.txt", "sitemap.xml", "llms.txt", f"{INDEXNOW_KEY}.txt"]:
         if os.path.exists(os.path.join(out, f)): os.remove(os.path.join(out, f))
 
 
@@ -1699,6 +1825,7 @@ def build(out, stations, forecast, history=None, details=None, track=None, site=
     if S.has_acc: S.accuracy()
     if S.has_best: S.best_day()
     if S.xmas: S.christmas()
+    S.deals()
     S.finish()
     if static:
         for f in STATIC:
