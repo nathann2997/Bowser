@@ -12,6 +12,15 @@ Roadmap item 5 starts: 2026's weak calls (`docs/RULE_ANALYSIS_2026-10.md` findin
 - Results: `docs/RULE_ANALYSIS_2026-10.md` → "Model experiment for finding 3": no variant passes, so no model change; live TGP was 0–6 days old against the backtest's 1 (fixed separately: daily TGP from AIP's page).
 - QA audit before push: no bugs. Its design points are in: the 7-day TGP lag variants, the seed variant, a report that fails loudly, the replay check against hand-built rows, and the live model taken from `forecast.json`.
 
+## 2026-11-21 — Web: desktop map waits for the visitor (**live** 2026-11-21: PR #34, `de1d535`, `daily.yml` run 44899946518)
+
+After the PageSpeed fixes went live, PageSpeed scored mobile 98 but desktop 69: blocking time 1,870 ms (CLS 0, LCP 0.7 s). On a computer the map is on screen at load, so MapLibre and its price tags were built during page load; that was most of the page's work.
+- The map (still the default view) now loads on the first mouse move, scroll, key or touch, the List/Map switch or "Show on map", or 5 s after the page loads if it's on screen and nobody touches anything. The box says "Loading the map…" until then. Phones are unchanged (the map is below the verdict and loads on the first scroll).
+- `nice()` reuses one date formatter instead of building one per call, and shows "–" for a bad date rather than throwing.
+- Measured locally with the live data, desktop preset at 4× CPU slowdown (closer to PageSpeed's machine), 3 runs: main-thread work during load about 1,350 ms → 300 ms, TBT 60–80 ms → 0. PageSpeed's own number shows after the deploy.
+- **Live check** (Lighthouse 12 on checkbowser.app, desktop at 4× CPU): 99, TBT 10 ms, CLS 0; the map loads on mouse move and after 5 s idle; no errors.
+- QA (subagent audit): nothing blocking. Fixed from it: `nice()` on a bad date, two stale map comments.
+
 ## 2026-11-20 — QA of #31 and #32: fixes
 
 The QA audit of the tested record line and the dashboard title (nothing high). Fixed:
