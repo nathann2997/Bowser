@@ -32,7 +32,8 @@ fc    Per fuel the station sells today: the Sydney forecast for that fuel turned
       - Reversion: a station away from its usual premium tends to drift back. For a station with a `typ` for the fuel and a
         price updated within 10 days and |x0| <= 40 (beyond is a price slip), x0 = price - Sydney `now` - typ (advise()'s gap) and the profile's `revert` table
         (station_revert.py) adds its median catch-up for x0's bin, interpolated over h, to the path and both range ends.
-        A profile without `revert` (built before 2026-11-21) adds nothing.
+        A profile without `revert` (built before 2026-11-21) adds nothing. Not for steady pricers: scored apart (station
+        experiment run 44904084167) it made their 7-day error worse (8.56 -> 8.82c; the rest 6.15 -> 5.33).
       - Anchor: `now` is the station's price in stations.json; d*/lo*/hi* are changes vs `now` in c/L, rounded to 0.1.
       - adv: the station's advice from stations.json, unchanged. rise: the Sydney rise day J from market() shifted by s
         (at least tomorrow), as an ISO date; null when there is no J, J + s is beyond 14 days, or the station is a steady
@@ -184,7 +185,7 @@ def build(base, G, schema):
             ds = w * d[idx]; los = ds + np.sqrt(w) * (lo[idx] - d[idx]); his = ds + np.sqrt(w) * (hi[idx] - d[idx])
             typ = p.get("typ", {}).get(f)
             x0 = None if typ is None else pr[0] - LIVE[f]["now"] - typ
-            if REV and x0 is not None and abs(x0) <= SR.SLIP and pr[1] is not None and pr[1] <= SR.FRESH:   # as trained
+            if REV and not steady and x0 is not None and abs(x0) <= SR.SLIP and pr[1] is not None and pr[1] <= SR.FRESH:   # as trained
                 rv = SR.term(x0, REV, hs)
                 ds, los, his = ds + rv, los + rv, his + rv
             row = {"now": pr[0]}
