@@ -28,7 +28,11 @@ One page per search intent, so pages don't compete with each other. Volumes are 
 | best day to buy petrol (sydney), cheapest day to buy petrol, is tuesday the cheapest day for petrol, is petrol cheaper on weekends | `/best-day-to-buy-petrol/` | Split out of the cycle page on 2026-11-20 (FuelRadar ranks a dedicated page). The answer, "no day in Sydney", backed by Bowser's weekday figures. |
 | petrol prices christmas (sydney), will petrol go up before christmas, petrol prices holidays | `/petrol-prices-christmas/` | Every Christmas since 2019 from Bowser's own history, plus this year's outlook. One evergreen address, so it builds links year on year. |
 | nsw fuel check, fuelcheck nsw, fuel check app, fuelcheck prices | `/nsw-fuelcheck/` | See the next section. |
-| cheapest petrol deals sydney, fuel dockets, woolworths/coles fuel discount, 7-eleven fuel lock | `/petrol-deals-sydney/` | Every discount beside today's price at the stations that take it: nobody else shows whether the docket station was dearer to begin with. Offers in `DEALS`, checked against their terms (`DEALS_CHECKED`); re-check every few months. |
+| 7 eleven fuel lock, fuel price lock, how does 7 eleven fuel lock work | `/7-eleven-fuel-price-lock/` | The only page that says whether to lock today, from a tested forecast. |
+| woolworths fuel discount, everyday rewards fuel, woolworths fuel discount locations | `/woolworths-fuel-discount/` | Today's prices at the brands that take it, before and after. |
+| coles fuel docket, flybuys fuel discount | `/coles-fuel-docket/` | The same, with the 14c Reddy Express stack. |
+| costco fuel price (sydney), is costco fuel cheaper, do you need membership | `/brands/costco/` | Every Sydney Costco's price and the membership break-even, from today's gap. |
+| fuel discounts nsw/sydney, cheapest petrol deals sydney, fuel discounts for seniors | `/petrol-deals-sydney/` | Every discount beside today's price at the stations that take it: nobody else shows whether the docket station was dearer to begin with. Offers in `DEALS`, each with the date it was checked against its terms (`checked`) and an optional end date (`until`); re-check every few months. |
 
 ### "NSW FuelCheck" searches
 Most people typing "fuel check nsw" want the government site, and Google will keep it first. Bowser can't and shouldn't pretend to be it. What it can do honestly:
@@ -103,6 +107,67 @@ Desk research with a US-based search tool. These are the pages that kept coming 
 | **Fuel Daddy** (`fueldaddy.com.au`) | 8,100+ stations in every state; suburb pages (`/locations-{state}/{suburb}/`), brands, a Costco page, an outage tracker, calculators, embeddable widgets, iOS app with price-drop alerts, "no ads". `/fuel-price-forecast/` places each of 32 cities within its last 14 days' range: a rule of thumb, with no test. On 20 Nov it said "Fill now" for Sydney while prices were falling. | Their forecast is a rule of thumb; ours is tested. They match us on suburb pages nationally. The widgets and outage tracker are the features to note. |
 | **ConnectingTheDots** (`connectingthedots.com.au/services/data-analytics/petrol/`) | A marketing page for a 30-day per-station predictor (NSW, QLD, SA, WA metro); the app runs on a dynamic-DNS address. No accuracy, method or FAQ. Funded by donations. | Not a search threat. |
 | **News** (CarExpert, Yahoo, 9News, SMH) | "Prices tipped to rise" articles quoting NRMA or the ACCC. | A pitch angle: the forecast with its public record (Owner to do, item 4). |
+
+### Keyword research, 2026-11-22: "should I fill up" and fuel discounts
+**Method.** Google Autocomplete for Australia (`suggestqueries.google.com`, `hl=en-AU&gl=au`): 52 seeds for the fill-up cluster and 30 for discounts, with A–Z expansions. Autocomplete only shows that a phrase is searched, not how often. Phrases are ranked by recurrence across seeds and by whether they appear on a short prefix (SP). "Who shows up" comes from a US-based search tool. It never returned PetrolPulse, Finder or Bowser, so it is **not** a Google Australia ranking. Check positions in Search Console, or in an Australian incognito window.
+
+**The fill-up clusters**
+
+| Cluster | Phrases | Best answer on the web today | Bowser page |
+|---|---|---|---|
+| Fill up today? | should i fill up today (SP), should i fill up petrol today (most recurrent), …now or wait, …diesel today, …today or tomorrow, should i fuel up now | PetrolPulse homepage (a "wait" call for 8 capitals, FAQPage). Finder's widget needs script. Fuel Daddy said "fill now" in 32 cities on 21 Nov while prices fell. | Dashboard (title already "Should you fill up today?"). Adding "sydney" or "nsw" gives no suggestions, so target the bare phrase. |
+| Direction | will petrol go up tomorrow / this week / or down; is petrol going up; when will petrol go down (SP: "…go down **sydney**" #2) | Stale news, NRMA weekly report, ACCC PDFs: no current page owns it. | `/fuel-price-forecast/`. "Tomorrow" and "this week" beat "next week". |
+| Event-driven | will petrol go up because of iran / the war / in the budget / overnight | News, 2023–25. | Not built: event pages (see Next). |
+| Forecast | petrol price forecast sydney / next week, fuel price prediction nsw | ACCC, NRMA archive, news. | `/fuel-price-forecast/`. |
+| Cycle | petrol cycle sydney (SP), …cycle sydney today / tomorrow, fuel price cycle tracker | ACCC (says cycles have "mostly not occurred" since Feb 2026). | `/petrol-price-cycle/`. |
+| Best day / time | best day to buy petrol in sydney (SP), cheapest day to buy petrol sydney (SP), is petrol cheaper at night | ACCC, **FuelRadar** (new; says "usually cheapest on Tuesday"), Yahoo, CarsGuide. | `/best-day-to-buy-petrol/` (our data: Tuesday is the *dearest* day, 0.6c from the cheapest). |
+
+**New since the 20 Nov review**
+- **FuelRadar:** FuelCheck-based, showing up for "should I fill up today sydney" and the best-day searches.
+- **PetrolPulse:** its accuracy page claims 86% on 7,392 calls under lenient scoring (a fill counts as right unless prices fall 3c+; a wait counts as right if any cheaper day follows).
+- **Finder:** `/fuel` was retitled "Tracking Australia's fuel crisis" (updated 14 Oct).
+
+**Discount clusters**, biggest first:
+1. **Costco fuel:** about 150 variants: price today / sydney / 98, each Sydney site plus "opening hours", "do you need membership", "is costco fuel cheaper".
+2. **7-Eleven fuel lock:** "how does it work", "max discount", "not working", plus "7 eleven fuel codes {month} 2026" every month.
+3. **Woolworths fuel discount:** "locations", "near me", "ampol"; "everyday rewards fuel voucher".
+4. **Generic:** "fuel discounts nsw", "fuel discount app", "fuel discounts for seniors".
+5. **Coles fuel docket / Flybuys.**
+6. **Smaller:** NRMA, seniors, Reddy Express, U-GO, BP.
+
+**"Deals" wording barely registers**, so the hub leads with "fuel discounts".
+
+**Who shows up for discounts:**
+- OzBargain wiki: the most complete, but dense and without prices.
+- Point Hacks: written around earning points.
+- Canstar Blue: last updated May 2025.
+- Bill Hero: a page per program, with Article, FAQPage and Offer markup, but no prices.
+- Yep Savings: a page per Costco site with FuelCheck prices, but last updated 22 Oct.
+
+**The gap:** no page shows which discount *and* what it costs today at the stations that take it, and none says "use it now or wait".
+
+**How Bowser wins**
+- A dated, tested answer in plain HTML on every page, against stale news and NRMA archive pages.
+- The only lock-timing advice backed by a forecast.
+- Live prices before and after each discount.
+- Not done, on purpose: no competitor is named on any page. An accuracy figure scored PetrolPulse's way is a possible later addition, on our own page, without naming them.
+
+**Built 2026-11-22** (branch `seo/fill-up-cluster`):
+- forecast-page title for "this week", plus questions for "tomorrow" and "when will petrol go down";
+- a "today" cycle-page title;
+- a best-day answer on time of day, from the hike-timing analysis;
+- the dashboard's screen-reader H1;
+- the discounts hub retitled, with dated offers (`until` drops an offer on its end date);
+- `/7-eleven-fuel-price-lock/`, `/woolworths-fuel-discount/`, `/coles-fuel-docket/`;
+- the Costco brand page fixed: it led with Canberra's U91, which Sydney's Costcos don't sell.
+
+**Next (not built)**
+- Visible verdict text on the dashboard: needs a visual and CLS check, and the owner asked for a simpler dashboard.
+- Event pages before long weekends and excise changes.
+- A diesel call on the dashboard.
+- A monthly "7-Eleven fuel codes" page.
+- A seniors fuel discount page.
+- Costco site pages (Auburn, Casula, Marsden Park): only if `/brands/costco/` doesn't rank, since they would compete with it.
 
 ### Features competitors have that Bowser doesn't (not built)
 In rough order of value:
