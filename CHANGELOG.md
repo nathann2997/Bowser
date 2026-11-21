@@ -2,7 +2,7 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
-## 2026-11-21 — Station mean reversion and a jump-chance floor (roadmap item 5)
+## 2026-11-21 — Station mean reversion and a jump-chance floor (roadmap item 5) (**live** 2026-11-21: PR #40, `5fd72d1`, `daily-forecast` run 44905636063)
 
 The last two parts of item 5, both decided earlier in `docs/RULE_ANALYSIS_2026-10.md` ("Model experiment for finding 3").
 - **Station forecasts revert toward a station's usual price.** `station_experiment.py` (run 44900730135) passed its fixed rule: for stations 8c+ above their usual premium, the 14-day error fell from 16.0 to 8.9c (overall 7.65 → 6.42). New `station_revert.py` holds the method; `station_profile.py` now writes the table (`revert`: median catch-up per x0 bin and horizon, over the profile's year, fuels pooled, bins under 200 rows = 0) into `station_profile.json`; `station_api.py` adds it to a Sydney station's path and range when the station has a `typ`, a price under 11 days old and |x0| ≤ 40, and isn't a steady pricer. The first pipeline-ci run moved steady pricers (e.g. a 7-Eleven that rarely joins jumps) by up to 15c a week, so the experiment now scores them apart under a rule fixed first (run 44904084167): their 7-day error got worse (8.56 → 8.82c, 14-day 13.49 → 12.88), the rest improved at every horizon (7-day 6.15 → 5.33, 14-day 7.35 → 6.09), so steady pricers are left out. x0 is `advise()`'s gap (price − Sydney now − typ). `stations.json`'s 7-day price follows (it is now + d7). The advice codes don't change. `run_daily.sh` rebuilds the profile once when `revert` is missing; if the table fails, the profile is written without it and forecasts stay as before (warning in the log).
