@@ -2,6 +2,16 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-21 — Bowser 1.1.0: Android background refresh (roadmap item 6, P0)
+
+`docs/NOTIFICATIONS_PLAN.md` P0. On Android, fresh data only arrived while the app was open or from the widget's 4-hour update, so without the widget the rise alert was only scheduled when you opened Bowser (when you least need it).
+- `register.android.ts` now registers the `bowser-refresh` background task (WorkManager through `expo-background-task`, the same task name as iOS), minimum interval 2 h: it loads the data (`loadSnapshot`, which reuses a cache under 2 h old), runs `syncAlerts`, and redraws placed widgets (`refreshNow`, now exported from `render.android.ts`). Android decides the exact timing (Doze, battery saver).
+- `app/package.json`: `expo-background-task`, `expo-task-manager` and `unimodules-app-loader` are no longer excluded from Android autolinking. New in the manifest: expo-task-manager's receiver (not exported, listens for boot and app update so tasks survive) and job service. No new permission Play asks about; background location stays blocked.
+- Native, so 1.1.0 (`app.json` `version`, `release_notes.txt`): app-ci builds the APK and the update notice, and with `PLAY_RELEASE` uploads a draft to Play's internal track (nothing reaches anyone; the 1.0.1 closed-test review is separate).
+- **Not in this APK (deferred on purpose):** the HANDOFF "Next APK" items (widget image provider `exported`, OTA code signing) and Expo patch upgrades; they can ride the next native release.
+- **Once merged, JS-only pushes OTA to runtime 1.1.0 only:** 1.0.1 installs (the Play closed test under review, sideloaded APKs) get no more JS updates until they move to 1.1.0.
+- **Device checks:** on a phone without the widget and with alerts on, a rise alert arrives with Bowser closed (after one open of 1.1.0, which schedules the task); the job exists: `adb shell am broadcast -a androidx.work.diagnostics.REQUEST_DIAGNOSTICS -p com.nathann2997.fuelforecast`, then `adb logcat -s WM-DiagnosticsWrkr` lists `expo.modules.backgroundtask.BackgroundTaskWork`; widgets update between their 4-hour draws. Force-stopping the app or an aggressive battery manager suspends the job until the next open. After the build, check the bundle's permissions list has nothing new.
+
 ## 2026-11-21 — Station mean reversion and a jump-chance floor (roadmap item 5) (**live** 2026-11-21: PR #40, `5fd72d1`, `daily-forecast` run 44905636063)
 
 The last two parts of item 5, both decided earlier in `docs/RULE_ANALYSIS_2026-10.md` ("Model experiment for finding 3").

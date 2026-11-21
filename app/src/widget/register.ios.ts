@@ -1,5 +1,5 @@
-// iOS: a background task that refreshes the widget and the rise alert while Bowser is closed (the Android widget does
-// this from its own periodic update, see ./register.android.ts). iOS decides when it runs (BGTaskScheduler, usually a
+// iOS: a background task that refreshes the widget and the rise alert while Bowser is closed (Android has the same
+// task, plus the widget's own periodic update: ./register.android.ts). iOS decides when it runs (BGTaskScheduler, usually a
 // few times a day when the phone is idle); the interval below is only a minimum. Imported from the app entry
 // (index.ts) so the task is defined before iOS wakes the app for it.
 import * as BackgroundTask from 'expo-background-task';

@@ -84,10 +84,7 @@
       "android": {
         "exclude": [
           "expo-widgets",
-          "@expo/ui",
-          "expo-background-task",
-          "expo-task-manager",
-          "unimodules-app-loader"
+          "@expo/ui"
         ]
       }
     }
