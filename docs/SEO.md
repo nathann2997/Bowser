@@ -28,7 +28,11 @@ One page per search intent, so pages don't compete with each other. Volumes are 
 | best day to buy petrol (sydney), cheapest day to buy petrol, is tuesday the cheapest day for petrol, is petrol cheaper on weekends | `/best-day-to-buy-petrol/` | Split out of the cycle page on 2026-11-20 (FuelRadar ranks a dedicated page). The answer, "no day in Sydney", backed by Bowser's weekday figures. |
 | petrol prices christmas (sydney), will petrol go up before christmas, petrol prices holidays | `/petrol-prices-christmas/` | Every Christmas since 2019 from Bowser's own history, plus this year's outlook. One evergreen address, so it builds links year on year. |
 | nsw fuel check, fuelcheck nsw, fuel check app, fuelcheck prices | `/nsw-fuelcheck/` | See the next section. |
-| cheapest petrol deals sydney, fuel dockets, woolworths/coles fuel discount, 7-eleven fuel lock | `/petrol-deals-sydney/` | Every discount beside today's price at the stations that take it: nobody else shows whether the docket station was dearer to begin with. Offers in `DEALS`, checked against their terms (`DEALS_CHECKED`); re-check every few months. |
+| 7 eleven fuel lock, fuel price lock, how does 7 eleven fuel lock work | `/7-eleven-fuel-price-lock/` | The only page that says whether to lock today, from a tested forecast. |
+| woolworths fuel discount, everyday rewards fuel, woolworths fuel discount locations | `/woolworths-fuel-discount/` | Today's prices at the brands that take it, before and after. |
+| coles fuel docket, flybuys fuel discount | `/coles-fuel-docket/` | The same, with the 14c Reddy Express stack. |
+| costco fuel price (sydney), is costco fuel cheaper, do you need membership | `/brands/costco/` | Every Sydney Costco's price and the membership break-even, from today's gap. |
+| fuel discounts nsw/sydney, cheapest petrol deals sydney, fuel discounts for seniors | `/petrol-deals-sydney/` | Every discount beside today's price at the stations that take it: nobody else shows whether the docket station was dearer to begin with. Offers in `DEALS`, each with the date it was checked against its terms (`checked`) and an optional end date (`until`); re-check every few months. |
 
 ### "NSW FuelCheck" searches
 Most people typing "fuel check nsw" want the government site, and Google will keep it first. Bowser can't and shouldn't pretend to be it. What it can do honestly:

@@ -2,6 +2,27 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-22 — Fill-up and fuel discount searches: keyword research and new pages
+
+The owner asked for keyword research on "should I fill up now" and similar searches, a look at where competitors sit, and fuel discounts as an SEO topic with pages of their own. Findings are in `docs/SEO.md` → "Keyword research, 2026-11-22": Google Autocomplete for Australia, plus a US-based search tool, so these are not measured Google AU positions.
+- **Fill-up cluster:**
+  - The forecast page title is now "Will petrol go up this week? Sydney fuel price forecast"; "this week" and "tomorrow" beat "next week" in autocomplete.
+  - The forecast page has a new answer, "When will petrol go down in Sydney?" (from `d7`/`d14`). A separate page was skipped, so the two wouldn't compete.
+  - The cycle page title adds "today".
+  - The best-day page answers "Is petrol cheaper in the morning or at night?" from the jump-timing analysis behind `daily.yml`'s run times (`JUMP_BY_TIME`).
+  - The dashboard's screen-reader H1 now asks "Should you fill up today?".
+- **Fuel discounts:**
+  - `DEALS` entries are now records with a `checked` date and an optional `until`, so an offer disappears after its end date.
+  - Added from primary terms pages: NRMA at Ampol Foodary, 7-Eleven partner codes (6c), CommBank Yello at BP (9c, until 31 Dec 2026), NSW Seniors Card at United. The Reddy Express $20 offer has no end date.
+  - The hub `/petrol-deals-sydney/` is retitled "Fuel discounts in Sydney", since "deals" barely registers in autocomplete. The address stays.
+  - New pages:
+    - `/7-eleven-fuel-price-lock/` (`lock_page`, `lock_call`): whether to lock today, from the Sydney forecast. The terms say you pay the lower of the lock and the pump price, so the call is about timing: lock before a rise, wait during a fall. Also today's cheapest Sydney 7-Elevens.
+    - `/woolworths-fuel-discount/` and `/coles-fuel-docket/` (`docket_page`): prices before and after the docket, by brand. U-GO averaged 10.8c under the median on 21 Nov. The Coles page includes the 14c stack.
+  - **Costco brand page:** it led with Canberra's U91, which Sydney's Costcos don't sell. It now leads with E10 (a brand switches only when none of its Sydney stations sells U91; the diff of all 32 brand titles changed only Costco). It adds the $65 membership break-even and three questions. Also fixes "1 Costco stations".
+- **No competitor is named on any page.**
+- **Deferred (docs/SEO.md → Next):** visible verdict text on the dashboard (needs a visual and CLS check), event pages, a monthly 7-Eleven codes page, a seniors page.
+- Tests: 2 new (the discount pages with expiry; the lock call); 102 pass. A live-data build: 3,529 pages.
+
 ## 2026-11-21 — Bowser 1.1.0: Android background refresh (roadmap item 6, P0)
 
 `docs/NOTIFICATIONS_PLAN.md` P0. On Android, fresh data only arrived while the app was open or from the widget's 4-hour update, so without the widget the rise alert was only scheduled when you opened Bowser (when you least need it).
