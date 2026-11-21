@@ -29,6 +29,11 @@ fc    Per fuel the station sells today: the Sydney forecast for that fuel turned
         profile (n < 5) w = 1. A steady pricer (part < 0.25, e.g. Costco) gets w of about 0.1-0.3, so its path is nearly flat.
       - Range: lo/hi are the Sydney lo/hi offsets around the path at the same shifted day, scaled by sqrt(w) (a steady
         pricer is less uncertain, but not proportionally so).
+      - Reversion: a station away from its usual premium tends to drift back. For a station with a `typ` for the fuel and a
+        price updated within 10 days and |x0| <= 40 (beyond is a price slip), x0 = price - Sydney `now` - typ (advise()'s gap) and the profile's `revert` table
+        (station_revert.py) adds its median catch-up for x0's bin, interpolated over h, to the path and both range ends.
+        A profile without `revert` (built before 2026-11-21) adds nothing. Not for steady pricers: scored apart (station
+        experiment run 44904084167) it made their 7-day error worse (8.56 -> 8.82c; the rest 6.15 -> 5.33).
       - Anchor: `now` is the station's price in stations.json; d*/lo*/hi* are changes vs `now` in c/L, rounded to 0.1.
       - adv: the station's advice from stations.json, unchanged. rise: the Sydney rise day J from market() shifted by s
         (at least tomorrow), as an ISO date; null when there is no J, J + s is beyond 14 days, or the station is a steady
@@ -38,6 +43,7 @@ import glob, gzip, json, os, re
 import numpy as np, pandas as pd
 
 from fuels import FUELS
+import station_revert as SR
 DAYS = 400          # days of history per file, ending at asof
 FFILL = 30          # max days the last known price is carried forward after a station-fuel's last change/observation
 FFILL_GAP = 180     # max days carried forward between two known prices (events are changes, so no event = same price)
@@ -157,6 +163,7 @@ def build(base, G, schema):
     parts = [p["part"] for p in PF.get("stations", {}).values() if p.get("part") is not None and p.get("n", 0) >= 5]
     part_med = float(np.median(parts)) if parts else 1.0
     hs = np.arange(15)
+    REV = PF.get("revert")
     band = {}
     for f, r in LIVE.items():
         lo = np.interp(hs, [0, 1, 3, 7, 14], [0, r["lo1"], r["lo3"], r["lo7"], r["lo14"]])
@@ -168,16 +175,19 @@ def build(base, G, schema):
         key = keyof.get(sid)
         prof = PF.get("stations", {}).get(key) if key else None
         p = prof or {}
-        lag = p.get("lag")
-        shift = 0 if lag is None else int(np.clip(round((lag - lag_med) / 24), -1, 2))
+        w, shift = SR.w_s(p, part_med, lag_med)
         steady = p.get("n", 0) >= 5 and p.get("part", 1) < 0.25
-        w = 1.0 if p.get("n", 0) < 5 or p.get("part") is None else float(np.clip(p["part"] / part_med, 0, 1))
         idx = np.clip(hs - shift, 0, 14)
         fc = {}
         for f, pr in s["p"].items():
             if f not in MK or s.get("out"): continue   # outside Sydney: no forecast
             _, d, J = MK[f]; lo, hi = band[f]
             ds = w * d[idx]; los = ds + np.sqrt(w) * (lo[idx] - d[idx]); his = ds + np.sqrt(w) * (hi[idx] - d[idx])
+            typ = p.get("typ", {}).get(f)
+            x0 = None if typ is None else pr[0] - LIVE[f]["now"] - typ
+            if REV and not steady and x0 is not None and abs(x0) <= SR.SLIP and pr[1] is not None and pr[1] <= SR.FRESH:   # as trained
+                rv = SR.term(x0, REV, hs)
+                ds, los, his = ds + rv, los + rv, his + rv
             row = {"now": pr[0]}
             for h in HZ:
                 a, b, c = r1(ds[h]), r1(los[h]), r1(his[h])
