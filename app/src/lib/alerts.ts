@@ -1,6 +1,6 @@
 // Rise alerts: one local notification the morning before Sydney prices are likely to jump, for the user's fuel.
-// Scheduled on the phone (no server, no push token) whenever fresh data arrives: from the app, and from the widget's
-// periodic update so it still works while Bowser stays closed. Off until the user turns it on (More or the welcome).
+// Scheduled on the phone (no server, no push token) whenever fresh data arrives: from the app, the widget's periodic
+// update and the background refresh task (iOS, and Android from 1.1.0), so it still works while Bowser stays closed. Off until the user turns it on (More or the welcome).
 import * as Notifications from 'expo-notifications';
 import { AndroidImportance } from 'expo-notifications';
 import { Platform } from 'react-native';

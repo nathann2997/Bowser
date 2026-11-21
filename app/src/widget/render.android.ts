@@ -5,6 +5,7 @@ import { reportError } from '@/lib/analytics';
 
 import { loadSnapshot } from './data';
 import { prepareLocation } from './location';
+import type { WidgetSnapshot } from './logic';
 import { modelFor } from './model';
 import { WIDGET_NAMES, renderWidgetFor } from './widgets';
 
@@ -12,8 +13,9 @@ const DEBOUNCE_MS = 500;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let running: Promise<void> | null = null;
 
-async function refreshNow() {
-  const snap = await loadSnapshot({ allowFetch: true });
+/** Redraw every placed widget now (awaitable; the background refresh task uses it). */
+export async function refreshNow(loaded?: WidgetSnapshot | null) {
+  const snap = loaded ?? await loadSnapshot({ allowFetch: true });
   if (!snap) return;   // nothing loaded yet: leave whatever the widget shows
   const loc = await prepareLocation().catch(() => ({ bgGranted: false }));   // last-known fix only
   for (const name of WIDGET_NAMES) {

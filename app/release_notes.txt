@@ -1,1 +1,1 @@
-Bowser 1.0.1: the welcome screen, Today, Stations, station pages and About now show where prices come from (NSW Government FuelCheck, with a link) and say plainly that Bowser is an independent app, not a government app.
+Bowser 1.1.0: on Android, Bowser now checks for new prices in the background every couple of hours, so the rise alert arrives even when Bowser is closed and you haven't placed the widget, and widgets stay current.

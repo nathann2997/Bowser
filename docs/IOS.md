@@ -14,7 +14,7 @@ How the iOS build is put together and how to get it onto iPhones. Status lives i
 | Map button | `geo:` pin in the maps app | Apple Maps pin (`maps://?ll=…&q=name`, `lib/directions.ts`); shows the station, doesn't start a trip |
 | Short messages | Toast | Alert |
 
-The pure model (`widget/logic.ts` `buildModel`) is shared by both platforms. The iOS-only native modules (`expo-widgets`, `@expo/ui`, `expo-background-task`, `expo-task-manager`, `unimodules-app-loader`) are excluded from Android autolinking in `app/package.json`, so the APK is unchanged. Only `.ios.ts` files and `ios-widget.tsx` import them.
+The pure model (`widget/logic.ts` `buildModel`) is shared by both platforms. The iOS-only native modules (`expo-widgets`, `@expo/ui`) are excluded from Android autolinking in `app/package.json`. Only `.ios.ts` files and `ios-widget.tsx` import them. Since 1.1.0 `expo-background-task`, `expo-task-manager` and `unimodules-app-loader` are linked on Android too (the background refresh in `register.android.ts`).
 
 ## Builds
 

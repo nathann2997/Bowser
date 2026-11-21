@@ -34,8 +34,9 @@ Every notification must either save money or close a loop. Anything that's only 
 ## The notifications, in priority order
 
 ### P0. Foundation: background refresh on Android (no user-facing notification)
+**Built in 1.1.0** (2026-11-21, `app/src/widget/register.android.ts`: the `bowser-refresh` task every 2 h minimum, loading data, syncing the rise alert and redrawing placed widgets).
 - Ship `expo-background-task` on Android: remove it, `expo-task-manager` and `unimodules-app-loader` from the Android autolinking exclusions, and register the same refresh task as iOS (minimum interval about 1–2 h). It runs `syncAlerts` and the new triggers below.
-- This is native, so it needs a new APK. **Combine it with the pending 0.7.1 SDK patch update**, which needs a new APK anyway.
+- This is native, so it needs a new APK (1.1.0).
 - Without this, every item below only works for people who've placed the widget.
 
 ### P1. Rise alert v2: personal, with a place and a price (upgrade of the existing alert)
