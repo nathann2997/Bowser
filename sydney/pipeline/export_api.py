@@ -137,7 +137,7 @@ forecast = {"schema": SCHEMA, "asof": ctx["asof"], **STAMP, "live": [dict(r, ver
 
 # soft warnings: inputs that the model forward-fills when a best-effort pull keeps failing
 age = lambda d: (dt.date.fromisoformat(today) - dt.date.fromisoformat(d)).days if d else 999
-warnings = [f"{k} is {age(ctx.get(k))} days old" for k, lim in [("tgp_last", 10), ("fred_last", 21)] if age(ctx.get(k)) > lim]
+warnings = [f"{k} is {age(ctx.get(k))} days old" for k, lim in [("tgp_last", 6), ("fred_last", 21)] if age(ctx.get(k)) > lim]
 if quarantined:
     warnings.append(("implausible prices hidden: " + "; ".join(f"{n} {f} {p} (median {m})" for _, f, p, m, n in quarantined[:5])
                      + (f" and {len(quarantined) - 5} more" if len(quarantined) > 5 else ""))[:500])

@@ -35,7 +35,7 @@ def vol_ratio(col):
     a = TL[col].diff().abs()
     return (a.rolling(28, 20).mean() / a.rolling(365, 200).mean()).clip(0.75, 3).fillna(1.0)
 VOL = {f: vol_ratio("tgp_dl" if f == "DL" else "tgp_ulp") for f in FUELS}
-# Live: read the ratio on the day after the last real TGP (TL is lagged a day). TGP arrives in weekly batches, and the
+# Live: read the ratio on the day after the last real TGP (TL is lagged a day). TGP can arrive in batches, and the
 # filled-forward days would count as zero change and narrow the ranges just when a jump starts
 VOL_DAY = {f: min(asof, T["tgp_dl" if f == "DL" else "tgp_ulp"].dropna().index.max() + pd.Timedelta(days=1)) for f in FUELS}
 

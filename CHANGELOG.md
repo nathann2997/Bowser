@@ -2,6 +2,16 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-21 — Daily wholesale prices from AIP's TGP page
+
+Roadmap item 5 finding (`docs/RULE_ANALYSIS_2026-10.md`, 2026-11-21): AIP's TGP workbook only comes out weekly, so live forecasts ran on Sydney TGP 0–6 days old (about 3 on average, 150 runs from 2026-10-26), while the model is trained and tested on TGP a day old. In the walk-forward, TGP 7 days late cost 0.15c (U91) to 0.27c (all fuels) a call in 2026. AIP also publishes this week's prices daily on https://www.aip.com.au/pricing/terminal-gate-prices, with the same Sydney figures as the workbook (checked for 16–20 Nov).
+- `fetch.py` saves that page (`aip_tgp_page.html`, optional, same allowed domain as the workbook).
+- `aip_daily.py` reads the Sydney petrol and diesel rows, and fails loudly on a changed page (no table, no Sydney row, a price outside 50–500c); `update.py` keeps every read in `store/tgp_daily.csv` and adds the days after the workbook's last to `store/tgp.csv`. The workbook always wins on its own days. A failed page read is logged and the run goes on with the workbook.
+- No model change: live TGP is now as fresh as the model was trained on. `ctx.tgp_last` (and the app's "Wholesale prices (AIP)" line) should now read yesterday or today on weekdays.
+- The page parser refuses rather than guesses: a missing section can't borrow the next table, a Sydney row must have one price per date, a stray mark ("197.7c") fails, header dates must be within 14 days of today, and a day goes in only with both fuels (QA audit).
+- `export_api.py` now warns (`tgp_last`, shown by data-health as "Wholesale prices (AIP) aren't updating") when TGP is over 6 days old, was 10: with the daily page, a gap that long means the page stopped working (a long weekend reaches 5).
+- Tests: 6 new (`test_aip_daily.py`). Not exercised in `pipeline-ci` (it has no network, and a stored page's dates would age out of the 14-day check).
+
 ## 2026-11-21 — Model experiment harness (roadmap item 5)
 
 Roadmap item 5 starts: 2026's weak calls (`docs/RULE_ANALYSIS_2026-10.md` finding 3). Nothing published changes yet.
