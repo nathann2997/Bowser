@@ -2,7 +2,7 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
-## 2026-11-21 — Bowser 1.1.0: Android background refresh (roadmap item 6, P0)
+## 2026-11-21 — Bowser 1.1.0: Android background refresh (roadmap item 6, P0) (**shipped** 2026-11-22: PR #43, app-ci run 44907268348, EAS build 589160aa)
 
 `docs/NOTIFICATIONS_PLAN.md` P0. On Android, fresh data only arrived while the app was open or from the widget's 4-hour update, so without the widget the rise alert was only scheduled when you opened Bowser (when you least need it).
 - `register.android.ts` now registers the `bowser-refresh` background task (WorkManager through `expo-background-task`, the same task name as iOS), minimum interval 2 h: it loads the data (`loadSnapshot`, which reuses a cache under 2 h old), runs `syncAlerts`, and redraws placed widgets (`refreshNow`, now exported from `render.android.ts`). Android decides the exact timing (Doze, battery saver).
