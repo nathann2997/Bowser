@@ -36,9 +36,18 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - **Search pages** (live 2026-11-17, PR #11, `daily.yml` run 44011072183; `docs/SEO.md`). `seo_pages.py` writes about 3,500 static pages, the sitemap and robots file inside `export_api.py`. The hub says NSW, with 23 region pages, `llms.txt` and named AI crawlers in `robots.txt` (2026-11-17 review). **Next:** watch Search Console for "Crawled, currently not indexed" on station pages. AdSense is not set up; the list of what it needs is in `docs/SEO.md`.
 Newest first. Each item has its CHANGELOG entry of the same name for details.
 
+- **Fill-up and fuel discount searches** (2026-11-22, branch `seo/fill-up-cluster`, PR open, not merged).
+  - Keyword research is in `docs/SEO.md`.
+  - New pages: `/7-eleven-fuel-price-lock/`, `/woolworths-fuel-discount/`, `/coles-fuel-docket/`. The discounts hub is retitled, offers carry dates, and the Costco page is fixed.
+  - **Next:**
+    - re-check `DEALS` against its terms pages by about February 2027;
+    - NRMA is back in `DEALS`: on 2026-11-22, mynrma.com.au/benefits/ampol listed 4c regular and 5c premium with no end date. The June 2026 and June 2027 dates seen earlier belong to a roadside-subscription promo. That page blocks automated reads (403), so check it by hand;
+    - when Search Console has positions, compare the clusters in `docs/SEO.md`;
+    - the deferred list there.
+
 - **Search Console week one: country station pages, deals guide, IndexNow** (2026-11-21, **live**: PR #42 merged as `6e98507`, `daily.yml` run 44906306173; the key file serves, `/petrol-deals-sydney/` is up, and the first IndexNow submission returned HTTP 202). Station pages outside Sydney say more (local median, nearest cheaper station, a wider nearby search, the days recorded so far); the hub title leads with "Check"; new `/petrol-deals-sydney/`; IndexNow submits changed pages after each deploy. **Next:**
   - in Bing Webmaster Tools → IndexNow, check that submissions appear;
-  - re-check `DEALS` against each terms page every few months, or when an offer is in the news, and update `DEALS_CHECKED`. NRMA at Ampol Foodary was left out because its pages disagree on the rate (3c or 4c) and the end date (June 2026 or June 2027); add it once the terms are clear. The Reddy Express $20 offer may be a time-limited promotion;
+  - re-check `DEALS` against each terms page every few months, or when an offer is in the news, and update each offer's `checked` (NRMA settled 2026-11-22: see the entry above);
   - owner: once the Play listing is public, add it to the Organization `sameAs` (an LLM entity signal).
 - **Product roadmap: "best fuel forecasting app", ranked by search** (2026-11-20, owner: tick off the first 10 points in order, each confirmed done before the next; no timeframes). Competitor review in `docs/SEO.md` → "Competitors for forecast searches" (ACCC, Finder, NRMA, FuelRadar, PetrolSpy, PetrolPulse, the closest rival, Fuel Daddy, ConnectingTheDots).
   1. **Ship what's built: done.** PR #30 merged (includes #25, which was closed as superseded): forecast page chart, FAQ and Dataset; `/fuel-price-forecast/accuracy/`, `/best-day-to-buy-petrol/`, `/petrol-prices-christmas/`; cycle stage and jumps; `stats.recent_jumps` in `build.py`. Live, checked after daily run. Play listing short description rewritten for search (`docs/PLAY_STORE.md`); **the Play launch itself is the owner's Console steps.**
