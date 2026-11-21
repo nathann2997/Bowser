@@ -48,6 +48,7 @@ jobs:
       TZ: Australia/Sydney
     outputs:
       fetched: ${{ steps.fetch.outcome == 'success' }}
+      indexnow: ${{ steps.indexnow.outputs.list }}
       data_sha: ${{ steps.state.outputs.sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
@@ -114,6 +115,25 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      # IndexNow (indexnow.py): the pages whose sitemap date moved since the live site, submitted by the deploy job once
+      # they are live. Never blocks a deploy.
+      - name: List changed pages for IndexNow
+        id: indexnow
+        continue-on-error: true
+        run: |
+          python state/pipeline/indexnow.py https://checkbowser.app/sitemap.xml site/sitemap.xml indexnow.json
+          if [ -f indexnow.json ]; then echo "list=true" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Hand the list to the deploy job
+        if: steps.indexnow.outputs.list == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
+        with:
+          name: indexnow
+          path: indexnow.json
+          retention-days: 1
+          if-no-files-found: ignore
+
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa   # v3
         with:
           path: site
@@ -179,3 +199,20 @@ jobs:
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b   # v5
       - id: deploy
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e   # v4
+
+      # After the deploy, so Bing finds the new pages and the key file live. A failure here is a warning, not a failed run.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4
+        if: needs.build.outputs.indexnow == 'true'
+        continue-on-error: true
+        with:
+          name: indexnow
+
+      - name: Submit changed pages to IndexNow
+        continue-on-error: true
+        if: needs.build.outputs.indexnow == 'true'
+        run: |
+          test -f indexnow.json || { echo "nothing to submit"; exit 0; }
+          code=$(curl -sS -o resp.txt -w '%{http_code}' --max-time 60 -X POST https://api.indexnow.org/indexnow \
+                 -H 'Content-Type: application/json; charset=utf-8' --data-binary @indexnow.json) || code=none
+          echo "IndexNow: HTTP $code"
+          case "$code" in 200|202) ;; *) echo "::warning::IndexNow submission returned $code: $(head -c 300 resp.txt 2>/dev/null)";; esac

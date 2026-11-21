@@ -288,6 +288,59 @@ class Pieces(unittest.TestCase):
             for href in re.findall(r'href="([^"]+)"', sp.home_links(stations, forecast)):
                 self.assertTrue(os.path.exists(os.path.join(out, href, "index.html")), href)
 
+    def test_country_station_without_a_region(self):
+        # Nana Glen: outside every region, nothing within 4 or 10 km with three prices, a few days of history
+        stations, forecast, history, details, track = sample()
+        st = stations["stations"]
+        for i, n, la, lo, p in [(400, "Nana Glen General Store", -30.13, 153.01, 210.0), (401, "Servo Glenreagh", -30.05, 153.00, 205.0),
+                                (402, "Servo Orara", -30.20, 153.05, 208.0), (403, "Servo Far", -30.25, 153.10, 215.0)]:
+            s = station(i, n, "Independent", "Nana Glen", 2450, la, lo, {"U91": (p, 0)}, out=1)
+            s["p"]["U91"] = s["p"]["U91"][:2] + ["na", "Price only", "Outside Sydney, where Bowser has no forecast"]
+            st.append(s)
+        n = (sp.dt.date.fromisoformat(ASOF) - sp.dt.date(2025, 10, 15)).days + 1
+        details["400"] = {"start": "2025-10-15", "hist": {"U91": [None] * (n - 5) + [209.0, 210.0, 211.0, 210.0, 210.0]}}
+        with tempfile.TemporaryDirectory() as out:
+            sp.build(out, stations, forecast, history, details, track)
+            with open(os.path.join(out, "station/nana-glen-general-store-400/index.html"), encoding="utf-8") as fh: t = fh.read()
+        self.assertIn("last reported its Unleaded 91 price to NSW FuelCheck today", t)
+        self.assertIn("2.0c over the median of the 3 stations within 25 km (208.0c)", t)
+        self.assertIn("The cheapest Unleaded 91 within 25 km", t)
+        self.assertIn('Servo Orara</a>, 8.7 km away, at 208.0c (2.0c less, $1.00 on a 50 L fill)', t)
+        self.assertIn("Since 13 Nov, Unleaded 91 at Nana Glen General Store has ranged from <b>209.0c</b> to <b>211.0c</b> a litre; it last changed on 16 Nov, to 210.0c.", t)
+        self.assertNotIn('<svg class="chart"', t)
+
+    def test_deals_page(self):
+        stations, forecast, history, details, track = sample()
+        for i, p in enumerate((210.0, 212.0, 214.0)):
+            stations["stations"].append(station(500 + i, f"Reddy Express Auburn {i}", "Reddy Express", "Auburn", 2144, -33.85 + i * 0.002, 151.03, {"U91": (p, 0)}))
+        with tempfile.TemporaryDirectory() as out:
+            sp.build(out, stations, forecast, history, details, track)
+            with open(os.path.join(out, "petrol-deals-sydney/index.html"), encoding="utf-8") as fh: t = fh.read()
+            with open(os.path.join(out, "llms.txt"), encoding="utf-8") as fh: self.assertIn("/petrol-deals-sydney/", fh.read())
+        self.assertIn("<title>Cheapest petrol deals in Sydney: dockets, fuel lock, Costco | Bowser</title>", t)
+        # Coles docket row: average 212.0, 1.6c under the 213.6 median, 208.0 after 4c; the in-store offer 202.0 after 10c
+        self.assertRegex(t, r"Coles docket \(Flybuys\)</a></td><td>Reddy Express</td><td class=\"n\">4c/L</td><td class=\"n\">212\.0</td>"
+                            r"<td class=\"n\"><span class=\"cheap\">−1\.6</span></td><td class=\"n\">208\.0</td>")
+        self.assertIn('<td class="n">202.0</td>', t)
+        self.assertIn('"@type":"FAQPage"', t); self.assertIn("a 4c docket saves <b>$2.00</b>", t)
+
+    def test_hub_title_and_indexnow(self):
+        with tempfile.TemporaryDirectory() as out:
+            report = sp.build(out, *sample())
+            rd = lambda p: open(os.path.join(out, p), encoding="utf-8").read()
+            self.assertIn("<title>Check NSW fuel prices today: cheapest petrol by suburb | Bowser</title>", rd("fuel-prices/index.html"))
+            self.assertEqual(rd(f"{sp.INDEXNOW_KEY}.txt"), sp.INDEXNOW_KEY)
+            with open(os.path.join(out, "sitemap.xml"), "rb") as fh: sitemap = fh.read()
+        import indexnow
+        old = {"https://checkbowser.app/": "2026-11-16", "https://checkbowser.app/a/": "2026-11-17", "https://checkbowser.app/gone/": "2026-11-10"}
+        new = {"https://checkbowser.app/": "2026-11-17", "https://checkbowser.app/a/": "2026-11-17", "https://checkbowser.app/b/": "2026-11-17",
+               "https://elsewhere.example/": "2026-11-17"}
+        self.assertEqual(indexnow.changed(old, new), ["https://checkbowser.app/", "https://checkbowser.app/b/", "https://checkbowser.app/gone/"])
+        b = indexnow.body(["https://checkbowser.app/"])
+        self.assertEqual((b["host"], b["keyLocation"]), ("checkbowser.app", f"https://checkbowser.app/{sp.INDEXNOW_KEY}.txt"))
+        parsed = indexnow.parse(sitemap)
+        self.assertEqual(parsed["https://checkbowser.app/"], ASOF); self.assertEqual(len(parsed), report["pages"] + 1)
+
     def test_regions_dead_pages_and_ai_files(self):
         stations, forecast, *_ = sample()
         st = stations["stations"]
