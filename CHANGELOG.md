@@ -31,6 +31,11 @@ After the PageSpeed fixes went live, PageSpeed scored mobile 98 but desktop 69: 
 - **Live check** (Lighthouse 12 on checkbowser.app, desktop at 4× CPU): 99, TBT 10 ms, CLS 0; the map loads on mouse move and after 5 s idle; no errors.
 - QA (subagent audit): nothing blocking. Fixed from it: `nice()` on a bad date, two stale map comments.
 
+## 2026-11-21 — Google Play: automatic uploads on
+
+- The `play` job submitted to Play for the first time (version code 9, internal track, draft; app-ci run 44743007910) after the owner fixed the service account's email in Play Console. The repo variable `PLAY_RELEASE` is now `true` (owner: "set PLAY_RELEASE"): version bumps build and upload a draft to the internal track, and JS-only pushes to `main` also go out as an OTA to the `production` channel (Play installs).
+- The EAS `preview` environment had no variables (they were ticked for `production` only) and the 1.0.1 APK build failed twice on the missing Maps key until the owner ticked `preview` again. The 2026-11-18 OTA to 1.0.0 had gone out without the PostHog key.
+
 ## 2026-11-20 — QA of #31 and #32: fixes
 
 The QA audit of the tested record line and the dashboard title (nothing high). Fixed:
