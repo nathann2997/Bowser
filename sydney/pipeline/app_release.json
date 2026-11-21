@@ -1,8 +1,8 @@
 {
   "android": {
-    "version": "1.0.1",
-    "url": "https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/d0443e86-c4d1-475e-8d8b-f60155bc1832",
-    "notes": "Bowser 1.0.1: the welcome screen, Today, Stations, station pages and About now show where prices come from (NSW Government FuelCheck, with a link) and say plainly that Bowser is an independent app, not a government app."
+    "version": "1.1.0",
+    "url": "https://expo.dev/accounts/nathann97/projects/fuel-forecast/builds/589160aa-b39c-468c-8bf1-2e1f9193e401",
+    "notes": "Bowser 1.1.0: on Android, Bowser now checks for new prices in the background every couple of hours, so the rise alert arrives even when Bowser is closed and you haven't placed the widget, and widgets stay current."
   },
   "ios": null
 }
