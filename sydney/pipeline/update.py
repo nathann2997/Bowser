@@ -5,6 +5,7 @@ inbox/ may contain (any subset; newest of each is used):
   AIP_TGP_Data_*.xlsx   AIP historical TGP workbook
   aip_tgp_page.html     AIP's daily TGP page (aip_daily.py): fills the days after the weekly workbook's last
   brent_audusd_eia_rba.csv  Brent (EIA) and AUD/USD (RBA), under the FRED column ids (fetch.py pull_macro)
+  eia_daily_page.csv    the latest Brent and NY Harbor diesel close from EIA's daily page (fetch.py pull_eia_daily)
 Writes store/daily.csv (adds/replaces snapshot rows; Sydney stations only), store/tgp.csv, store/tgp_daily.csv, store/fred.csv and
 store/stations_today.json (every NSW FuelCheck station, with `syd` true for the Sydney ones the forecast is about)
 """
@@ -94,6 +95,38 @@ if snap:
                    "prices": [p for p in j["prices"] if str(p["stationcode"]) in codes]}, fh)
     log.append(f"snapshot {asof.date()}: {len(pr)} Sydney prices, {len(allpr) - len(pr)} elsewhere in NSW "
                f"({allpr.code.nunique()} stations in all)")
+    # ---- station features for the shadow forecast (station_feats.py): today against the archived snapshots of 1, 3 and
+    # 7 days ago, plus any day after the published history that has an archived snapshot but no row yet. Never fatal.
+    try:
+        import station_feats as SF
+        fpath = f"{STORE}/station_feats.csv"
+        SFd = pd.read_csv(fpath, parse_dates=["date"]) if os.path.exists(fpath) else pd.DataFrame(columns=["date", "fuel"] + SF.COLS + ["source"])
+        cache = {asof: pr}
+        def prices(day):
+            """A day's Sydney price table from archive/ (None if that day wasn't archived)."""
+            if day not in cache:
+                fn = f"{BASE}/archive/nsw_snapshot_{day:%Y%m%d}.json.gz"; cache[day] = None
+                if os.path.exists(fn):
+                    with gzip.open(fn, "rt") as fh: cache[day] = snapshot_rows(json.load(fh), fn)[1]
+            return cache[day]
+        have = set(SFd.date)
+        todo = [asof] + [d for d in sorted(pd.Timestamp(re.search(r"(\d{8})", os.path.basename(fn)).group(1))
+                                           for fn in glob.glob(f"{BASE}/archive/nsw_snapshot_*.json.gz"))
+                         if d > hist_end and d != asof and d not in have]
+        srows = []
+        for day in todo:
+            now = prices(day)
+            for f in FUELS:
+                one = lambda t: None if t is None else t[t.fueltype == f][["code", "price", "brand"]]
+                r = SF.from_snapshots(one(now), {k: one(prices(day - pd.Timedelta(days=k))) for k in (1, 3, 7)})
+                srows.append(dict(date=day, fuel=f, **r, source="snapshot"))
+        new = pd.DataFrame(srows).round(4)
+        SFd = SFd[~(SFd.date.isin(todo) & (SFd.source == "snapshot"))]
+        SFd = pd.concat([SFd, new]).sort_values(["date", "fuel"]).drop_duplicates(["date", "fuel"], keep="first")   # history rows win
+        SFd.to_csv(fpath, index=False, date_format="%Y-%m-%d")
+        if len(todo) > 1: log.append(f"station features: {len(todo)} snapshot days")
+    except Exception as e:
+        log.append(f"station features skipped ({type(e).__name__}: {str(e)[:120]})")
 
 # ---- AIP TGP
 x = newest("AIP_TGP_Data_*.xlsx")
@@ -131,11 +164,44 @@ if len(Dd) and os.path.exists(f"{STORE}/tgp.csv"):
 # ---- Brent (US EIA) and AUD/USD (RBA) from fetch.py pull_macro, in place of FRED. Each file
 # holds the full history from 2018-06, so it replaces store/fred.csv outright and no FRED values are kept. The file
 # name and the FRED-id column names stay, so model.py is unchanged.
-er = newest("brent_audusd_eia_rba*.csv")
+# EIA's history files only gain their rows on Wednesdays (US); its daily prices page (fetch.py pull_eia_daily) has the
+# previous close each US weekday. The page shows one day, so its readings are kept in store/eia_daily.csv, and fill
+# Brent and ULSD_NYH for the days after each column's last value in the weekly file. The weekly file wins where it has one.
+fpath, epath = f"{STORE}/fred.csv", f"{STORE}/eia_daily.csv"
+er = newest("brent_audusd_eia_rba*.csv"); pg = newest("eia_daily_page*.csv")
+Fr = None
 if er:
     Fr = pd.read_csv(er, parse_dates=["date"]).set_index("date")
     Fr = Fr[[c for c in ["DCOILBRENTEU", "DEXUSAL", "ULSD_NYH"] if c in Fr]].sort_index()   # ULSD_NYH: diesel crack, optional
-    Fr.to_csv(f"{STORE}/fred.csv", index_label="date")
+elif pg and os.path.exists(fpath):
+    try:
+        Fr = pd.read_csv(fpath, parse_dates=["date"]).set_index("date")  # no weekly file today: the stored one stands in
+        if Fr.empty or not {"DCOILBRENTEU", "DEXUSAL"} <= set(Fr.columns): Fr = None
+    except Exception:
+        Fr = None         # damaged: leave it for the next weekly file, as before
+if Fr is not None:
+    try:
+        Ed = pd.read_csv(epath, parse_dates=["date"]).set_index("date") if os.path.exists(epath) else None
+        if pg:
+            one = pd.read_csv(pg, parse_dates=["date"]).set_index("date")[["DCOILBRENTEU", "ULSD_NYH"]]
+            # the new reading wins cell by cell: a later one with diesel blank doesn't erase an earlier diesel value
+            Ed = one if Ed is None or Ed.empty else one.combine_first(Ed[~Ed.index.duplicated(keep="last")])
+            Ed = Ed[["DCOILBRENTEU", "ULSD_NYH"]].sort_index().tail(60)          # two months is plenty: the files catch up weekly
+            Ed.to_csv(epath, index_label="date")
+        filled = []
+        for col in ["DCOILBRENTEU", "ULSD_NYH"]:
+            if col not in Fr or not Fr[col].notna().any(): continue
+            last = Fr[col].last_valid_index(); ref = Fr[col].loc[last]
+            for d, v in ([] if Ed is None else Ed[col].dropna()[lambda q: q.index > last].items()):
+                # a misread cell would show as a jump. Since 2018 Brent has moved over 35% in a day three times, all in April 2020
+                # (under US$25); a real move that large is only held back until the weekly file has it
+                if abs(v / ref - 1) > 0.35: log.append(f"eia page {col} {d.date()} ignored ({v:g} vs {ref:g})"); break
+                Fr.loc[d, col] = v; ref = v; filled.append(d)
+        Fr = Fr.sort_index()
+        if filled: log.append(f"eia daily page filled to {max(filled).date()}")
+    except Exception as e:
+        log.append(f"eia daily page skipped ({type(e).__name__}: {str(e)[:120]})")
+    Fr.to_csv(fpath, index_label="date")
     log.append(f"brent/aud (EIA/RBA) to {Fr[['DCOILBRENTEU', 'DEXUSAL']].dropna().index.max().date()}")
 
 print("; ".join(log) or "nothing in inbox")
