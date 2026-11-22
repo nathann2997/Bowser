@@ -198,7 +198,7 @@ class Built(unittest.TestCase):
 
     def test_forecast_page_answers_questions(self):
         f = self.page("fuel-price-forecast")
-        self.assertIn("will petrol go up or down next week?</h1>", f)
+        self.assertIn("will petrol go up or down this week?</h1>", f)
         self.assertIn('"@type":"FAQPage"', f); self.assertIn('"@type":"Dataset"', f); self.assertIn('"temporalCoverage":"2026-11-17/2026-12-01"', f)
         self.assertIn("<h3>Will petrol go up tomorrow in Sydney?</h3>", f); self.assertIn("about 212.2c a litre tomorrow", f)
         self.assertIn("<td>50 litres</td><td class=\"n\">$4.05</td>", f)                 # 8.1c on 50 L
@@ -317,12 +317,45 @@ class Pieces(unittest.TestCase):
             sp.build(out, stations, forecast, history, details, track)
             with open(os.path.join(out, "petrol-deals-sydney/index.html"), encoding="utf-8") as fh: t = fh.read()
             with open(os.path.join(out, "llms.txt"), encoding="utf-8") as fh: self.assertIn("/petrol-deals-sydney/", fh.read())
-        self.assertIn("<title>Cheapest petrol deals in Sydney: dockets, fuel lock, Costco | Bowser</title>", t)
+        self.assertIn("<title>Fuel discounts in Sydney: dockets, codes, live prices | Bowser</title>", t)
+        self.assertIn('<a href="../coles-fuel-docket/">Coles docket (Flybuys)</a>', t)
+        self.assertIn("CommBank Yello at BP", t)                       # runs to 31 Dec 2026; the sample's day is 17 Nov
         # Coles docket row: average 212.0, 1.6c under the 213.6 median, 208.0 after 4c; the in-store offer 202.0 after 10c
         self.assertRegex(t, r"Coles docket \(Flybuys\)</a></td><td>Reddy Express</td><td class=\"n\">4c/L</td><td class=\"n\">212\.0</td>"
                             r"<td class=\"n\"><span class=\"cheap\">−1\.6</span></td><td class=\"n\">208\.0</td>")
         self.assertIn('<td class="n">202.0</td>', t)
         self.assertIn('"@type":"FAQPage"', t); self.assertIn("a 4c docket saves <b>$2.00</b>", t)
+
+    def test_discount_pages(self):
+        stations, forecast, history, details, track = sample()
+        for i, p in enumerate((210.0, 212.0, 214.0)):
+            stations["stations"].append(station(500 + i, f"Reddy Express Auburn {i}", "Reddy Express", "Auburn", 2144, -33.85 + i * 0.002, 151.03, {"U91": (p, 0)}))
+        with tempfile.TemporaryDirectory() as out:
+            sp.build(out, stations, forecast, history, details, track)
+            rd = lambda p: open(os.path.join(out, p, "index.html"), encoding="utf-8").read()
+            lock, coles, wow = rd("7-eleven-fuel-price-lock"), rd("coles-fuel-docket"), rd("woolworths-fuel-discount")
+        # the sample's U91 forecast falls 8.1c in a week: no rush to lock
+        self.assertIn("<b>No rush to lock</b>", lock); self.assertIn("ease about 8.1c", lock); self.assertIn('"@type":"FAQPage"', lock)
+        self.assertIn("7-Eleven Granville", lock)                         # the cheapest Sydney 7-Eleven
+        # Coles: 212.0 average, 208.0 after 4c, 198.0 with the 10c in-store offer too
+        self.assertIn("<b>212.0c</b>", coles); self.assertIn("<b>208.0c</b> after the docket, or 198.0c with the 10c in-store offer", coles)
+        self.assertIn("<title>Woolworths fuel discount: today’s prices at Ampol | Bowser</title>", wow)
+        # an offer past its end date disappears
+        stations, forecast, history, details, track = sample()
+        stations["asof"] = "2027-01-01"
+        with tempfile.TemporaryDirectory() as out:
+            sp.build(out, stations, forecast, history, details, track)
+            with open(os.path.join(out, "petrol-deals-sydney/index.html"), encoding="utf-8") as fh: self.assertNotIn("Yello", fh.read())
+
+    def test_lock_call(self):
+        s = sp.Site(None, *sample()[:2])
+        self.assertEqual(s.lock_call()[0], "No rush to lock")
+        s.live["U91"]["d7"] = 6.0; self.assertEqual(s.lock_call()[0], "Lock today")
+        s.live["U91"]["d7"] = 0.2; s.live["U91"]["p_jump7"] = 0.02; s.live["U91"]["verdict"]["cls"] = "flat"
+        self.assertEqual(s.lock_call()[0], "Lock when you’re ready to fill")
+        s.live["U91"]["p_jump7"] = 0.4; self.assertEqual(s.lock_call()[0], "Lock today")
+        s.live["U91"]["d7"] = -3.0; c = s.lock_call()                     # a jump is likely though the median eases: never "rise"
+        self.assertEqual(c[0], "Lock today"); self.assertNotIn("rise", c[2]); self.assertIn("about 40%", c[2])
 
     def test_hub_title_and_indexnow(self):
         with tempfile.TemporaryDirectory() as out:
