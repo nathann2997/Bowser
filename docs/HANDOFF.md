@@ -36,7 +36,7 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - **Search pages** (live 2026-11-17, PR #11, `daily.yml` run 44011072183; `docs/SEO.md`). `seo_pages.py` writes about 3,500 static pages, the sitemap and robots file inside `export_api.py`. The hub says NSW, with 23 region pages, `llms.txt` and named AI crawlers in `robots.txt` (2026-11-17 review). **Next:** watch Search Console for "Crawled, currently not indexed" on station pages. AdSense is not set up; the list of what it needs is in `docs/SEO.md`.
 Newest first. Each item has its CHANGELOG entry of the same name for details.
 
-- **Fill-up and fuel discount searches** (2026-11-22, branch `seo/fill-up-cluster`, PR open, not merged).
+- **Fill-up and fuel discount searches** (2026-11-22, **live**: PR #45 merged as `a6354f7`, `daily.yml` run 45081588015, IndexNow HTTP 200 for 171 changed pages).
   - Keyword research is in `docs/SEO.md`.
   - New pages: `/7-eleven-fuel-price-lock/`, `/woolworths-fuel-discount/`, `/coles-fuel-docket/`. The discounts hub is retitled, offers carry dates, and the Costco page is fixed.
   - **Next:**
