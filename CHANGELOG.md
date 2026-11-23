@@ -2,7 +2,7 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
-## 2026-11-23 — Fuel type in sight, and the map first (app and web)
+## 2026-11-23 — Fuel type in sight, and the map first (app and web) (**live**: PR #49, `dea616c`, app-ci run 45176682497, OTA group a9d38bd7 preview / f083c20e production on runtime 1.1.0; web at the next daily run)
 
 User feedback: changing fuel was hard to find. People look straight at the map and never see the fuel chip (app) or select (web) at the top. The owner also wants the map as the default view on both, with the list one tap away. Designed with a senior UX/UI review (spec: fuel control where the eye lands, fuel named at each point of attention, the map's area change without leaving the map).
 - **App, Stations tab (JS only, ships as an OTA at runtime 1.1.0):**
