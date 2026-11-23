@@ -15,7 +15,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useReady } from '@/lib/analytics';
 import { useForecast, useHistory, useStations } from '@/lib/api';
 import { horizons, jumpRisk, signalWhy } from '@/lib/copy';
-import { fmt, nice, refreshedText } from '@/lib/format';
+import { fmt, nice, refreshedText, shortFuel } from '@/lib/format';
 import { pinnedRows } from '@/lib/filters';
 import { rankStations } from '@/lib/geo';
 import { dayLabel, outlook, riseDay } from '@/lib/outlook';
@@ -64,7 +64,7 @@ export default function Today() {
 
           <View style={[styles.hero, { backgroundColor: t.bg }]}>
             <T kind="small" color={t.fg} style={{ fontWeight: '600' }}>
-              Sydney median {r.now.toFixed(1)}c/L
+              Sydney {shortFuel(s.fuel)} median {r.now.toFixed(1)}c/L
             </T>
             <T kind="hero" color={t.fg} style={{ fontSize: 34, lineHeight: 40 }}>{o.head}</T>
             {o.deadline ? <T color={t.fg} style={{ fontWeight: '700' }}>{o.deadline}</T> : null}
@@ -103,7 +103,7 @@ export default function Today() {
           </Section>
 
           <Section
-            title={home && !home.gps ? `Cheapest near ${home.label.replace(/\s\d{4}$/, '')}` : 'Cheapest near you'}   // the suburb without its postcode: one line
+            title={`Cheapest ${shortFuel(s.fuel)} near ${home && !home.gps ? home.label.replace(/\s\d{4}$/, '') : 'you'}`}   // the suburb without its postcode: one line
             action={home ? { label: 'See all →', onPress: () => router.navigate('/stations') } : undefined}>
             {!sq.data ? (
               <Loading error={sq.error} onRetry={() => sq.refetch()} />

@@ -30,7 +30,7 @@ export default function Welcome() {
       <T>Sydney fuel prices rise and fall in a cycle. Bowser tells you which way they’re heading.</T>
 
       <Step n={1} title="Your fuel">
-        <FuelPicker />
+        <FuelPicker source="welcome" />
       </Step>
 
       <Step n={2} title="Where you fill up">

@@ -16,13 +16,13 @@ export type Settings = FilterSettings & {
   onboarded: boolean;        // the welcome screen has been seen (or skipped)
   alerts: boolean;           // a notification the morning before a likely price rise (lib/alerts.ts)
   discounts: Discounts;      // cents off by brand: lists rank by the price you pay (lib/discounts.ts)
-  view: 'list' | 'map';      // the Stations tab opens on whichever was used last
+  view: 'list' | 'map';      // the Stations tab always opens on the map; List lasts until the app restarts (setView still saves it; normalize ignores it)
   analytics: boolean;        // More → Share anonymous usage (PostHog now; Observe from the next launch)
   internal: boolean;         // the owner's or a tester's own phone, filtered out of the numbers (tap the version 5 times)
 };
 
 const KEY = 'settings.v1';
-export const DEFAULTS: Settings = { ...FILTER_DEFAULTS, fuel: 'U91', tankL: 50, home: null, onboarded: false, alerts: false, discounts: {}, view: 'list', analytics: true, internal: false };
+export const DEFAULTS: Settings = { ...FILTER_DEFAULTS, fuel: 'U91', tankL: 50, home: null, onboarded: false, alerts: false, discounts: {}, view: 'map', analytics: true, internal: false };
 
 const FUEL_CODES: readonly Fuel[] = ['U91', 'E10', 'P95', 'P98', 'DL'];
 const GROUPS = new Set<string>(ADVICE_GROUPS.map(([g]) => g));
@@ -52,7 +52,7 @@ export function normalize(raw: unknown): Settings {
     onboarded: typeof o.onboarded === 'boolean' ? o.onboarded : !!okHome,
     alerts: bool('alerts'),
     discounts: cleanDiscounts(o.discounts),
-    view: o.view === 'map' ? 'map' : 'list',
+    view: 'map',   // map first on every launch (owner, 2026-11-23); a saved 'list' from an earlier session doesn't stick
     analytics: bool('analytics'),
     internal: bool('internal'),
   };

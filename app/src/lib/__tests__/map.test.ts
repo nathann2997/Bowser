@@ -130,10 +130,10 @@ describe('misc', () => {
     expect(brandLabel('7-Eleven')).toBe('7-Eleven');
     expect(brandLabel('Metro Petroleum')).toBe('Metro Pet…');
   });
-  it('remembers the map or list view, and defaults to the list', () => {
-    expect(DEFAULTS.view).toBe('list');
-    expect(normalize({ view: 'map' }).view).toBe('map');
-    expect(normalize({ view: 'globe' }).view).toBe('list');
+  it('opens on the map every launch; a saved list view does not stick (2026-11-23)', () => {
+    expect(DEFAULTS.view).toBe('map');
+    expect(normalize({ view: 'list' }).view).toBe('map');
+    expect(normalize({ view: 'globe' }).view).toBe('map');
   });
   it('clusters with supercluster under jest', () => {
     const sc = new Supercluster({ radius: 56, maxZoom: 14 });

@@ -134,6 +134,12 @@ details.disc[open]>summary::after{content:"\2212"}
 .arearow{display:flex;gap:8px;flex-wrap:wrap}
 .arearow input{flex:1 1 200px;min-width:0;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:12px;padding:10px 14px;font-size:15px}
 .ctl-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* The fuel bar: one tap, full width, first thing in the stations card, so it's in sight where people look (the map).
+   User feedback 2026-11: the fuel select at the top of the page went unseen. Kept in step with the header select. */
+.seg.fuelseg{display:flex;flex-wrap:nowrap;align-self:stretch}
+.seg.fuelseg button{flex:1 1 0;min-width:0;padding:0 4px;font-size:14px;white-space:nowrap}
+/* Map is the stations' home; the list is one button away (the app's floating Map / List button) */
+.viewbtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .multi>summary{list-style:none}
 .multi>summary::-webkit-details-marker{display:none}
 .multi>summary::after{content:"\25BE";color:var(--muted)}
@@ -298,8 +304,9 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
     </div>
 
     <section class="section" id="stations" aria-labelledby="stQ">
-      <div class="sec-head"><h2 class="q" id="stQ">Where’s it cheapest?</h2><div class="seg" id="view" role="group" aria-label="Show as" hidden></div></div>
+      <div class="sec-head"><h2 class="q" id="stQ">Where’s it cheapest?</h2><button type="button" class="chip viewbtn" id="view" hidden></button></div>
       <div class="card areabar">
+        <div class="seg fuelseg" id="fuelSeg" role="group" aria-label="Fuel for prices"></div>
         <div class="arearow">
           <input id="q" type="search" list="subList" placeholder="Your suburb or postcode" aria-label="Your suburb or postcode" autocomplete="off"><datalist id="subList"></datalist>
           <button class="btn" type="button" id="gps">Use my location</button>
@@ -497,7 +504,7 @@ let state = {
   area: savedArea && Number.isFinite(savedArea.la) && Number.isFinite(savedArea.lo) ? savedArea : null,
   radius: RADII.includes(store.get("radius")) ? store.get("radius") : 5,
   sort: "price", members: store.get("members", true) !== false, old: false, range: "1Y", shown: PAGE,
-  view: store.get("view2") === "list" ? "list" : "map",   // the map first; "view2" so everyone starts there once, then their own choice holds
+  view: "map",   // the map first on every visit (owner, 2026-11-23); List lasts until the page is reloaded
 };
 
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -570,9 +577,19 @@ function outlook(r){
 // ---- header
 $("asofLine").textContent = `Sydney · Prices as of ${nice(CTX.asof)}`;
 const fuelEl = $("fuel");
-fuelEl.innerHTML = FUELS.map(([k,l]) => `<option value="${k}">${l}</option>`).join("");
+fuelEl.innerHTML = FUELS.filter(([k]) => live[k]).map(([k,l]) => `<option value="${k}">${l}</option>`).join("");
 fuelEl.value = state.fuel;
-fuelEl.addEventListener("change", () => { state.fuel = fuelEl.value; store.set("fuel", state.fuel); state.shown = PAGE; render(); track("web.fuel_changed", {fuel: state.fuel}); });
+/** The one way the fuel changes: the header select and the fuel bar over the stations stay in step. `source` shows
+ *  which control people use (the bar was added because the select went unseen). */
+function setFuel(f, source){
+  if (!Object.prototype.hasOwnProperty.call(live, f) || f === state.fuel) return;
+  state.fuel = f; store.set("fuel", f); state.shown = PAGE;
+  fuelEl.value = f; syncFuelSeg(); render();
+  track("web.fuel_changed", {fuel: f, source});
+}
+fuelEl.addEventListener("change", () => setFuel(fuelEl.value, "header"));
+const shortFuel = k => k === "DL" ? "Diesel" : k;
+const syncFuelSeg = segment($("fuelSeg"), FUELS.filter(([k]) => live[k]).map(([k]) => [k, shortFuel(k)]), () => state.fuel, k => setFuel(k, "stations"));
 document.addEventListener("change", e => {   // the hero is redrawn, so its tank picker is reached by delegation
   const el = e.target.closest?.("[data-tank]"); if (!el) return;
   state.tank = +el.value; store.set("tank", state.tank);
@@ -744,7 +761,7 @@ const WHEN = "Each “when to fill” date is the Sydney forecast adjusted for t
 function renderStations(){
   const f = state.fuel, med = live[f].now, missing = state.area && state.area.missing, area = areaSet();
   const onMap = state.view === "map" && MAP_OK;
-  $("stTitle").textContent = onMap ? "Prices on the map" : area ? `Cheapest near ${area.gps ? "you" : area.label}` : "Cheapest in Sydney";
+  $("stTitle").textContent = onMap ? `${shortFuel(f)} prices on the map` : area ? `Cheapest near ${area.gps ? "you" : area.label}` : "Cheapest in Sydney";
   $("listView").hidden = onMap; $("mapView").hidden = !onMap; $("radius").hidden = onMap;
   document.querySelector(".today").classList.toggle("mapmode", onMap);
   $("sort").querySelector('[data-k="near"]').disabled = !area;
@@ -805,7 +822,7 @@ function renderHero(){
   const f = state.fuel, r = live[f], o = outlook(r);
   const hero = $("hero"); hero.className = `hero t-${o.tone}`;
   const hz = [1,3,7,14].map(h => `<div><span class="eyebrow">${h} day${h > 1 ? "s" : ""}</span><span class="v">${(r.now + r["d"+h]).toFixed(1)}</span><span class="d">${fmt(r["d"+h])}c</span></div>`).join("");
-  hero.innerHTML = `<div class="hero-txt"><div class="median">Sydney median ${r.now.toFixed(1)}c/L</div>
+  hero.innerHTML = `<div class="hero-txt"><div class="median">Sydney ${shortFuel(state.fuel)} median ${r.now.toFixed(1)}c/L</div>
     <h3 id="verdict">${o.head}</h3>
     ${o.deadline ? `<p class="deadline">${o.deadline}</p>` : ""}
     <p class="detail">${o.detail}</p></div>
@@ -1305,11 +1322,11 @@ function syncMap(){
 function bestBar(){
   const el = $("bestBar"), r = selI == null && bestI != null ? MD.byI.get(bestI) : null;
   el.hidden = !r; if (!r) return;
-  const name = stationName(r.n), key = `${r.i}|${r.price}|${r.d}`;
+  const name = stationName(r.n), fl = shortFuel(state.fuel), key = `${r.i}|${r.price}|${r.d}|${fl}`;
   if (el.dataset.k === key) return;
   el.dataset.k = key;
-  el.innerHTML = `<b>${r.price.toFixed(1)}</b><span class="bl"><span class="eyebrow">Cheapest in view</span><span class="bname"><span>${esc(name)}</span>${r.d != null ? `<span>&nbsp;· ${r.d.toFixed(1)} km</span>` : ""}</span></span>`;
-  el.setAttribute("aria-label", `Cheapest in view: ${name}, ${r.price.toFixed(1)} cents${r.d != null ? `, ${r.d.toFixed(1)} kilometres away` : ""}. Shows it on the map`);
+  el.innerHTML = `<b>${r.price.toFixed(1)}</b><span class="bl"><span class="eyebrow">Cheapest ${fl} in view</span><span class="bname"><span>${esc(name)}</span>${r.d != null ? `<span>&nbsp;· ${r.d.toFixed(1)} km</span>` : ""}</span></span>`;
+  el.setAttribute("aria-label", `Cheapest ${fl} in view: ${name}, ${r.price.toFixed(1)} cents${r.d != null ? `, ${r.d.toFixed(1)} kilometres away` : ""}. Shows it on the map`);
 }
 $("bestBar").addEventListener("click", () => {
   const r = bestI != null ? MD.byI.get(bestI) : null; if (!r) return;
@@ -1341,7 +1358,7 @@ function openPop(i, refresh = false){
   const el = $("mapSel"); el.hidden = false;
   el.innerHTML = `<div class="ph"><div style="flex:1;min-width:0"><div class="pn">${esc(name)}</div>
       <div class="small">${esc(brandSuburb(name, r.b, r.s))}${r.d != null ? ` · ${r.d.toFixed(1)} km` : ""}${r.m ? " · Members" : ""}</div></div>
-      <div style="text-align:right"><div class="bignum" style="font-size:22px">${r.price.toFixed(1)}</div><div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}" style="font-weight:600">${gapTxt}</div></div>
+      <div style="text-align:right"><div class="bignum" style="font-size:22px"><span class="small" style="font-weight:700;color:var(--fg2)">${shortFuel(state.fuel)}</span> ${r.price.toFixed(1)}</div><div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}" style="font-weight:600">${gapTxt}</div></div>
       <button type="button" class="x" data-closesel aria-label="Close">✕</button></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${i === bestI ? `<span class="badge" style="background:var(--cheap);color:var(--on-tier)">Cheapest in view</span>` : ""}<span class="badge t-${ADVICE_TONE[r.adv[0]] || "calm"}">${esc(r.adv[1])}</span></div>
     ${r.adv[2] ? `<p class="small" style="color:var(--fg2)">${esc(r.adv[2])}</p>` : ""}
@@ -1367,11 +1384,20 @@ document.addEventListener("click", e => { if (e.target.closest("[data-closesel]"
 function setView(v){
   if (v !== state.view) track("web.view_changed", {view: v});
   if (v === "map") mapGo();   // asked for: load it now (renderStations() below opens it)
-  state.view = v; store.set("view2", v); syncView();
+  state.view = v; syncView();
   if (v === "list") { closeSel(); setFs(false); }
   renderStations();
 }
-const syncView = segment($("view"), [["list","List"],["map","Map"]], () => state.view, k => setView(k));
+// One button that names the view it switches to, as in the app
+const VIEW_ICON = {list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+  map: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg>'};
+function syncView(){
+  const to = state.view === "map" ? "list" : "map";
+  $("view").innerHTML = `${VIEW_ICON[to]}${to === "list" ? "List" : "Map"}`;
+  $("view").setAttribute("aria-label", to === "list" ? "Show as a list" : "Show on a map");
+}
+$("view").addEventListener("click", () => setView(state.view === "map" ? "list" : "map"));
+syncView();
 $("view").hidden = !MAP_OK;
 // "Show on map" on a list row: switch views, then open that station once the map has it
 document.addEventListener("click", e => {

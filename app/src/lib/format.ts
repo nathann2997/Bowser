@@ -9,6 +9,8 @@ export const FUELS: [Fuel, string][] = [
 ];
 
 export const fuelName = (f: Fuel) => FUELS.find((x) => x[0] === f)![1];
+/** The short name, as on the fuel bar and the map: U91, E10, P95, P98, Diesel */
+export const shortFuel = (f: Fuel) => (f === 'DL' ? 'Diesel' : f);
 
 /** Signed number, e.g. +1.2 / -0.4 / 0.0 */
 export const fmt = (v: number, d = 1) => (v > 0 ? '+' : '') + v.toFixed(d);

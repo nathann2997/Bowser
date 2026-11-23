@@ -15,7 +15,7 @@ import { STALE_DAYS } from '@/lib/filters';
 import { track } from '@/lib/analytics';
 import { isPinned, togglePin, usePins } from '@/lib/pins';
 import { echoesSydney } from '@/lib/copy';
-import { brandSuburb, stationName, updatedText } from '@/lib/format';
+import { brandSuburb, shortFuel, stationName, updatedText } from '@/lib/format';
 import type { StationRow } from '@/lib/geo';
 import type { Tone } from '@/lib/outlook';
 import type { AdviceCode, Fuel, Station } from '@/lib/types';
@@ -33,7 +33,6 @@ export function openStation(id: string, from: 'list' | 'map' | 'fill' = 'list') 
 /** React key for a row; rows from an old cached stations.json have no id */
 export const rowKey = (r: { id?: string; n: string; la: number; lo: number }) => r.id || `${r.n}|${r.la}|${r.lo}`;
 
-const shortFuel = (f: Fuel) => (f === 'DL' ? 'Diesel' : f);
 
 /** Sideways travel (dp, counted from the first touch) before a drag on a row becomes a swipe. The list's
  *  gesture-handler ScrollView (ui.tsx Screen) cancels a row's pending swipe once it starts scrolling; this threshold

@@ -14,12 +14,13 @@ import { openInMaps } from '@/lib/directions';
 import { offText } from '@/lib/discounts';
 import { STALE_DAYS } from '@/lib/filters';
 import { track } from '@/lib/analytics';
-import { brandSuburb, stationName, updatedText } from '@/lib/format';
+import { brandSuburb, shortFuel, stationName, updatedText } from '@/lib/format';
 import type { Place, StationRow } from '@/lib/geo';
 import {
   areaMoved, bboxOf, brandLabel, cheapestOf, inBox, lonSpanAt, padBox, priceTiers, regionFor, SYDNEY, zoomOf, type Region, type Tier,
 } from '@/lib/map';
 import { togglePin, usePins } from '@/lib/pins';
+import { useSettings } from '@/lib/settings';
 
 // The Stations tab's map view, like NSW FuelCheck: every station on screen as a price tag, loaded as you pan and zoom,
 // grouped into numbered circles when zoomed out. Tags are coloured by the cheapest, middle and dearest third of the
@@ -43,6 +44,7 @@ type Props = {
   live: boolean | null;            // false: the phone can't locate now, so `home` is only the last known fix
   radiusKm: number;                // the list's radius: how far the map shows when it opens
   median: number | undefined;
+  refreshed?: string;              // "Refreshed 9:13 pm": in the strip above the map (the header gave its row to the fuel bar)
 };
 
 /** Clustering stops at this zoom (about a suburb across a phone screen): past it every station has its own tag */
@@ -54,8 +56,9 @@ const CLUSTER_FROM_GAP = 2;
 /** Room at the bottom of the map for the toggle; the Google logo sits above it */
 const TOGGLE_ROOM = 72;
 
-export function StationMap({ rows, pinned, footer, home, live, radiusKm, median }: Props) {
+export function StationMap({ rows, pinned, footer, home, live, radiusKm, median, refreshed }: Props) {
   const c = useTheme();
+  const fuel = shortFuel(useSettings().fuel);   // named where the eye lands: the strip, the Cheapest bar, the card
   const dark = useColorScheme() === 'dark';
   const insets = useSafeAreaInsets();
   const ref = useRef<MapView>(null);
@@ -153,7 +156,9 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
     <View style={{ flex: 1 }}>
       <View style={[styles.info, { borderBottomColor: c.line, backgroundColor: c.bg }]}>
         <T kind="small" style={{ flex: 1 }} numberOfLines={1}>
-          {n ? `${n} station${n === 1 ? '' : 's'} in view` : 'No stations in view. Zoom out or change filters.'}
+          {n
+            ? `${n} ${fuel} price${n === 1 ? '' : 's'} in view${refreshed ? ` · ${refreshed.charAt(0).toLowerCase()}${refreshed.slice(1)}` : ''}`
+            : `No ${fuel} prices in view. Zoom out, or change fuel or filters.`}
         </T>
         <MapLegend />
       </View>
@@ -212,7 +217,7 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
           <Pressable
             onPress={showBest}
             accessibilityRole="button"
-            accessibilityLabel={`Cheapest in view: ${stationName(best.n)}, ${best.price.toFixed(1)} cents${best.d != null ? `, ${best.d.toFixed(1)} kilometres away` : ''}`}
+            accessibilityLabel={`Cheapest ${fuel} in view: ${stationName(best.n)}, ${best.price.toFixed(1)} cents${best.d != null ? `, ${best.d.toFixed(1)} kilometres away` : ''}`}
             accessibilityHint="Shows it on the map"
             style={({ pressed }) => [
               styles.bestBar,
@@ -222,7 +227,7 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median 
               <Text style={[styles.bestPriceText, { color: tierColors(c, 'low').fg }]}>{best.price.toFixed(1)}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.bestLabel, { color: c.muted }]} numberOfLines={1}>CHEAPEST IN VIEW</Text>
+              <Text style={[styles.bestLabel, { color: c.muted }]} numberOfLines={1}>{`CHEAPEST ${fuel.toUpperCase()} IN VIEW`}</Text>
               {/* the name gives way first; the distance always shows */}
               <View style={{ flexDirection: 'row' }}>
                 <Text style={[styles.bestName, { color: c.fg, flexShrink: 1 }]} numberOfLines={1}>{stationName(best.n)}</Text>
@@ -394,6 +399,7 @@ function StationCard({
   r, pinned, cheapest, median, onClose, bottom, onHeight,
 }: { r: StationRow; pinned: boolean; cheapest: boolean; median: number | undefined; onClose: () => void; bottom: number; onHeight: (h: number) => void }) {
   const c = useTheme();
+  const fuel = shortFuel(useSettings().fuel);
   usePins();   // re-render when this station is pinned or unpinned from the card
   const [, , code, label, , fc7] = r.adv;
   const name = stationName(r.n);
@@ -412,7 +418,7 @@ function StationCard({
         <Pressable
           onPress={() => openStation(r.id, 'map')}
           accessibilityRole="button"
-          accessibilityLabel={`${name}, ${r.price.toFixed(1)} cents${r.off ? ` with your ${offText(r.off)} off` : ''}, ${label}`}
+          accessibilityLabel={`${name}, ${fuel} ${r.price.toFixed(1)} cents${r.off ? ` with your ${offText(r.off)} off` : ''}, ${label}`}
           accessibilityHint="Opens the station’s prices and forecast"
           style={{ flex: 1, gap: 2 }}>
           <T style={{ fontWeight: '700', fontSize: 16 }} color={c.fg} numberOfLines={1}>{name}</T>
@@ -421,7 +427,10 @@ function StationCard({
           </T>
         </Pressable>
         <View style={{ alignItems: 'flex-end' }}>
-          <T kind="bignum">{r.price.toFixed(1)}</T>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+            <T kind="small" style={{ fontWeight: '700' }}>{fuel}</T>
+            <T kind="bignum">{r.price.toFixed(1)}</T>
+          </View>
           {gap != null ? (
             <T kind="small" color={gap < -0.05 ? c.cheap : gap > 0.05 ? c.dear : c.muted} style={{ fontWeight: '600' }}>
               {Math.abs(gap) < 0.05 ? 'at median' : `${gap < 0 ? '−' : '+'}${Math.abs(gap).toFixed(1)}c vs median`}

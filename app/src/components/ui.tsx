@@ -19,9 +19,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Radius, Spacing, type Palette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { HttpError } from '@/lib/api';
-import { FUELS, fuelName, nice, sydneyToday } from '@/lib/format';
+import { track } from '@/lib/analytics';
+import { FUELS, fuelName, nice, shortFuel, sydneyToday } from '@/lib/format';
 import type { Tone } from '@/lib/outlook';
-import { setSettings, useSettings } from '@/lib/settings';
+import { getSettings, setSettings, useSettings } from '@/lib/settings';
+import type { Fuel } from '@/lib/types';
 
 /** Background, text and accent colour for a decision tone */
 export function toneColors(c: Palette, tone: Tone) {
@@ -121,11 +123,16 @@ export function Section({
 }
 
 export function Segmented<K extends string>({
-  options, value, onChange,
-}: { options: readonly (readonly [K, string])[]; value: K; onChange: (k: K) => void }) {
+  options, value, onChange, fill = false, label,
+}: {
+  options: readonly (readonly [K, string])[]; value: K; onChange: (k: K) => void;
+  /** Full width, equal segments on one row (the fuel bar): no wrapping, labels capped at 1.3x font scale */
+  fill?: boolean;
+  label?: string;
+}) {
   const c = useTheme();
   return (
-    <View style={[styles.seg, { backgroundColor: c.sunk }]} accessibilityRole="radiogroup">
+    <View style={[styles.seg, fill && styles.segFill, { backgroundColor: c.sunk }]} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {options.map(([k, label]) => {
         const on = k === value;
         return (
@@ -135,8 +142,15 @@ export function Segmented<K extends string>({
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             hitSlop={{ top: 3, bottom: 3 }}   // with the control's 3 px padding: a 44 dp target
-            style={[styles.segBtn, on && { backgroundColor: c.surface, borderColor: c.line }]}>
-            <Text style={{ color: on ? c.fg : c.muted, fontWeight: on ? '700' : '600', fontSize: 13 }}>{label}</Text>
+            style={[styles.segBtn, fill && styles.segBtnFill, on && { backgroundColor: c.surface, borderColor: c.line }]}>
+            <Text
+              numberOfLines={fill ? 1 : undefined}
+              maxFontSizeMultiplier={fill ? 1.3 : undefined}
+              adjustsFontSizeToFit={fill}   // "Diesel" on a narrow phone shrinks a little rather than clipping
+              minimumFontScale={0.85}
+              style={{ color: on ? c.fg : c.muted, fontWeight: on ? '700' : '600', fontSize: fill ? 14 : 13, textAlign: 'center' }}>
+              {label}
+            </Text>
           </Pressable>
         );
       })}
@@ -257,14 +271,17 @@ export function FuelChip() {
         accessibilityRole="button"
         accessibilityLabel={`Fuel: ${fuelName(fuel)}. Change fuel`}
         style={[styles.fuelChip, { backgroundColor: c.surface, borderColor: c.line }]}>
-        <Text style={{ color: c.fg, fontWeight: '700', fontSize: 14 }}>{fuel === 'DL' ? 'Diesel' : fuel} ▾</Text>
+        {/* "Fuel:" so it reads as a control, not a tag (user feedback 2026-11: people missed how to change fuel) */}
+        <Text style={{ color: c.fg, fontWeight: '700', fontSize: 14 }}>
+          <Text style={{ color: c.muted, fontWeight: '600' }}>Fuel: </Text>{shortFuel(fuel)} ▾
+        </Text>
       </Pressable>
       <Sheet title="Your fuel" visible={open} onClose={() => setOpen(false)}>
         <View style={{ gap: Spacing.two }}>
           {FUELS.map(([k, label]) => (
             <Pressable
               key={k}
-              onPress={() => { setSettings({ fuel: k }); setOpen(false); }}
+              onPress={() => { changeFuel(k, 'header_chip'); setOpen(false); }}
               accessibilityRole="radio"
               accessibilityState={{ selected: k === fuel }}
               style={[styles.option, { borderColor: k === fuel ? c.fg : c.line, backgroundColor: k === fuel ? c.sunk : c.surface }]}>
@@ -280,11 +297,26 @@ export function FuelChip() {
 
 const FUEL_SHORT = [['U91', 'U91'], ['E10', 'E10'], ['P95', 'P95'], ['P98', 'P98'], ['DL', 'Diesel']] as const;
 
+/** Set the fuel, and log where it was changed from: the fuel bar on the Stations tab was added because people
+ *  missed the header chip (2026-11), and `source` shows which control people use. */
+export function changeFuel(fuel: Fuel, source: string) {
+  if (fuel === getSettings().fuel) return;
+  setSettings({ fuel }, { silent: true });   // logged once, here, with its source (not again as settings.changed)
+  track('fuel.changed', { fuel, source });
+}
+
 /** The fuel picker as a segmented control, for the settings screen */
-export function FuelPicker() {
+export function FuelPicker({ source = 'settings' }: { source?: string }) {
   const { fuel } = useSettings();
   // Short names, as on the header chip: the full names wrapped "Diesel" onto a second row
-  return <Segmented options={FUEL_SHORT} value={fuel} onChange={(f) => setSettings({ fuel: f })} />;
+  return <Segmented options={FUEL_SHORT} value={fuel} onChange={(f) => changeFuel(f, source)} />;
+}
+
+/** The Stations tab's fuel bar: one tap, full width, at the top of both the map and the list, so the fuel is in
+ *  sight where people look first (the map) instead of behind a small chip in the corner */
+export function FuelBar({ source, label = 'Fuel type' }: { source: string; label?: string }) {
+  const { fuel } = useSettings();
+  return <Segmented fill label={label} options={FUEL_SHORT} value={fuel} onChange={(f) => changeFuel(f, source)} />;
 }
 
 /** What went wrong, for people: the technical message goes to analytics (data.fetch_failed), not the screen */
@@ -332,6 +364,8 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: Spacing.two },
   card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: Radius.card, padding: Spacing.four },
   seg: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: Radius.chip, padding: 3, gap: 2, alignSelf: 'flex-start' },
+  segFill: { flexWrap: 'nowrap', alignSelf: 'stretch' },
+  segBtnFill: { flex: 1, paddingHorizontal: 4, alignItems: 'center' },
   segBtn: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 12, borderRadius: Radius.chip, borderWidth: StyleSheet.hairlineWidth, borderColor: 'transparent' },
   chip: { borderWidth: 1, borderRadius: Radius.chip, paddingHorizontal: 12, minHeight: 36, justifyContent: 'center' },
   badge: { borderRadius: Radius.chip, paddingVertical: 3, paddingHorizontal: 9, alignSelf: 'flex-start' },
