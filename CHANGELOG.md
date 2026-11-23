@@ -2,7 +2,7 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
-## 2026-11-24 — Links: a free cycle-stage badge, the news pitch and showcase kit (roadmap item 9)
+## 2026-11-24 — Links: a free cycle-stage badge, the news pitch and showcase kit (roadmap item 9) (**live**: PR #56, `7c6207b`, `daily-forecast` run 45280618902)
 
 - **Badge** (`seo_pages.py` `badge_svg` / `write_badge`, `export_api.py`): `https://checkbowser.app/badge/sydney.svg`, a 360 × 104 image for other sites. It shows where Sydney is in the petrol price cycle (stage, day since the last jump or "A jump began today", the day it is for) and credits "Data: NSW FuelCheck".
   - It has fixed colours, system fonts, every text escaped, no script and no links inside the image.
