@@ -31,6 +31,8 @@ export type EventName =
   | 'share.opened'           // kind: deal | savings | track; shared: false when the sheet was dismissed
   | 'directions.opened'      // ok: false when no maps app took the link
   | 'alerts.toggled'         // on: what was asked; granted: whether they're on afterwards
+  | 'notification.opened'    // type: rise (lib/alerts.ts) or drop (lib/drops.ts), tapped from the notification
+  | 'drops.toggled'          // on: what was asked; granted: whether they're on afterwards
   | 'data.fetch_failed'      // a query gave up after its retries
   | 'update.notice'          // action: shown | update | later, for the newer APK in api/v1/app.json
   | 'app.opened'             // the one open event (PostHog's lifecycle events are off): source, cold

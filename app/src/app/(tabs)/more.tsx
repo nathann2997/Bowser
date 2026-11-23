@@ -5,6 +5,7 @@ import { Linking, Platform, Pressable, StyleSheet, Switch, View } from 'react-na
 
 import { BowserMark } from '@/components/brand';
 import { AlertsSwitch } from '@/components/alerts-switch';
+import { DropsSwitch } from '@/components/drops-switch';
 import { AreaPicker } from '@/components/area-picker';
 import { DiscountsEditor } from '@/components/discounts-editor';
 import { Button, Card, Disclosure, FuelPicker, Loading, Screen, Section, Segmented, T } from '@/components/ui';
@@ -89,6 +90,7 @@ export default function More() {
             <Switch value={s.members} onValueChange={(v) => setSettings({ members: v })} />
           </View>
           <AlertsSwitch />
+          <DropsSwitch />
         </Card>
         <T kind="small">Stored on this phone only.</T>
       </Section>

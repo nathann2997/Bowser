@@ -307,6 +307,20 @@ export function chooseRows(
     : { mode: 'nearby', caption: `Near ${home.label}`, rows, message: null };
 }
 
+/** The station a notification names: the cheapest fresh pinned station for the fuel, else the cheapest fresh one within
+ *  the radius of home (members respected), at the price you pay (`yours`: a discount applies). Null with neither. */
+export type AlertStation = { id: string; name: string; price: number; yours: boolean };
+export function cheapestPick(list: WStation[] | undefined, prefs: WidgetPrefs, pins: string[]): AlertStation | null {
+  if (!list?.length) return null;
+  const snap: WidgetSnapshot = { forecast: null, stations: { asof: '', stations: list }, fetchedAt: 0 };
+  const best = (rows: WidgetRow[]) => rows.filter((r) => !r.stale).reduce<WidgetRow | null>((a, r) => (!a || Number(r.price) < Number(a.price) ? r : a), null);
+  const r = (pins.length ? best(chooseRows(snap, prefs, pins, pins.length, 'pinned').rows) : null)
+    ?? best(chooseRows(snap, prefs, pins, MAX_ROWS, 'cheapest').rows);
+  if (!r) return null;
+  const s = list.find((x) => x.id === r.id);
+  return { id: r.id, name: r.name, price: Number(r.price), yours: !!(s?.b && offFor(prefs.discounts, s.b) > 0) };
+}
+
 /** The Sydney median now and in 7 days for the widget's fuel (forecast.live now, now + d7). */
 export function sydneyForecast(r: LiveRow): WidgetModel['sydney'] {
   if (!Number.isFinite(r.now) || !Number.isFinite(r.d7)) return null;

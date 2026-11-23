@@ -39,6 +39,7 @@ Every event carries: the app version, the OTA `update` id, the channel (preview 
   - a tapped rise alert is counted once (deduped by its id and date);
   - anything else is the launcher.
 - **New events:** `station.opened` (from list / map / fill, or widget / share / link when a link lands on a station page; pinned), `filters.opened`, `analytics.internal`.
+- **Added 2026-11-23:** `notification.opened` (type: rise or drop) when a notification is tapped, and `station.opened` from `alert` when it opens the station; `drops.toggled` (on, granted) for the price-drop switch.
 - **Added 2026-11-23 (fuel bar):** `fuel.changed` with fuel and source (map, list, header_chip, settings, welcome), which replaces `settings.changed` for fuel changes; `area.change_opened` (view: map). Use `fuel.changed` by source to see whether the Stations fuel bar is what people use.
 - **Added 2026-11-11:** `map.cheapest_opened`, when the map's "Cheapest in view" bar is tapped. It has no properties: no station, price or location.
 - **More:**
