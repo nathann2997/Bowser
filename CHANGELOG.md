@@ -28,7 +28,7 @@ User feedback: changing fuel was hard to find. People look straight at the map a
   - Build the "No U91" tag now, not later: a pin that disappears on a fuel change breaks trust in pins, and the web card turns the dead end into a one-tap fix.
   - Not built: a floating List pill on the web map (the List button sits by the section title, where the view toggle has always been).
 
-## 2026-11-23 — Price drop at a pinned station (roadmap item 6, P2)
+## 2026-11-23 — Price drop at a pinned station (roadmap item 6, P2) (**live**: PR #50, `ab2b23a`, app-ci run 45174993756, OTA group ef8abd7a on runtime 1.1.0, preview and production channels)
 
 `docs/NOTIFICATIONS_PLAN.md` P2. JS only (OTA to 1.1.0); new switch in More, **off by default**: "Price drops at pinned stations".
 - `lib/drops.ts`, rule fixed before it ran on any data: a pinned station's price for your fuel, changed within a day and lower than before the change, is a new 30-day low (under every known end-of-day price of the 29 days before the change, 15+ known, and 3c+ under their median, so a price that never moves doesn't count) or 5c+ under its usual gap to the Sydney median (`profile.typ`, the station advice's gap); never while Sydney says "Wait if you can"; a gap over 40c is a price slip, not a drop. Of several, only the biggest drop. Outside Sydney the copy leaves out the Sydney median.
@@ -38,7 +38,7 @@ User feedback: changing fuel was hard to find. People look straight at the map a
 - Not built: user-set price targets (open owner decision 1 in the plan).
 - Tests: 10 new (`drops.test.ts`). QA audit: nothing blocking; its fixes (keep a pending drop on a failed fetch, switch-off clears it, price slips, a rise cancels a drop, no wasted fetches, the window ends at the change, a fall required) are in. P1 also skips naming prices when the stations file is older than the forecast.
 
-## 2026-11-23 — Rise alert v2: your station, your price (roadmap item 6, P1)
+## 2026-11-23 — Rise alert v2: your station, your price (roadmap item 6, P1) (**live** with P2: OTA group ef8abd7a)
 
 `docs/NOTIFICATIONS_PLAN.md` P1, built at the owner's direction before the 1.1.0 device check of P0. JS only (OTA to runtime 1.1.0).
 - The rise alert now names your cheapest station: the cheapest fresh pinned station for your fuel, else the cheapest fresh one within your radius (members respected), at your price after discounts ("(your price)" when one applies): `cheapestPick` in `widget/logic.ts`, built on the widget's own `chooseRows`. With neither, the old "Open Bowser for the cheapest near you".
