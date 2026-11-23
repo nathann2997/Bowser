@@ -34,6 +34,10 @@ export function toneColors(c: Palette, tone: Tone) {
       : { bg: c.calmBg, fg: c.calmFg, strong: c.calmStrong };
 }
 
+/** Widest a column of text and cards gets (dp). On a tablet, a foldable or a phone on its side the content stays a
+ *  readable column, centred, instead of stretching across the window (Play: large-screen support, 1.1.1). */
+export const CONTENT_MAX = 640;
+
 /** Scrolling screen with a title and the fuel chip (and the app wordmark above the title on Today). Android applies the bottom tab inset itself; we handle the top. */
 export function Screen({
   title, subtitle, brand, children, onRefresh, refreshing = false, fuel = true, onBack, stack = !!onBack,
@@ -59,6 +63,9 @@ export function Screen({
         paddingBottom: Spacing.six + (stack ? insets.bottom : Platform.OS === 'ios' ? insets.bottom + 50 : 0),
         paddingHorizontal: Spacing.four,
         gap: Spacing.four,
+        width: '100%',
+        maxWidth: CONTENT_MAX + 2 * Spacing.four,
+        alignSelf: 'center',
       }}
       keyboardShouldPersistTaps="handled"
       refreshControl={onRefresh ? <GHRefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.muted} /> : undefined}>
@@ -223,7 +230,9 @@ export function Disclosure({ title, children, open: initial = false }: { title: 
   );
 }
 
-/** Bottom sheet over a scrim (the fuel picker, the station filters). Long content scrolls; `footer` stays pinned. */
+/** Bottom sheet over a scrim (the fuel picker, the station filters). Content always scrolls when it's taller than the
+ *  sheet (a phone on its side is about 360 dp tall, less with the keyboard up); `footer` stays pinned. `scroll`: the
+ *  roomier spacing of the long sheets. */
 export function Sheet({
   title, visible, onClose, children, footer, scroll = false,
 }: { title: string; visible: boolean; onClose: () => void; children: ReactNode; footer?: ReactNode; scroll?: boolean }) {
@@ -234,7 +243,12 @@ export function Sheet({
       {/* Edge-to-edge (SDK 58): the window doesn't resize for the keyboard, so lift the sheet above it (the fill and
           discount sheets have inputs and a Save button at the bottom) */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-      <Pressable style={styles.scrim} onPress={onClose} accessible={false} importantForAccessibility="no">
+      {/* Side insets: in landscape the camera cutout or the 3-button navigation bar is on the left or right */}
+      <Pressable
+        style={[styles.scrim, { paddingLeft: insets.left, paddingRight: insets.right }]}
+        onPress={onClose}
+        accessible={false}
+        importantForAccessibility="no">
         <Pressable
           style={[styles.sheet, { backgroundColor: c.surface, paddingBottom: (footer ? Spacing.four : Spacing.six + Spacing.four) + insets.bottom }]}
           accessible={false}>
@@ -244,13 +258,12 @@ export function Sheet({
               <T color={c.muted} style={{ fontSize: 20 }}>✕</T>
             </Pressable>
           </View>
-          {scroll ? (
-            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: Spacing.five, paddingBottom: Spacing.two }} keyboardShouldPersistTaps="handled">
-              {children}
-            </ScrollView>
-          ) : (
-            children
-          )}
+          <ScrollView
+            style={{ flexShrink: 1 }}
+            contentContainerStyle={{ gap: scroll ? Spacing.five : Spacing.four, paddingBottom: scroll ? Spacing.two : 0 }}
+            keyboardShouldPersistTaps="handled">
+            {children}
+          </ScrollView>
           {footer}
         </Pressable>
       </Pressable>

@@ -1,1 +1,1 @@
-Bowser 1.1.0: on Android, Bowser now checks for new prices in the background every couple of hours, so the rise alert arrives even when Bowser is closed and you haven't placed the widget, and widgets stay current.
+Bowser 1.1.1: on Android, Bowser now turns sideways with your phone and fits tablets and foldable screens.
