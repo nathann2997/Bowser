@@ -8,6 +8,9 @@ import type { AdviceCode, Forecast, Fuel, LiveRow, Station, Stations } from '@/l
 
 /** Prices older than this many days are not "fresh" (same rule as the Stations list and Today's "Best near you"). */
 export const STALE_DAYS = 7;
+/** Outside Sydney (`out`) prices change less often: old only from day 21 (lib/filters.ts OUT_STALE_DAYS, the site's OUT_STALE) */
+export const OUT_STALE_DAYS = 20;
+const staleAfter = (s: WStation) => (s.out ? OUT_STALE_DAYS : STALE_DAYS);
 /** Stations in the medium widget's scrollable list: every pin (lib/pins.ts MAX_PINS = 10), or the top 10 nearby. */
 export const MAX_ROWS = 10;
 /** Deep links: the scheme stays `fuelforecast` (see BOWSER_PLAN §1). */
@@ -24,7 +27,7 @@ const FUEL_SHORT: Record<Fuel, string> = { U91: 'U91', E10: 'E10', P95: 'P95', P
  *  long reason text. The forecast is stations.json index 5, which older files (and fail-soft days) don't have. */
 export type WPrice = [number, number | null, AdviceCode, string, number | null];
 /** `b` (brand, for your discounts) since 0.7; a cache written before it has none, so those rows show pump prices */
-export type WStation = { id: string; n: string; b?: string; la: number; lo: number; m: 0 | 1; p: Partial<Record<Fuel, WPrice>> };
+export type WStation = { id: string; n: string; b?: string; la: number; lo: number; m: 0 | 1; out?: 1; p: Partial<Record<Fuel, WPrice>> };   // out: outside Sydney (absent in snapshots saved before 2026-11-24)
 export type WidgetSnapshot = {
   forecast: { asof: string; live: LiveRow[] } | null;
   stations: { asof: string; stations: WStation[] } | null;
@@ -49,7 +52,7 @@ export function compactStations(s: Stations): NonNullable<WidgetSnapshot['statio
           const fc = (v as readonly unknown[])[5];
           p[f] = [v[0], v[1], v[2], v[3], typeof fc === 'number' && Number.isFinite(fc) ? fc : null];
         }
-        return { id: String(x.id), n: x.n, b: typeof x.b === 'string' ? x.b : undefined, la: x.la, lo: x.lo, m: x.m, p };
+        return { id: String(x.id), n: x.n, b: typeof x.b === 'string' ? x.b : undefined, la: x.la, lo: x.lo, m: x.m, ...(x.out ? { out: 1 as const } : {}), p };
       }),
   };
 }
@@ -124,7 +127,7 @@ export type WidgetRow = {
   noteTone: NoteTone;
   fc: string | null;            // line 2 right: "→ 237.4", the station's 7-day forecast (null when the data has none)
   fcTone: NoteTone;
-  stale: boolean;               // price older than STALE_DAYS (only pinned rows can be)
+  stale: boolean;               // price older than STALE_DAYS, or OUT_STALE_DAYS outside Sydney (only pinned rows can be)
 };
 
 export type ListMode = 'pinned' | 'nearby' | 'nearest' | 'no-pins' | 'no-area' | 'none-nearby' | 'no-data';
@@ -196,14 +199,18 @@ const paid = (s: WStation, pump: number, d: Discounts | undefined) => {
   return off ? yourPrice(pump, off) : pump;
 };
 
-function toRow(s: WStation, fuel: Fuel, median: number | undefined, discounts?: Discounts): WidgetRow | null {
+function toRow(s: WStation, fuel: Fuel, median: number | undefined, discounts?: Discounts, asof?: string): WidgetRow | null {
   const adv = s.p[fuel];
   if (!adv || adv[0] == null) return null;
   const name = stationName(s.n);
   const off = s.b ? offFor(discounts, s.b) : 0;
   const price = paid(s, adv[0], discounts);
-  const stale = adv[1] != null && adv[1] > STALE_DAYS;
-  const { note, noteTone } = stale ? { note: `${adv[1]} days old`, noteTone: 'flat' as const } : gapNote(price, median, adv);
+  const stale = adv[1] != null && adv[1] > staleAfter(s);
+  // Outside Sydney, 8 to 20 days: still current there, so it says when it last changed rather than how old it is
+  const held = !stale && !!s.out && adv[1] != null && adv[1] > STALE_DAYS;
+  const { note, noteTone } = stale ? { note: `${adv[1]} days old`, noteTone: 'flat' as const }
+    : held ? { note: asof ? `same since ${nice(addDays(asof, -adv[1]!), false)}` : `same for ${adv[1]} days`, noteTone: 'flat' as const }
+    : gapNote(price, s.out ? undefined : median, adv);   // the gap is to the Sydney median: none outside Sydney
   // The 7-day forecast is the pump's; with a discount it moves the same way, so it's shown as your price too
   const f7 = typeof adv[4] === 'number' && Number.isFinite(adv[4]) ? (off ? yourPrice(adv[4], off) : adv[4]) : null;
   // A stale price's age matters more than its forecast, so it keeps the "N days old" note
@@ -245,22 +252,22 @@ export function resolveMode(saved: unknown, snap: WidgetSnapshot | null, prefs: 
 
 type Rows = Pick<WidgetModel, 'mode' | 'caption' | 'rows' | 'message'>;
 
-function pinnedRows(list: WStation[], prefs: WidgetPrefs, pins: string[], median: number | undefined, max: number): WidgetRow[] {
+function pinnedRows(list: WStation[], prefs: WidgetPrefs, pins: string[], median: number | undefined, max: number, asof?: string): WidgetRow[] {
   const byId = new Map(list.map((s) => [s.id, s]));
   return pins
     .map((id) => byId.get(id))
-    .map((s) => (s ? toRow(s, prefs.fuel, median, prefs.discounts) : null))
+    .map((s) => (s ? toRow(s, prefs.fuel, median, prefs.discounts, asof) : null))
     .filter((r): r is WidgetRow => r != null)
     .slice(0, max);
 }
 
 /** Fresh stations selling the fuel within the radius of home, respecting members; cheapest or nearest first. */
-function areaRows(list: WStation[], prefs: WidgetPrefs, home: Place, sort: 'price' | 'distance', median: number | undefined, max: number) {
+function areaRows(list: WStation[], prefs: WidgetPrefs, home: Place, sort: 'price' | 'distance', median: number | undefined, max: number, asof?: string) {
   return list
     .map((s) => {
       const p = s.p[prefs.fuel];
       if (!p || p[0] == null || (!prefs.members && s.m)) return null;
-      if (p[1] != null && p[1] > STALE_DAYS) return null;
+      if (p[1] != null && p[1] > staleAfter(s)) return null;
       const d = km(home.la, home.lo, s.la, s.lo);
       return d > prefs.radiusKm ? null : { s, price: paid(s, p[0], prefs.discounts), d };
     })
@@ -268,7 +275,7 @@ function areaRows(list: WStation[], prefs: WidgetPrefs, home: Place, sort: 'pric
     .sort(sort === 'price' ? (a, b) => a.price - b.price || a.d - b.d : (a, b) => a.d - b.d || a.price - b.price)
     .slice(0, max)
     .map((x) => {
-      const r = toRow(x.s, prefs.fuel, median, prefs.discounts)!;
+      const r = toRow(x.s, prefs.fuel, median, prefs.discounts, asof)!;
       if (sort === 'price') return r;
       // Nearest: the distance follows the advice on two-line rows; the right keeps the forecast, or the gap
       const dist = `${x.d.toFixed(1)} km`;
@@ -289,7 +296,7 @@ export function chooseRows(
   const fuel = FUEL_SHORT[prefs.fuel];
 
   if (mode === 'pinned' || (!mode && pins.length)) {
-    const rows = pinnedRows(list, prefs, pins, median, max);
+    const rows = pinnedRows(list, prefs, pins, median, max, snap?.stations?.asof);
     if (rows.length) return { mode: 'pinned', caption: null, rows, message: null };   // the mode row says Pinned
     if (mode === 'pinned')
       return pins.length
@@ -300,7 +307,7 @@ export function chooseRows(
   const home = prefs.home;
   if (!home) return { mode: 'no-area', caption: null, rows: [], message: 'Open Bowser to set your area' };
   const nearest = mode === 'nearest';
-  const rows = areaRows(list, prefs, home, nearest ? 'distance' : 'price', median, max);
+  const rows = areaRows(list, prefs, home, nearest ? 'distance' : 'price', median, max, snap?.stations?.asof);
   if (!rows.length) return { mode: 'none-nearby', caption: null, rows: [], message: `No fresh ${fuel} prices within ${prefs.radiusKm} km` };
   return nearest
     ? { mode: 'nearest', caption: `Near ${home.label}`, rows, message: null }   // the mode row already says Nearest/Cheapest

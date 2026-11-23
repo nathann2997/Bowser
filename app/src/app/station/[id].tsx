@@ -18,7 +18,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { track, useReady } from '@/lib/analytics';
 import { isNotFound, isStationId, useForecast, useHistory, useStationDetail, useStations } from '@/lib/api';
 import { offFor, offText, yourPrice } from '@/lib/discounts';
-import { brandSuburb, fmt, fuelName, nice, stationName, sydneyToday, updatedText } from '@/lib/format';
+import { isHeld, isStale } from '@/lib/filters';
+import { brandSuburb, fmt, fuelName, nice, stationName, sydneyToday, unchangedText, updatedText } from '@/lib/format';
 import { km } from '@/lib/geo';
 import { dayLabel, toneOf } from '@/lib/outlook';
 import { isPinned, MAX_PINS, togglePin, usePins } from '@/lib/pins';
@@ -79,10 +80,14 @@ export default function StationPage() {
   // The lists read stations.json; this page reads the station's own file. If that file is an older saved copy, the
   // price comes from the newer stations.json, so the page never disagrees with the list the user tapped
   const listPrice = fuel && d && sq.data && sq.data.asof > d.asof ? row?.p[fuel]?.[0] ?? null : null;
-  const tk = d && fuel ? ticker(d, fuel, live?.now ?? null, listPrice) : null;
+  const out = d?.out ?? row?.out;   // outside Sydney: a price is old from day 21, not day 8 (filters.ts isStale)
+  // Outside Sydney there is no gap to the Sydney median anywhere on the page: not in the ticker, the chart's median line
+  // and "Avg gap" tile, or the shared message (PM/UX decision 2026-11-24; the site's station pages already do this)
+  const sydMedian = out ? null : live?.now ?? null;
+  const tk = d && fuel ? ticker(d, fuel, sydMedian, listPrice) : null;
   const hasHist = !!(d && fuel && d.hist[fuel]?.some((v) => v != null));
   // The React Compiler memoizes this (and the paths in TickerChart key off its identity)
-  const chart = d && fuel ? tickerData(d, hq.data, fuel, hasHist ? range : '1W') : null;
+  const chart = d && fuel ? tickerData(d, out ? null : hq.data, fuel, hasHist ? range : '1W') : null;
   const stats = chart ? rangeStats(chart) : null;
   const fc = d && fuel ? d.fc[fuel] : undefined;
   const tone = live ? toneOf(live.verdict.cls) : undefined;   // Sydney verdict tone, for the rise wording
@@ -106,7 +111,7 @@ export default function StationPage() {
             <IconButton
               label="Share this price"
               onPress={() => shareText(dealMessage({
-                id, n: head.n, s: head.s, fuel, pump: tk.price!, median: live?.now ?? null, advice: fc?.adv[1] ?? row?.p[fuel]?.[3] ?? null,
+                id, n: head.n, s: head.s, fuel, pump: tk.price!, median: sydMedian, advice: fc?.adv[1] ?? row?.p[fuel]?.[3] ?? null,
               }), 'deal')}>
               <ShareIcon color={c.fg} size={22} />
             </IconButton>
@@ -159,7 +164,7 @@ export default function StationPage() {
               fuel={fuel}
               price={yourPrice(tk.price, off)}
               pump={tk.price}
-              median={live && fq.data?.asof === sydneyToday() ? live.now : null}   // yesterday's median isn't today's
+              median={!out && live && fq.data?.asof === sydneyToday() ? live.now : null}   // yesterday's median isn't today's; none outside Sydney
               tankL={s.tankL}
               onClose={() => setFilling(false)}
               onSaved={setNote}
@@ -175,8 +180,8 @@ export default function StationPage() {
         {!d ? (
           q.error || badId ? (
             row ? (
-              <ListFallback row={row} preferred={s.fuel} off={off} medianOf={(f) => fq.data?.live.find((r) => r.fuel === f)?.now}
-                notFound={badId || isNotFound(q.error)} onRetry={() => q.refetch()} />
+              <ListFallback row={row} preferred={s.fuel} off={off} medianOf={(f) => (row.out ? undefined : fq.data?.live.find((r) => r.fuel === f)?.now)}
+                notFound={badId || isNotFound(q.error)} onRetry={() => q.refetch()} asof={sq.data?.asof} />
             ) : sq.isPending && !badId ? (
               <LoadingSkeleton />
             ) : (
@@ -243,9 +248,9 @@ export default function StationPage() {
                   {` with your ${offText(off)} off at ${head!.b}`}
                 </T>
               ) : null}
-              <T kind="small" color={age != null && age > 7 ? c.up : c.muted}>
+              <T kind="small" color={isStale(age, out) ? c.up : c.muted}>
                 {age != null
-                  ? `${updatedText(age)}${age > 7 ? '. Check the price before you drive there.' : ''}`
+                  ? isHeld(age, out) ? unchangedText(age, sq.data?.asof) : `${updatedText(age)}${isStale(age, out) ? '. Check the price before you drive there.' : ''}`
                   : tk.unchangedDays != null && tk.unchangedDays > 0
                     ? `Price unchanged for ${tk.unchangedDays} day${tk.unchangedDays === 1 ? '' : 's'}`
                     : `Prices as of ${nice(d.asof)}`}
@@ -274,12 +279,14 @@ export default function StationPage() {
                   <View style={[styles.stats, { borderColor: c.line }]}>
                     <Stat label="Low" value={stats.low ? stats.low.v.toFixed(1) : '–'} sub={stats.low ? nice(stats.low.date, false) : ''} />
                     <Stat label="High" value={stats.high ? stats.high.v.toFixed(1) : '–'} sub={stats.high ? nice(stats.high.date, false) : ''} />
-                    <Stat
-                      label="Avg gap"
-                      value={stats.avgGap != null ? `${fmt(stats.avgGap)}c` : '–'}
-                      sub="vs median"
-                      color={stats.avgGap == null ? undefined : stats.avgGap < -0.05 ? c.cheap : stats.avgGap > 0.05 ? c.dear : undefined}
-                    />
+                    {out ? null : (
+                      <Stat
+                        label="Avg gap"
+                        value={stats.avgGap != null ? `${fmt(stats.avgGap)}c` : '–'}
+                        sub="vs median"
+                        color={stats.avgGap == null ? undefined : stats.avgGap < -0.05 ? c.cheap : stats.avgGap > 0.05 ? c.dear : undefined}
+                      />
+                    )}
                     <Stat label="Jumps" value={String(stats.jumps)} sub="5c or more" last />
                   </View>
                 ) : null}
@@ -313,7 +320,7 @@ export default function StationPage() {
               <Card>
                 <T>
                   {(d.out ?? row?.out)
-                    ? 'Bowser’s forecast covers Sydney only, so this station shows its prices without one.'
+                    ? 'The fill-or-wait forecast covers Sydney only. Elsewhere in NSW and the ACT you get today’s prices.'
                     : `No forecast for ${fuelName(fuel)} at this station today.`}
                 </T>
               </Card>
@@ -383,8 +390,8 @@ function Move({ ch, label }: { ch: Change; label: string }) {
 /** Today's price, gap and advice from stations.json, for when the station file is missing (404 on a day the
  *  per-station export failed soft) or can't load, and nothing is cached */
 function ListFallback({
-  row, preferred, off, medianOf, notFound, onRetry,
-}: { row: Station; preferred: Fuel; off: number; medianOf: (f: Fuel) => number | undefined; notFound: boolean; onRetry: () => void }) {
+  row, preferred, off, medianOf, notFound, onRetry, asof,
+}: { row: Station; preferred: Fuel; off: number; medianOf: (f: Fuel) => number | undefined; notFound: boolean; onRetry: () => void; asof?: string }) {
   const c = useTheme();
   const sold = (Object.keys(row.p) as Fuel[]).filter((f) => row.p[f]?.[0] != null);
   const order = (['U91', 'E10', 'P95', 'P98', 'DL'] as Fuel[]).filter((f) => sold.includes(f));
@@ -419,7 +426,7 @@ function ListFallback({
               {` with your ${offText(off)} off at ${row.b}`}
             </T>
           ) : null}
-          <T kind="small" color={p[1] != null && p[1] > 7 ? c.up : c.muted}>{updatedText(p[1])}</T>
+          <T kind="small" color={isStale(p[1], row.out) ? c.up : c.muted}>{isHeld(p[1], row.out) ? unchangedText(p[1]!, asof) : updatedText(p[1])}</T>
           <View style={{ gap: 6, marginTop: Spacing.two }}>
             <Badge tone={ADVICE_TONE[p[2]] ?? 'calm'}>{p[3]}</Badge>
             {p[4] ? <T color={c.fg2}>{p[4].replace(/\.$/, '')}.</T> : null}

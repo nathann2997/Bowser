@@ -72,6 +72,14 @@ export function updatedText(age: number | null) {
   return `Updated ${age} days ago`;
 }
 
+/** A price outside Sydney that is over a week old but still current there (filters.ts isHeld): "Unchanged since 12 Nov",
+ *  from the stations file's date (`asof`) less the age, never the phone's clock, so a cached file still dates it right.
+ *  "Unchanged for 12 days" when the file has no date. */
+export function unchangedText(age: number, asof?: string | null) {
+  if (asof && /^\d{4}-\d{2}-\d{2}$/.test(asof)) return `Unchanged since ${nice(addDays(asof, -age), false)}`;
+  return `Unchanged for ${age} day${age === 1 ? '' : 's'}`;
+}
+
 /** Words kept in capitals when an ALL-CAPS station name is title-cased */
 const ACRONYMS = new Set(['BP', 'EG', 'APW', 'NRMA', 'NSW', 'LPG', 'RD', 'ST', 'MT', 'CVRO', 'IGA', 'U-GO']);
 

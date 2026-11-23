@@ -47,8 +47,8 @@ tgu = T.tgp_ulp.reindex(days).ffill().shift(1)
 margin = (u - tgu).dropna()
 last_restore = starts[-1] if starts else None
 
-# ---- today's stations. S is every NSW station (update.py); `syd` marks the Sydney ones, which the medians, brand
-# premiums and forecast are about. Stations elsewhere are listed with their prices only.
+# ---- today's stations. S is every station in the NSW FuelCheck feed, NSW and ACT (update.py); `syd` marks the Sydney
+# ones, which the medians, brand premiums and forecast are about. Stations elsewhere are listed with their prices only.
 S = pd.DataFrame(ST["rows"])
 S["syd"] = S["syd"].fillna(False).astype(bool) if "syd" in S.columns else True   # a file from before 2026-11-13 is all Sydney
 uu = S[(S.fueltype == "U91") & S.syd].copy(); med = uu.price.median(); uu["prem"] = uu.price - med
@@ -116,21 +116,26 @@ def advise(f, price, age, key):
         return ["wait", "Wait", f"Sydney {f} expected about {abs(d[7]):.0f}c lower by {dow(7)}"]
     return ["ok", "No rush", "No rise expected in the next 2 weeks"]
 # A station outside Sydney: the forecast is fitted on Sydney prices and says nothing about it, so it gets no
-# "when to fill" advice, only its price (code "na"); an old price still says so.
-NA = ["na", "Price only", "Outside Sydney, where Bowser has no forecast"]
+# "when to fill" advice, only its price (code "na"); an old price still says so. Prices outside Sydney change less often
+# (no weekly cycle; Canberra's can sit unchanged for weeks), so "Check price" comes from day 21, not day 11
+# (OUT_STALE: the same rule as seo_pages.py, template.html and the app).
+OUT_STALE = 20
+NA = ["na", "Price only", "Outside Sydney: prices only, no forecast"]
 def advise_out(age):
-    return ["chk", "Check price", f"Not updated for {age} days"] if age is not None and age > 10 else list(NA)
+    return ["chk", "Check price", f"Not updated for {age} days"] if age is not None and age > OUT_STALE else list(NA)
 sta = []
 for code, g in S.groupby("code"):
     r0 = g.iloc[0]
     if pd.isna(r0.get("lat")) or pd.isna(r0.get("lon")): continue
     pc = int(r0.postcode) if pd.notna(r0.postcode) else 0          # 0: no postcode in the address (never a Sydney station)
-    sub = r0.suburb if isinstance(r0.suburb, str) and r0.suburb.strip() else f"Postcode {pc}" if pc else "NSW"
+    state = r0.get("state") if isinstance(r0.get("state"), str) and r0.get("state") else None   # from the address (2026-11-24)
+    sub = r0.suburb if isinstance(r0.suburb, str) and r0.suburb.strip() else f"Postcode {pc}" if pc else (state or "NSW")
     age = lambda x: int(x.age) if pd.notna(x.age) else None
     name = r0["name"] if isinstance(r0["name"], str) and r0["name"].strip() else r0.brand if isinstance(r0.brand, str) else "Station"
     sta.append({"n": name, "b": r0.brand if isinstance(r0.brand, str) else "Independent", "s": sub, "pc": pc, "la": round(float(r0.lat), 5), "lo": round(float(r0.lon), 5),
                 "m": int("members only" in str(r0["name"]).lower()),
                 **({} if r0.syd else {"out": 1}),                    # outside Sydney: prices only, no forecast
+                **({"st": state} if state and state != "NSW" else {}),  # the state when it isn't NSW (ACT); absent for NSW
                 "p": {f: [r1(x.price), age(x)] + (advise(f, float(x.price), age(x), r0.get("key")) if r0.syd else advise_out(age(x)))
                       for f, x in g.set_index("fueltype").iterrows()}})
 data = {"stations": sta, "start": str(start.date()), "hist": hist, "tgp": tgp, "live": FC["live"], "ctx": FC["ctx"], "bt": BT,

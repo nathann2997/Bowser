@@ -7,7 +7,7 @@ import { OutlookChart } from '@/components/outlook-chart';
 import { SavingsStrip, TrackStrip } from '@/components/proof-strip';
 import { BowserWordmark } from '@/components/brand';
 import { SourceLine } from '@/components/source-line';
-import { MissingPinItem, rowKey, STALE_DAYS, StationItem } from '@/components/station-row';
+import { MissingPinItem, rowKey, StationItem } from '@/components/station-row';
 import { Card, Disclosure, Loading, Screen, Section, StaleBanner, T, toneColors } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useArea } from '@/hooks/use-area';
@@ -16,7 +16,7 @@ import { useReady } from '@/lib/analytics';
 import { useForecast, useHistory, useStations } from '@/lib/api';
 import { horizons, jumpRisk, signalWhy } from '@/lib/copy';
 import { fmt, nice, refreshedText, shortFuel } from '@/lib/format';
-import { pinnedRows } from '@/lib/filters';
+import { isStale, pinnedRows } from '@/lib/filters';
 import { rankStations } from '@/lib/geo';
 import { dayLabel, outlook, riseDay } from '@/lib/outlook';
 import { usePins } from '@/lib/pins';
@@ -39,7 +39,7 @@ export default function Today() {
   const best = useMemo(() => {
     if (!sq.data || !home) return [];
     return rankStations(sq.data.stations, s.fuel, { home, radiusKm: s.radiusKm, members: s.members, sort: 'price', discounts: s.discounts })
-      .filter((x) => x.age == null || x.age <= STALE_DAYS)
+      .filter((x) => !isStale(x.age, x.out))
       .slice(0, 3);
   }, [sq.data, home, s.fuel, s.radiusKm, s.members, s.discounts]);
   const mine = useMemo(

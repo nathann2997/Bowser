@@ -7,7 +7,8 @@ inbox/ may contain (any subset; newest of each is used):
   brent_audusd_eia_rba.csv  Brent (EIA) and AUD/USD (RBA), under the FRED column ids (fetch.py pull_macro)
   eia_daily_page.csv    the latest Brent and NY Harbor diesel close from EIA's daily page (fetch.py pull_eia_daily)
 Writes store/daily.csv (adds/replaces snapshot rows; Sydney stations only), store/tgp.csv, store/tgp_daily.csv, store/fred.csv and
-store/stations_today.json (every NSW FuelCheck station, with `syd` true for the Sydney ones the forecast is about)
+store/stations_today.json (every station in the NSW FuelCheck feed, NSW and ACT, with `syd` true for the Sydney ones the forecast is
+about and `state` from the address)
 """
 import glob, json, os, re, sys
 import numpy as np, pandas as pd
@@ -17,6 +18,16 @@ INBOX = sys.argv[2] if len(sys.argv) > 2 else f"{BASE}/inbox"
 STORE = f"{BASE}/store"
 from fuels import FUELS
 is_syd = lambda pc: (2000 <= pc <= 2234) or (2555 <= pc <= 2574) or (2740 <= pc <= 2786)
+# Addresses the regexes below can't split (no comma before the suburb, or extra words in it): the suburb, by station code.
+# Checked against the 2026-11-24 snapshot; a station not in the feed is simply not used.
+SUBURB_FIX = {"18781": "Fyshwick", "18782": "Manuka", "18811": "Macquarie", "20527": "Acton", "20582": "Lyneham"}
+def tidy_address(addr):
+    """Addresses in the feed's other spellings ("Metford NEW SOUTH WALES 2323", "Uralla, NSW  2358, AU") as "Suburb NSW 2323",
+    for the postcode, suburb and state only (the Sydney test and the station key read the address as it came)."""
+    return (addr.str.replace(r",?\s*\bAU\s*$", "", regex=True)
+                .str.replace(r"\bNEW SOUTH WALES\b", "NSW", regex=True, case=False)
+                .str.replace(r",\s*([A-Za-z]{2,3})\s+(\d{4})\s*$", r" \1 \2", regex=True)
+                .str.replace(r"\s+", " ", regex=True).str.strip())
 newest = lambda pat: (sorted(glob.glob(f"{INBOX}/{pat}"), key=os.path.getmtime) or [None])[-1]
 log = []
 
@@ -27,18 +38,21 @@ def snapshot_rows(j, snap):
     the station list."""
     st = pd.DataFrame(j["stations"]); pr = pd.DataFrame(j["prices"])
     addr = st.address.astype(str)
-    # Sydney is decided exactly as before ("NSW <postcode>" at the end of the address, postcode in is_syd), so the
-    # daily rows don't change. Stations elsewhere also take a looser reading (any state, e.g. "ACT 2600").
+    # Sydney is decided exactly as before ("NSW <postcode>" at the end of the address as it came, postcode in is_syd), so
+    # the daily rows don't change. Postcode, suburb and state take a looser reading of the tidied address (e.g. "ACT 2600").
     pc = pd.to_numeric(addr.str.extract(r"NSW\s+(\d{4})\s*$")[0], errors="coerce")
     st["syd"] = pc.fillna(0).astype(int).map(is_syd).astype(bool)
-    st["postcode"] = pc.fillna(pd.to_numeric(addr.str.extract(r"\b[A-Za-z]{2,3}\s+(\d{4})\s*$")[0], errors="coerce"))
-    st["suburb"] = addr.str.extract(r",\s*([^,]+?)\s+NSW\s+\d{4}\s*$")[0].fillna(
-        addr.str.extract(r",\s*([^,]+?)\s+[A-Za-z]{2,3}\s+\d{4}\s*$")[0]).str.title()
+    tidy = tidy_address(addr)
+    st["postcode"] = pc.fillna(pd.to_numeric(tidy.str.extract(r"\b[A-Za-z]{2,3}\s+(\d{4})$")[0], errors="coerce"))
+    st["state"] = tidy.str.extract(r"\b([A-Za-z]{2,3})\s+\d{4}$")[0].str.upper()
+    st["state"] = st.state.where(st.state.isin(["NSW", "ACT", "VIC", "QLD", "SA", "TAS", "NT", "WA"]))   # a street word ("RD 2340") is not a state
+    st["suburb"] = tidy.str.extract(r",\s*([^,]+?)\s+[A-Za-z]{2,3}\s+\d{4}$")[0].str.title()
+    st["suburb"] = st.code.astype(str).map(SUBURB_FIX).fillna(st.suburb)
     pr["code"] = pr.stationcode.astype(str); st["code"] = st.code.astype(str)
     # Station codes become file names downstream (station_api.py, export_api.py): keep NSW's numeric codes only
     pr = pr[pr.code.str.fullmatch(r"\d+")]; st = st[st.code.str.fullmatch(r"\d+")]
     st["key"] = st.address.str.upper().str.replace(",", " ").str.replace(r"\s+", " ", regex=True).str.strip()
-    pr = pr.merge(st[["code", "name", "brand", "postcode", "suburb", "location", "key", "syd"]], on="code")
+    pr = pr.merge(st[["code", "name", "brand", "postcode", "suburb", "state", "location", "key", "syd"]], on="code")
     pr = pr[pr.fueltype.isin(FUELS) & pr.price.between(50, 600)].copy()
     pr["ts"] = pd.to_datetime(pr.lastupdated, dayfirst=True, errors="coerce")
     asof = pd.Timestamp(re.search(r"(\d{8})", os.path.basename(snap)).group(1)) if re.search(r"(\d{8})", os.path.basename(snap)) else pr[pr.syd].ts.max().normalize()
@@ -84,7 +98,7 @@ if snap:
     allpr = pd.concat([allpr[allpr.syd], allpr[~allpr.syd]]).copy()
     loc = lambda k: allpr.location.map(lambda l: l.get(k) if isinstance(l, dict) else None)
     allpr["lat"] = loc("latitude"); allpr["lon"] = loc("longitude")
-    keep = allpr[["code", "key", "name", "brand", "postcode", "suburb", "lat", "lon", "fueltype", "price", "age", "syd"]]
+    keep = allpr[["code", "key", "name", "brand", "postcode", "suburb", "state", "lat", "lon", "fueltype", "price", "age", "syd"]]
     json.dump({"asof": str(asof.date()), "rows": keep.to_dict(orient="records")}, open(f"{STORE}/stations_today.json", "w"))
     # station-level archive: today's stations and prices (all of NSW since 2026-11-13, Sydney only before), gzipped,
     # kept in the repo. A station outside Sydney has no other price history: station_api.py builds its chart from these.
@@ -93,7 +107,7 @@ if snap:
     with gzip.open(f"{BASE}/archive/nsw_snapshot_{asof:%Y%m%d}.json.gz", "wt") as fh:
         json.dump({"stations": [s for s in j["stations"] if str(s["code"]) in codes],
                    "prices": [p for p in j["prices"] if str(p["stationcode"]) in codes]}, fh)
-    log.append(f"snapshot {asof.date()}: {len(pr)} Sydney prices, {len(allpr) - len(pr)} elsewhere in NSW "
+    log.append(f"snapshot {asof.date()}: {len(pr)} Sydney prices, {len(allpr) - len(pr)} elsewhere in NSW and the ACT "
                f"({allpr.code.nunique()} stations in all)")
     # ---- station features for the shadow forecast (station_feats.py): today against the archived snapshots of 1, 3 and
     # 7 days ago, plus any day after the published history that has an archived snapshot but no row yet. Never fatal.

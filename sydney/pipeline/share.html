@@ -176,7 +176,7 @@
     $('where').textContent = [named ? '' : s.b, s.s, s.m ? 'Members only' : ''].filter(Boolean).join(' · ');
     $('price').textContent = p[0].toFixed(1);
     var live = fc && (fc.live || []).filter(function (r) { return r.fuel === fuel; })[0];
-    if (live && num(live.now)) {
+    if (live && num(live.now) && !s.out) {   // outside Sydney (the rest of NSW and the ACT): no Sydney comparison
       var g = p[0] - live.now, b = document.createElement('b');
       if (Math.abs(g) < 0.05) { b.textContent = 'At the Sydney median'; $('gap').appendChild(b); $('gap').appendChild(document.createTextNode(' (' + live.now.toFixed(1) + 'c)')); }
       else {
@@ -186,7 +186,12 @@
     }
     if (typeof p[3] === 'string' && p[3]) { $('advice').textContent = 'Bowser: ' + p[3]; $('advice').className = 'chip ' + (TONE[p[2]] || 'calm'); } else show('advice', false);
     if (typeof p[4] === 'string' && p[4]) $('reason').textContent = p[4].replace(/\.$/, '') + '.'; else show('reason', false);
-    if (num(p[1]) && p[1] > 7) { $('reason').textContent = 'Price last updated ' + p[1] + ' days ago, so check it before you drive there.'; show('reason', true); }
+    // Old from day 8 in Sydney, day 21 elsewhere (prices there change less often; the same rule as the app and the site)
+    if (num(p[1]) && p[1] > (s.out ? 20 : 7)) { $('reason').textContent = 'Price last updated ' + p[1] + ' days ago, so check it before you drive there.'; show('reason', true); }
+    else if (num(p[1]) && s.out && p[1] > 7 && st.asof) {
+      var d0 = new Date(st.asof + 'T00:00:00Z'); d0.setUTCDate(d0.getUTCDate() - p[1]);
+      if (!isNaN(d0)) { $('reason').textContent = ($('reason').textContent ? $('reason').textContent + ' ' : '') + 'Unchanged since ' + d0.getUTCDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d0.getUTCMonth()] + '.'; show('reason', true); }
+    }
     sold.filter(function (f) { return f !== fuel; }).forEach(function (f) {
       var el = document.createElement('span'), i = document.createElement('i');
       i.textContent = SHORT[f]; el.appendChild(i); el.appendChild(document.createTextNode(s.p[f][0].toFixed(1)));

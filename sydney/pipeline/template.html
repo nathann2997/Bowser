@@ -287,7 +287,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
         <path transform="translate(-22 -10)" style="fill:var(--act-strong)" fill-rule="evenodd" d="M50 10C58 22 78 40 78 62A28 28 0 0 1 22 62C22 40 42 22 50 10ZM45.5 42A4.5 4.5 0 0 1 54.5 42V63.14L59.82 57.82A4.5 4.5 0 0 1 66.18 64.18L53.18 77.18A4.5 4.5 0 0 1 46.82 77.18L33.82 64.18A4.5 4.5 0 0 1 40.18 57.82L45.5 63.14Z"/>
         <path transform="translate(79 5)" style="stroke:var(--fg)" fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" d="M6 64V6H20A14 14 0 0 1 20 34H6M20 34H23A15 15 0 0 1 23 64H6M55 46A18 18 0 1 0 91 46A18 18 0 1 0 55 46M107 28L118 64L128.5 37L139 64L150 28M194 32.32C190 28 186 28 180.5 28C172 28 167 32.32 167 37.72C167 44.2 175 45 180.5 46C187 47 195 49 195 55C195 61.12 188 64 180.5 64C173 64 168 61.84 166 58.24M211 46H247A18 18 0 1 0 241.73 58.73M263 64V28M263 45C263 34 270 28 281 28H283"/>
       </svg>
-      <p class="tagline">When to fill up in Sydney, and where it’s cheapest.</p>
+      <p class="tagline">When to fill up in Sydney, and where it’s cheapest across NSW and the ACT.</p>
       <div class="small asof" id="asofLine"></div>
       <h1 class="sr">Should you fill up today? Sydney fuel prices and where it’s cheapest</h1>
     </div>
@@ -341,7 +341,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
       <div class="section" id="mapView" hidden>
         <div class="card mapcard"><button type="button" class="bestbar" id="bestBar" hidden></button><div id="map" role="region" aria-label="Map of stations. Prices are buttons; numbered groups split as you zoom in. The list view has every station."></div></div>
         <div class="card pop" id="mapSel" aria-live="polite" hidden></div>
-        <div class="maplegend"><span aria-hidden="true">Cheaper</span> <i style="background:var(--cheap)"></i><i style="background:var(--chip)"></i><i style="background:var(--dear)"></i> <span aria-hidden="true">Dearer</span><span class="sr">Price colours: green is the cheapest third of the stations in view, amber the middle, red the dearest third.</span> <i style="background:var(--calm-strong);margin-left:10px"></i> Price over 7 days old</div>
+        <div class="maplegend"><span aria-hidden="true">Cheaper</span> <i style="background:var(--cheap)"></i><i style="background:var(--chip)"></i><i style="background:var(--dear)"></i> <span aria-hidden="true">Dearer</span><span class="sr">Price colours: green is the cheapest third of the stations in view, amber the middle, red the dearest third.</span> <i style="background:var(--calm-strong);margin-left:10px"></i> Price over 7 days old (3 weeks outside Sydney)</div>
       </div>
       <p class="small" id="stNote"></p>
       <details class="disc" id="whenBox"><summary>How the “when to fill” advice works</summary><div class="disc-body"><p class="small" style="color:var(--fg2)" id="whenText"></p></div></details>
@@ -407,7 +407,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
 
   <footer>
     <div>Data: <a href="https://www.fuelcheck.nsw.gov.au/">NSW Government FuelCheck</a> (© State of NSW, CC BY-SA 3.0 AU), with forecasts added. Forecasts are estimates for planning, not financial advice. Bowser is independent, not a government service, and is not affiliated with the NSW Government.</div>
-    <details class="srcs"><summary>Sources and definitions</summary><div>Sources: NSW Government FuelCheck API (live) and monthly price history on data.nsw.gov.au (© State of NSW, NSW Fair Trading, CC BY-SA 3.0 AU; adapted, with forecasts added); Australian Institute of Petroleum terminal gate prices; Brent crude from the U.S. Energy Information Administration (Refinitiv) and AUD/USD from the Reserve Bank of Australia (WM/Reuters). Sydney means postcodes 2000 to 2234, 2555 to 2574 and 2740 to 2786. Prices in Australian cents per litre including GST.</div></details>
+    <details class="srcs"><summary>Sources and definitions</summary><div>Sources: NSW Government FuelCheck API (live) and monthly price history on data.nsw.gov.au (© State of NSW, NSW Fair Trading, CC BY-SA 3.0 AU; adapted, with forecasts added); Australian Institute of Petroleum terminal gate prices; Brent crude from the U.S. Energy Information Administration (Refinitiv) and AUD/USD from the Reserve Bank of Australia (WM/Reuters). Stations: NSW and ACT service stations that report to NSW FuelCheck; the fill-or-wait forecast covers Sydney only. Sydney means postcodes 2000 to 2234, 2555 to 2574 and 2740 to 2786. Prices in Australian cents per litre including GST.</div></details>
     <!--SEO_LINKS-->
     <div>Visits are counted anonymously so we can see what helps: no cookies, and never your location, your area or your IP address.</div>
   </footer>
@@ -424,7 +424,7 @@ addEventListener("error", () => document.documentElement.classList.remove("boot"
 const D = JSON.parse(document.getElementById("bowser-data").textContent);
 // Stations outside Sydney arrive with their price and age only when the advice is the usual "Price only" (build.py
 // leaves it out of the page, about a quarter of its data); put it back so every station reads the same
-D.stations.forEach(s => { if (s.out) for (const f in s.p) if (s.p[f].length === 2) s.p[f].push("na", "Price only", "Outside Sydney, where Bowser has no forecast"); });
+D.stations.forEach(s => { if (s.out) for (const f in s.p) if (s.p[f].length === 2) s.p[f].push("na", "Price only", "Outside Sydney: prices only, no forecast"); });
 // Station names, brands, suburbs and advice text come from the NSW API (third-party): escape them before any innerHTML
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 const $ = (id) => document.getElementById(id);
@@ -491,6 +491,10 @@ const usage = (() => {
 })();
 const track = usage.track;
 const TANKS = [30,40,50,60,70,80], RADII = [2,5,10,20], STALE_DAYS = 7, PAGE = 10;
+// Outside Sydney (s.out: the rest of NSW and the ACT) prices change less often, so a price there is old only from day 21
+// (OUT_STALE, the same rule as build.py, seo_pages.py and the app); from day 8 it reads "Unchanged since 12 Nov" instead
+const OUT_STALE = 20;
+const isOld = (s, age) => age != null && age > (s.out ? OUT_STALE : STALE_DAYS);
 const savedArea = store.get("area", null);
 // Pins: this data has no station codes, and 50-odd stations share a name and postcode with another site, so the key adds
 // the (5 dp) coordinates. Newest first, at most 10 like the app. Saved in this browser when storage is allowed.
@@ -533,6 +537,13 @@ const PIN_SVG = `<svg class="pinmark" viewBox="0 0 24 24" aria-hidden="true"><pa
 let MAP_OK = !!(window.Promise && window.Map);   // false once the map library fails to load: the page falls back to the list
 // Numbers from the data go into HTML as numbers (+x): never text, whatever the data holds
 const updatedText = a => a == null ? "" : +a === 0 ? "Updated today" : +a === 1 ? "Updated 1 day ago" : `Updated ${Math.round(+a)} days ago`;
+/** Outside Sydney, a price 8 to 20 days old is still current there: "Unchanged since 12 Nov" (the snapshot's date less its age) */
+const held = (s, age) => !!s.out && age != null && age > STALE_DAYS && age <= OUT_STALE;
+function sinceText(age){
+  const [y,m,d] = String(D.snap_asof).split("-").map(Number), t = new Date(Date.UTC(y, m-1, d - Math.round(+age)));
+  return isNaN(t) ? "" : `Unchanged since ${t.getUTCDate()} ${MO[t.getUTCMonth()]}`;
+}
+const ageText = (s, age) => held(s, age) ? sinceText(age) : updatedText(age);
 const mapsUrl = (la, lo) => `https://www.google.com/maps/search/?api=1&query=${+la},${+lo}`;
 
 // ---- the decision (verdict rule mirrored in export_api.py; outlook as app/src/lib/outlook.ts)
@@ -618,7 +629,7 @@ function findSuburb(q){
 }
 let brandSel = null;   // null = all brands
 const areaSet = () => state.area && !state.area.missing ? state.area : null;
-/** Rows for the fuel, area and filters, sorted; `old` counts prices older than STALE_DAYS, hidden unless asked for */
+/** Rows for the fuel, area and filters, sorted; `old` counts old prices (isOld), hidden unless asked for */
 function stationRows(){
   const f = state.fuel, a = areaSet();
   let rows = [];
@@ -629,8 +640,8 @@ function stationRows(){
     rows.push({...s, i, price:p[0], age:p[1], adv:p.slice(2), d: a ? km(a.la, a.lo, s.la, s.lo) : null});
   });
   if (a) rows = rows.filter(s => s.d <= state.radius);
-  const old = rows.filter(s => s.age != null && s.age > STALE_DAYS).length;
-  if (!state.old) rows = rows.filter(s => s.age == null || s.age <= STALE_DAYS);
+  const old = rows.filter(s => isOld(s, s.age)).length;
+  if (!state.old) rows = rows.filter(s => !isOld(s, s.age));
   rows.sort(state.sort === "near" && a ? (x,y) => x.d - y.d || x.price - y.price : (x,y) => x.price - y.price || (x.d??0) - (y.d??0));
   return {rows, old};
 }
@@ -640,16 +651,17 @@ const echoesSydney = (code, sydney) => sydney !== "act" && code !== "chk" && cod
 const rowLabel = (name, pinned, s) => `${name}${pinned ? ", pinned" : ""}, ${s.price.toFixed(1)} cents, ${s.adv[1]}`;
 const pinBtn = (i, name, pinned) => `<button type="button" class="chip" data-pin="${+i}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(name)}">${pinned ? "Unpin" : "Pin"}</button>`;
 function stationItem(s, med, tone, where = "list"){
-  const name = stationName(s.n), gap = s.price - med, stale = s.age != null && s.age > STALE_DAYS, pinned = isPinned(s.i);
-  const gapTxt = Math.abs(gap) < 0.05 ? "at median" : `${gap < 0 ? "−" : "+"}${Math.abs(gap).toFixed(1)}c`;
+  // The gap is to the Sydney median, so a station outside Sydney (s.out) shows none (PM/UX decision 2026-11-24)
+  const name = stationName(s.n), gap = s.out ? null : s.price - med, stale = isOld(s, s.age), pinned = isPinned(s.i);
+  const gapTxt = gap == null ? "" : Math.abs(gap) < 0.05 ? "at median" : `${gap < 0 ? "−" : "+"}${Math.abs(gap).toFixed(1)}c`;
   const quiet = echoesSydney(s.adv[0], tone);
-  const chips = (quiet ? "" : `<span class="badge t-${ADVICE_TONE[s.adv[0]] || "calm"}">${esc(s.adv[1])}</span>`) + (stale ? `<span class="small up">${updatedText(s.age)}</span>` : "");
+  const chips = (quiet ? "" : `<span class="badge t-${ADVICE_TONE[s.adv[0]] || "calm"}">${esc(s.adv[1])}</span>`) + (stale ? `<span class="small up">${updatedText(s.age)}</span>` : held(s, s.age) ? `<span class="small">${sinceText(s.age)}</span>` : "");
   return `<details class="st${pinned ? " is-pinned" : ""}" id="st-${where}-${+s.i}" data-i="${+s.i}"><summary aria-label="${esc(rowLabel(name, pinned, s))}">
     <div class="st-main"><div class="st-name"><span>${esc(name)}</span>${PIN_SVG}</div>
       <div class="small st-sub">${esc(brandSuburb(name, s.b, s.s))}${s.d != null ? ` · ${s.d.toFixed(1)} km` : ""}${s.m ? " · Members" : ""}</div>
       ${chips ? `<div class="st-chips">${chips}</div>` : ""}</div>
-    <div class="st-price"><div class="bignum">${s.price.toFixed(1)}</div><div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}">${gapTxt}</div></div>
-  </summary><div class="st-more"><p>${esc(s.adv[2])}</p><div class="small">${[updatedText(s.age) + (stale ? " · check before driving" : ""), `${esc(s.s)} ${esc(s.pc)}`].filter(Boolean).join(" · ")}</div>
+    <div class="st-price"><div class="bignum">${s.price.toFixed(1)}</div>${gap == null ? "" : `<div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}">${gapTxt}</div>`}</div>
+  </summary><div class="st-more"><p>${esc(s.adv[2])}</p><div class="small">${[ageText(s, s.age) + (stale ? " · check before driving" : ""), `${esc(s.s)} ${esc(s.pc)}`].filter(Boolean).join(" · ")}</div>
     <div class="st-actions">${pinBtn(s.i, name, pinned)}
       ${MAP_OK ? `<button type="button" class="link" data-showmap="${+s.i}">Show on map</button>` : ""}
       <a class="link" href="${mapsUrl(s.la, s.lo)}" target="_blank" rel="noopener noreferrer">Directions →</a></div></div></details>`;
@@ -774,11 +786,11 @@ function renderStations(){
   const {rows, old} = missing ? {rows:[], old:0} : stationRows();
   const oldEl = $("old");
   oldEl.hidden = onMap || (!old && !state.old);   // the map always shows older prices, greyed
-  oldEl.textContent = `Include ${old} price${old===1?"":"s"} over 7 days old`;
+  oldEl.textContent = `Include ${old} old price${old===1?"":"s"}`;
   oldEl.setAttribute("aria-pressed", String(state.old));
   const tone = outlook(live[f]).tone;
   $("stList").innerHTML = rows.slice(0, state.shown).map(s => stationItem(s, med, tone, "list")).join("")
-    || `<div class="empty">${missing ? `No NSW suburb matches “${esc(qEl.value)}”. Try a postcode.` : area ? `No recent prices within ${state.radius} km. Try a wider radius.` : "No stations match these filters."}</div>`;
+    || `<div class="empty">${missing ? `No suburb matches “${esc(qEl.value)}”. Try a postcode.` : area ? `No recent prices within ${state.radius} km. Try a wider radius.` : "No stations match these filters."}</div>`;
   $("more").hidden = rows.length <= state.shown;
   $("more").textContent = `Show more (${rows.length - state.shown} left)`;
   const o = outlook(live[f]);
@@ -1071,7 +1083,7 @@ let noTags = new Map(), noSel = null;   // pinned stations that don't sell the f
 let tierOf = () => "mid", mapArea = "", pendingFocus = null, syncQueued = false;
 let bestI = null, froms = new Map();   // the cheapest station in view (index into D.stations); the groups' "from" labels
 /** The station to mark "Cheapest" among the ones in view (cheapestOf() in app/src/lib/map.ts): the lowest price, the
- *  nearest on a tie, then the first. Prices over 7 days old don't count. Null when fewer than two fresh prices are in
+ *  nearest on a tie, then the first. Old prices (isOld) don't count. Null when fewer than two fresh prices are in
  *  view, or they're all the same: there's nothing to compare. */
 function cheapestOf(rows){
   let best = null, max = -Infinity;
@@ -1118,13 +1130,13 @@ function priceTiers(prices){
   const lo = s[Math.floor((n-1)/3)], hi = s[Math.ceil(2*(n-1)/3)];
   return p => p <= lo ? "low" : p >= hi && hi > lo ? "high" : "mid";
 }
-/** The map's stations: the list's members and brand filters, but no radius, and prices over 7 days old are shown greyed
+/** The map's stations: the list's members and brand filters, but no radius, and old prices (isOld) are shown greyed
  *  rather than hidden (some sites, Costco among them, report rarely and would vanish); pinned ones kept apart */
 function mapData(){
   const f = state.fuel, a = areaSet(), rows = [], pinned = [], unsold = [];
   D.stations.forEach((s, i) => {
     const p = s.p[f]; if (!p || p[0] == null) { if (isPinned(i)) unsold.push({...s, i}); return; }
-    const r = {...s, i, price:p[0], age:p[1], adv:p.slice(2), d: a ? km(a.la, a.lo, s.la, s.lo) : null, old: p[1] != null && p[1] > STALE_DAYS};
+    const r = {...s, i, price:p[0], age:p[1], adv:p.slice(2), d: a ? km(a.la, a.lo, s.la, s.lo) : null, old: isOld(s, p[1])};
     if (isPinned(i)) { pinned.push(r); return; }
     if ((!state.members && s.m) || (brandSel && !brandSel.has(s.b))) return;
     rows.push(r);
@@ -1332,7 +1344,7 @@ function syncMap(){
   }
   if (state.view === "map") {
     const n = shown.length;
-    $("stCount").textContent = state.area && state.area.missing ? `No NSW suburb matches “${qEl.value}”. Try a postcode.`
+    $("stCount").textContent = state.area && state.area.missing ? `No suburb matches “${qEl.value}”. Try a postcode.`
       : n ? `${n} station${n === 1 ? "" : "s"} in view` : "No stations in view. Zoom out or change filters.";
   }
   if (pendingFocus != null) {   // from a list row's "Show on map"
@@ -1365,7 +1377,7 @@ function styleTag(el, r){
   if (el.dataset.k !== key) {
     el.dataset.k = key;
     el.innerHTML = `<i>Cheapest</i><b>${r.price.toFixed(1)}</b><span>${pinned ? PIN_SVG.replace('class="pinmark" ', "") : ""}${esc(brandLabel(r.b))}</span>`;
-    el.setAttribute("aria-label", `${stationName(r.n)}, ${r.price.toFixed(1)} cents${r.old ? `, ${updatedText(r.age).toLowerCase()}` : ""}${pinned ? ", pinned" : ""}${best ? ", cheapest in view" : ""}`);
+    el.setAttribute("aria-label", `${stationName(r.n)}, ${r.price.toFixed(1)} cents${r.old ? `, ${updatedText(r.age).toLowerCase()}` : held(r, r.age) ? `, ${sinceText(r.age).toLowerCase()}` : ""}${pinned ? ", pinned" : ""}${best ? ", cheapest in view" : ""}`);
   }
   el.style.zIndex = sel ? 30 : best ? 25 : pinned ? 20 : r.old ? 9 : t === "low" ? 12 : t === "mid" ? 11 : 10;   // cheaper on top where tags overlap
 }
@@ -1376,16 +1388,16 @@ function openPop(i, refresh = false){
   const r = MD.byI.get(i); if (!r) return;
   if (noSel != null) { noTags.get(noSel)?.getElement().classList.remove("sel"); noSel = null; }
   selI = i; restyleTags(); bestBar();
-  const name = stationName(r.n), med = live[state.fuel].now, gap = r.price - med, stale = r.age != null && r.age > STALE_DAYS;
-  const gapTxt = Math.abs(gap) < 0.05 ? "at median" : `${gap < 0 ? "−" : "+"}${Math.abs(gap).toFixed(1)}c vs median`;
+  const name = stationName(r.n), med = live[state.fuel].now, gap = r.out ? null : r.price - med, stale = isOld(r, r.age);   // no Sydney gap outside Sydney
+  const gapTxt = gap == null ? "" : Math.abs(gap) < 0.05 ? "at median" : `${gap < 0 ? "−" : "+"}${Math.abs(gap).toFixed(1)}c vs median`;
   const el = $("mapSel"); el.hidden = false;
   el.innerHTML = `<div class="ph"><div style="flex:1;min-width:0"><div class="pn">${esc(name)}</div>
       <div class="small">${esc(brandSuburb(name, r.b, r.s))}${r.d != null ? ` · ${r.d.toFixed(1)} km` : ""}${r.m ? " · Members" : ""}</div></div>
-      <div style="text-align:right"><div class="bignum" style="font-size:22px"><span class="small" style="font-weight:700;color:var(--fg2)">${shortFuel(state.fuel)}</span> ${r.price.toFixed(1)}</div><div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}" style="font-weight:600">${gapTxt}</div></div>
+      <div style="text-align:right"><div class="bignum" style="font-size:22px"><span class="small" style="font-weight:700;color:var(--fg2)">${shortFuel(state.fuel)}</span> ${r.price.toFixed(1)}</div>${gap == null ? "" : `<div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}" style="font-weight:600">${gapTxt}</div>`}</div>
       <button type="button" class="x" data-closesel aria-label="Close">✕</button></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${i === bestI ? `<span class="badge" style="background:var(--cheap);color:var(--on-tier)">Cheapest in view</span>` : ""}<span class="badge t-${ADVICE_TONE[r.adv[0]] || "calm"}">${esc(r.adv[1])}</span></div>
     ${r.adv[2] ? `<p class="small" style="color:var(--fg2)">${esc(r.adv[2])}</p>` : ""}
-    ${stale ? `<p class="small up">${updatedText(r.age)} · check before driving</p>` : ""}
+    ${stale ? `<p class="small up">${updatedText(r.age)} · check before driving</p>` : held(r, r.age) ? `<p class="small">${sinceText(r.age)}</p>` : ""}
     <div class="st-actions">${pinBtn(r.i, name, isPinned(r.i))}<a class="link" href="${mapsUrl(r.la, r.lo)}" target="_blank" rel="noopener noreferrer">Directions →</a></div>`;
   if (!refresh && el.getBoundingClientRect().bottom > innerHeight) el.scrollIntoView({behavior:"smooth", block:"nearest"});
 }

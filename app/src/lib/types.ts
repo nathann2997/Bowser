@@ -103,7 +103,8 @@ export type Station = {
   la: number;
   lo: number;
   m: 0 | 1;       // members only
-  out?: 1;        // outside Sydney (2026-11-13: the list covers all of NSW): prices only, no forecast. Absent in Sydney
+  out?: 1;        // outside Sydney (2026-11-13: the list covers NSW and the ACT): prices only, no forecast. Absent in Sydney
+  st?: string;    // the state when it isn't NSW ('ACT'), from the address (2026-11-24). Absent for NSW and in older files
   p: Partial<Record<Fuel, StationPrice>>;
 };
 

@@ -2,7 +2,8 @@ import { describe, expect, it, jest } from '@jest/globals';
 
 import { mapUrls } from '../directions';
 import { plainWarnings, widgetLocationCopy } from '../copy';
-import { applyFilters, brandCounts, brandOptions, FILTER_DEFAULTS, filterCount, pinnedRows, type FilterSettings } from '../filters';
+import { applyFilters, brandCounts, brandOptions, FILTER_DEFAULTS, filterCount, isHeld, isStale, pinnedRows, type FilterSettings } from '../filters';
+import { unchangedText } from '../format';
 import { areaName, nearestSuburb, rankStations } from '../geo';
 import { DEFAULTS, normalize } from '../settings';
 import type { AdviceCode, Station, StationPrice, Suburb } from '../types';
@@ -210,5 +211,23 @@ describe('the area as a place name (Stations "Near …")', () => {
   });
   it('keeps a typed suburb as typed', () => {
     expect(areaName({ label: 'Bondi 2026', la: -33.891, lo: 151.274 }, SUBS, false)).toEqual({ text: 'Bondi 2026', lastKnown: false });
+  });
+});
+
+describe('old prices: day 8 in Sydney, day 21 outside it', () => {
+  it('isStale and isHeld at the boundaries', () => {
+    expect([isStale(7), isStale(8), isStale(null)]).toEqual([false, true, false]);
+    expect([isStale(8, 1), isStale(20, 1), isStale(21, 1)]).toEqual([false, false, true]);
+    expect([isHeld(7, 1), isHeld(8, 1), isHeld(20, 1), isHeld(21, 1), isHeld(12), isHeld(null, 1)]).toEqual([false, true, true, false, false, false]);
+  });
+  it('the list keeps a 20-day-old price outside Sydney and hides a 21-day-old one', () => {
+    const out = (id: string, age: number): Station => ({ ...st(id, 'Ampol', -33.87, price(200, age)), out: 1 });
+    const r = rankStations([out('o20', 20), out('o21', 21), st('s8', 'BP', -33.87, price(201, 8))], 'U91', { home, radiusKm: 5, members: true });
+    expect(applyFilters(r, f({})).map((x) => x.id)).toEqual(['o20']);
+    expect(applyFilters(r, f({ showStale: true }))).toHaveLength(3);
+  });
+  it('dates an unchanged price from the stations file, not the phone', () => {
+    expect(unchangedText(12, '2026-11-24')).toBe('Unchanged since 12 Nov');
+    expect(unchangedText(1, null)).toBe('Unchanged for 1 day');
   });
 });
