@@ -176,7 +176,7 @@ In rough order of value:
 2. **Weekly outlook pages** (NRMA style): one dated address a week with an archive. Needs a weekly snapshot of the forecast saved on the `data` branch, because the pages are rebuilt from today's data only and `track.json` keeps calls without their ranges.
 3. **Long-weekend pages** (Easter, Anzac Day, King's Birthday, Labour Day, Australia Day), on the Christmas page's pattern.
 4. **An interactive "fill up today?" widget** with a tank slider (Finder). The static tank table covers the search side; a slider means new script, which every page's CSP hash has to allow.
-5. **A free embeddable cycle-stage badge** for local news and community sites: a source of links.
+5. ~~A free embeddable cycle-stage badge~~ built 2026-11-24: `/badge/`, see `docs/OUTREACH.md`.
 6. **Author and method pages** (Finder has named authors and a "why trust us" page): a named person behind Bowser on /about/ would help E-E-A-T.
 7. **Longer history charts** (1 year, all time) on fuel and station pages; the data is already in `history.json`.
 8. **A 7-Eleven fuel price lock guide** tied to the forecast ("lock now: a jump is likely").

@@ -262,6 +262,18 @@ except Exception as e:
     except Exception: pass
     warnings.append(re.sub(r"(?<![\w.:/-])(?:/[\w.-]+)+/", "", f"search pages not published: {type(e).__name__}: {e}")[:500])
     print(f"::warning::{warnings[-1]}")
+# The embeddable badge (badge/sydney.svg): other sites show it, so it is written after the pages (seo_pages.clear()
+# removes badge/) and apart from them, and is always written: today's (dated, so a stale one shows its age), or a plain one with no stage.
+try:
+    import seo_pages
+    if not seo_pages.write_badge(OUT, forecast): print("::warning::badge: today's stage unavailable, the plain badge was published")
+except Exception as e:
+    os.makedirs(f"{OUT}/badge", exist_ok=True)
+    open(f"{OUT}/badge/sydney.svg", "w", encoding="utf-8").write(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="104" viewBox="0 0 360 104" role="img" aria-label="Sydney petrol price cycle, from Bowser">'
+        '<title>Sydney petrol price cycle, from Bowser</title><rect x=".5" y=".5" width="359" height="103" rx="10" fill="#fff" stroke="#e2e3df"/>'
+        '<text x="20" y="58" font-family="sans-serif" font-size="16" fill="#141618">Sydney petrol price cycle · checkbowser.app</text></svg>')
+    print(f"::warning::badge: plain fallback written: {type(e).__name__}: {e}")
 meta = {"schema": SCHEMA, "generated_at": GENERATED_AT, "license": LICENSE,
         "asof": ctx["asof"], "stations_asof": data["snap_asof"], "tgp_last": ctx.get("tgp_last"), "fred_last": ctx.get("fred_last"),
         "history_last": ctx.get("history_last"), "live_model": ctx.get("live_model"), "snapshot_days": ctx.get("snapshot_days"),
