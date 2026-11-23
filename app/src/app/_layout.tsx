@@ -9,6 +9,7 @@ import Storage from '@/lib/storage';
 import { initAlerts } from '@/lib/alerts';
 import { configureAnalytics, reportError, track } from '@/lib/analytics';
 import { loadSettings } from '@/lib/settings';
+import { AlertTaps } from '@/components/alert-taps';
 import { AnalyticsTracker } from '@/components/analytics-tracker';
 import { API_BASES, HttpError, isNotFound } from '@/lib/api';
 import { LAUNCH_WAIT_MS, launchCheck, resumeCheck, RESUME_WAIT_MS, resumeWorthChecking } from '@/lib/ota';
@@ -101,6 +102,7 @@ function RootLayout() {
           <Stack.Screen name="welcome" options={{ headerShown: false, animation: 'fade', gestureEnabled: false }} />
         </Stack>
         <AnalyticsTracker />
+        <AlertTaps />
         <UpdateNotice releaseUrl={API_BASES.map((b) => `${b}/app.json`)} onAction={(action, latest) => track('update.notice', { action, latest })} />
       </ThemeProvider>
     </PersistQueryClientProvider>

@@ -40,6 +40,7 @@ Every notification must either save money or close a loop. Anything that's only 
 - Without this, every item below only works for people who've placed the widget.
 
 ### P1. Rise alert v2: personal, with a place and a price (upgrade of the existing alert)
+**Built 2026-11-23** (OTA to 1.1.0): station, price, rise size, tank saving, tap opens the station. The follow-up below is **not built** (it would break one-alert-per-cycle and use half the weekly budget).
 - **Trigger:** unchanged (the verdict says fill, or a rise within 2 days; once per cycle).
 - **Copy now:** "Unleaded 91 may rise Sat 24 Oct. Open Bowser for the cheapest near you."
 - **Copy proposed:**
@@ -49,6 +50,7 @@ Every notification must either save money or close a loop. Anything that's only 
 - **Follow-up** (counts against the weekly budget): on the morning of the rise day, only if you haven't logged a fill since the first alert, send "Last day before the rise: …".
 
 ### P2. Price drop at a pinned station
+**Built 2026-11-23** (OTA to 1.1.0, `lib/drops.ts`, off by default). (b) uses the usual gap to the median; (a) also needs 3c+ under the 30-day median (a steady price is always "at its low"). Price targets: not built (decision 1).
 - **Trigger:** a pinned station's price for your fuel (your price) is
   - (a) at its lowest in 30 days, or
   - (b) at least 5c under its own usual premium vs the median (`profile.typ`),

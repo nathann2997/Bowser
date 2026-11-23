@@ -7,6 +7,8 @@ import * as TaskManager from 'expo-task-manager';
 import { registerWidgetTaskHandler, type WidgetTaskHandler } from 'react-native-android-widget';
 
 import { syncAlerts } from '@/lib/alerts';
+import { getStationDetail } from '@/lib/api';
+import { syncDrops } from '@/lib/drops';
 import { inBackgroundTask, reportError } from '@/lib/analytics';
 import type { Fuel } from '@/lib/types';
 
@@ -64,7 +66,7 @@ export const widgetTaskHandler: WidgetTaskHandler = async ({ widgetInfo, widgetA
   } finally {
     await saving;   // never rejects (saveKey swallows errors)
     // Periodic and first draws carry the day's data even when Bowser stays closed: keep the rise alert current
-    if (widgetAction === 'WIDGET_UPDATE' || widgetAction === 'WIDGET_ADDED') await syncAlerts(snap?.forecast?.live, snap?.forecast?.asof);
+    if (widgetAction === 'WIDGET_UPDATE' || widgetAction === 'WIDGET_ADDED') await syncAlerts(snap?.forecast?.live, snap?.forecast?.asof, { stations: snap?.stations?.stations, stationsAsof: snap?.stations?.asof, dataAt: snap?.fetchedAt });
   }
 };
 
@@ -79,7 +81,8 @@ const MIN_INTERVAL_MIN = 2 * 60;
 TaskManager.defineTask(REFRESH_TASK, () => inBackgroundTask(async () => {
   try {
     const snap = await loadSnapshot({ allowFetch: true });
-    await syncAlerts(snap?.forecast?.live, snap?.forecast?.asof);
+    await syncAlerts(snap?.forecast?.live, snap?.forecast?.asof, { stations: snap?.stations?.stations, stationsAsof: snap?.stations?.asof, dataAt: snap?.fetchedAt });
+    await syncDrops(snap?.forecast?.live, snap?.stations?.stations, getStationDetail);
     await refreshNow(snap).catch((e) => reportError(e));   // placed widgets show the new data too; none placed: a no-op
     return BackgroundTask.BackgroundTaskResult.Success;
   } catch (e) {

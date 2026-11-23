@@ -2,6 +2,27 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-23 — Price drop at a pinned station (roadmap item 6, P2)
+
+`docs/NOTIFICATIONS_PLAN.md` P2. JS only (OTA to 1.1.0); new switch in More, **off by default**: "Price drops at pinned stations".
+- `lib/drops.ts`, rule fixed before it ran on any data: a pinned station's price for your fuel, changed within a day and lower than before the change, is a new 30-day low (under every known end-of-day price of the 29 days before the change, 15+ known, and 3c+ under their median, so a price that never moves doesn't count) or 5c+ under its usual gap to the Sydney median (`profile.typ`, the station advice's gap); never while Sydney says "Wait if you can"; a gap over 40c is a price slip, not a drop. Of several, only the biggest drop. Outside Sydney the copy leaves out the Sydney median.
+- Copy: "Metro Ashfield dropped to 222.0 (your price)" / "Unleaded 91 at your pinned station: its lowest in 30 days, 4c under the Sydney median." Tap: the station page.
+- Budget shared with the rise alert: at most 2 notifications in 7 days (sent or pending, a rise alert counts), none while a rise alert is pending (the rise outranks: scheduling a rise cancels a pending drop), one per station per 7 days. 9 pm–7:30 am waits for 7:30. A pending drop is re-checked each run (its text refreshed) and cancelled when it no longer holds, but kept when its station file fails to load; switching off clears it. Own Android channel "Price drops at pinned stations".
+- Runs only from the background refresh task (iOS and Android, after the rise alert): it fetches the pinned stations' files (`getStationDetail`, 8 s timeout each, in parallel), and nothing when no drop could be sent (rise pending, budget used, Sydney says Wait, prices over a day old). Not from the open app: it already shows the prices.
+- Not built: user-set price targets (open owner decision 1 in the plan).
+- Tests: 10 new (`drops.test.ts`). QA audit: nothing blocking; its fixes (keep a pending drop on a failed fetch, switch-off clears it, price slips, a rise cancels a drop, no wasted fetches, the window ends at the change, a fall required) are in. P1 also skips naming prices when the stations file is older than the forecast.
+
+## 2026-11-23 — Rise alert v2: your station, your price (roadmap item 6, P1)
+
+`docs/NOTIFICATIONS_PLAN.md` P1, built at the owner's direction before the 1.1.0 device check of P0. JS only (OTA to runtime 1.1.0).
+- The rise alert now names your cheapest station: the cheapest fresh pinned station for your fuel, else the cheapest fresh one within your radius (members respected), at your price after discounts ("(your price)" when one applies): `cheapestPick` in `widget/logic.ts`, built on the widget's own `chooseRows`. With neither, the old "Open Bowser for the cheapest near you".
+- It states the rise size and the tank saving the way Today does (`outlook()`: d14 when 3c+): "Sydney Unleaded 91 is likely to rise about 13c from Sat 24 Oct. Your cheapest: Metro Ashfield 228.9 (your price). Filling first saves about $6.50 on 50 L." A possible rise (not a call) promises no saving. Prices over 3 h old when it shows say when they're from ("at 9:05 pm yesterday").
+- Tapping it opens that station's page (`components/alert-taps.tsx`, once per notification: the last response returns on every launch), logged as `notification.opened` and `station.opened` from `alert`.
+- `syncAlerts` gets the stations from every caller (widget task, background refresh, the app). In the app, a new forecast syncs as before (a rise shown counts as seen); new stations, or a change of area, radius, members, discounts, pins or tank, only rewrite a pending alert's text (`refreshOnly`: the cached forecast may be yesterday's, so it never schedules, cancels or counts as seen). Timing, cooldown and the switch are unchanged.
+- Prices over a day old (an offline phone's cache) aren't named; the age check uses the time a pending alert actually shows. A tap is handled after the launch update check, so an update restart doesn't lose it.
+- Not built: the plan's "Last day before the rise" follow-up (it would break one alert per cycle and use half of the 2-a-week budget).
+- Tests: 7 new; with P2, 471 in all; tsc and eslint clean. QA audit: nothing blocking; its fixes (the refresh-only path, the saving taken from `outlook()`, the date wording, the pending time, taps after an update) are in.
+
 ## 2026-11-22 — Fill-up and fuel discount searches: keyword research and new pages
 
 The owner asked for keyword research on "should I fill up now" and similar searches, a look at where competitors sit, and fuel discounts as an SEO topic with pages of their own. Findings are in `docs/SEO.md` → "Keyword research, 2026-11-22": Google Autocomplete for Australia, plus a US-based search tool, so these are not measured Google AU positions.
