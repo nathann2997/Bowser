@@ -83,6 +83,8 @@ export default function Stations() {
   // Older prices stay on the map, greyed (station-map.tsx), instead of hidden: some sites, Costco among them, report rarely
   const mapAll = useMemo(() => applyFilters(mapArea, { ...s, showStale: true }).filter((x) => x.id), [mapArea, s]);   // a tag needs an id (old caches have none)
   const mapPinned = useMemo(() => pinned.flatMap((p) => (p.row ? [p.row] : [])), [pinned]);
+  // Pinned stations that don't sell this fuel stay on the map as a grey "No U91" tag (station-map.tsx)
+  const mapUnsold = useMemo(() => pinned.flatMap((p) => (!p.row && p.station ? [p.station] : [])), [pinned]);
   const mapRows = useMemo(() => (s.pinnedOnly ? [] : mapAll.filter((x) => !pinSet.has(x.id))), [s.pinnedOnly, mapAll, pins]);   // eslint-disable-line react-hooks/exhaustive-deps
   
   const setView = (v: 'list' | 'map') => setSettings({ view: v });
@@ -158,6 +160,7 @@ export default function Stations() {
           <StationMap
             rows={mapRows}
             pinned={mapPinned}
+            unsold={mapUnsold}
             home={home}
             live={live}
             radiusKm={s.radiusKm}

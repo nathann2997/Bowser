@@ -39,6 +39,7 @@ Every event carries: the app version, the OTA `update` id, the channel (preview 
   - a tapped rise alert is counted once (deduped by its id and date);
   - anything else is the launcher.
 - **New events:** `station.opened` (from list / map / fill, or widget / share / link when a link lands on a station page; pinned), `filters.opened`, `analytics.internal`.
+- **Added 2026-11-23 (fuel bar):** `fuel.changed` with fuel and source (map, list, header_chip, settings, welcome), which replaces `settings.changed` for fuel changes; `area.change_opened` (view: map). Use `fuel.changed` by source to see whether the Stations fuel bar is what people use.
 - **Added 2026-11-11:** `map.cheapest_opened`, when the map's "Cheapest in view" bar is tapped. It has no properties: no station, price or location.
 - **More:**
   - a "Share anonymous usage" switch: PostHog stops straight away, Observe at the next launch;
@@ -56,7 +57,8 @@ Every event carries: the app version, the OTA `update` id, the channel (preview 
 - **Dashboard events:**
   - `$pageview` with fuel, view, hasArea, pins and `$referring_domain` (the domain only);
   - `$pageleave`;
-  - `web.fuel_changed` with fuel;
+  - `web.fuel_changed` with fuel and source (added 2026-11-23: header, stations for the fuel bar, map_nofuel for a "Show E10 prices" button on a pinned station's "Doesn't sell" card);
+  - `web.map_nofuel_opened` with fuel (added 2026-11-23), when a pinned station's grey "No U91" tag is selected. No station or location.
   - `web.view_changed` with view (list or map);
   - `web.area_set` with source (gps or suburb), logged once typing settles on a suburb;
   - `web.station_pinned` and `web.station_unpinned` with the pin count;

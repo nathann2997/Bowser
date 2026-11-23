@@ -14,8 +14,9 @@ import { openInMaps } from '@/lib/directions';
 import { offText } from '@/lib/discounts';
 import { STALE_DAYS } from '@/lib/filters';
 import { track } from '@/lib/analytics';
-import { brandSuburb, shortFuel, stationName, updatedText } from '@/lib/format';
+import { brandSuburb, FUELS, shortFuel, stationName, updatedText } from '@/lib/format';
 import type { Place, StationRow } from '@/lib/geo';
+import type { Fuel, Station } from '@/lib/types';
 import {
   areaMoved, bboxOf, brandLabel, cheapestOf, inBox, lonSpanAt, padBox, priceTiers, regionFor, SYDNEY, zoomOf, type Region, type Tier,
 } from '@/lib/map';
@@ -39,6 +40,7 @@ import { useSettings } from '@/lib/settings';
 type Props = {
   rows: StationRow[];              // every station for the fuel, filters applied (pinned ones left out); the map shows those in view
   pinned: StationRow[];            // pinned stations with a price, always shown
+  unsold?: Station[];              // pinned stations that don't sell the fuel (Costco on U91): a grey "No U91" tag, so they don't just vanish
   footer?: ReactNode;              // the Map / List toggle, floating at the bottom of the map
   home: Place | null;
   live: boolean | null;            // false: the phone can't locate now, so `home` is only the last known fix
@@ -56,9 +58,10 @@ const CLUSTER_FROM_GAP = 2;
 /** Room at the bottom of the map for the toggle; the Google logo sits above it */
 const TOGGLE_ROOM = 72;
 
-export function StationMap({ rows, pinned, footer, home, live, radiusKm, median, refreshed }: Props) {
+export function StationMap({ rows, pinned, unsold = [], footer, home, live, radiusKm, median, refreshed }: Props) {
   const c = useTheme();
-  const fuel = shortFuel(useSettings().fuel);   // named where the eye lands: the strip, the Cheapest bar, the card
+  const fuelCode = useSettings().fuel;
+  const fuel = shortFuel(fuelCode);   // named where the eye lands: the strip, the Cheapest bar, the card
   const dark = useColorScheme() === 'dark';
   const insets = useSafeAreaInsets();
   const ref = useRef<MapView>(null);
@@ -211,6 +214,7 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median,
             const isBest = r.id === bestId;
             return <PriceMarker key={`p${r.id}|${tier}|${isSel}|${isBest}|${r.price}|${r.age}|${c.bg}`} r={r} tier={tier} selected={isSel} pinned cheapest={isBest} c={c} onPress={setSelected} />;
           })}
+          {unsold.map((st) => <NoFuelMarker key={`n${st.id}|${fuelCode}|${c.bg}`} s={st} fuel={fuelCode} c={c} />)}
         </MapView>
 
         {best && !open ? (
@@ -271,6 +275,36 @@ export function StationMap({ rows, pinned, footer, home, live, radiusKm, median,
 }
 
 // ---- Pieces
+
+/** A pinned station that doesn't sell the fuel: a grey "No U91" tag in the pinned style. Tapping opens the station,
+ *  which lists the fuels it does sell (design review 2026-11-23: a pin that vanished on a fuel change looked like a bug). */
+const NoFuelMarker = memo(function NoFuelMarker({ s, fuel, c }: { s: Station; fuel: Fuel; c: Palette }) {
+  const tracking = useFirstPaint();
+  const sells = FUELS.map(([f]) => f).filter((f) => s.p[f]?.[0] != null).map(shortFuel);   // in the usual order
+  const name = stationName(s.n);
+  return (
+    <Marker
+      coordinate={{ latitude: s.la, longitude: s.lo }}
+      anchor={{ x: 0.5, y: 1 }}
+      tracksViewChanges={tracking}
+      zIndex={20}   // with the other pinned tags: your station, so on top
+      onPress={() => openStation(s.id, 'map')}
+      accessibilityLabel={`${name}, pinned, doesn’t sell ${shortFuel(fuel)}${sells.length ? `; sells ${sells.join(', ')}` : ''}. Opens the station`}>
+      <View style={[styles.tagWrap, { opacity: 0.85 }]}>
+        <View style={[styles.tag, { backgroundColor: c.surface, borderColor: c.fg, borderWidth: 2 }]}>
+          <View style={[styles.tagPrice, { backgroundColor: c.calmBg }]}>
+            <Text style={[styles.tagNoFuel, { color: c.calmFg }]}>{`No ${shortFuel(fuel)}`}</Text>
+          </View>
+          <View style={styles.tagBrand}>
+            <PinIcon filled color={c.fg} size={11} />
+            <Text style={[styles.tagBrandText, { color: c.fg2 }]} numberOfLines={1}>{brandLabel(s.b)}</Text>
+          </View>
+        </View>
+        <View style={[styles.tagPoint, { borderTopColor: c.fg }]} />
+      </View>
+    </Marker>
+  );
+});
 
 /** A price not updated for over STALE_DAYS: shown grey, as a check-before-you-drive */
 const isOld = (r: StationRow) => r.age != null && r.age > STALE_DAYS;
@@ -509,6 +543,7 @@ const styles = StyleSheet.create({
   tagWrap: { alignItems: 'center', padding: 2 },
   tag: { borderRadius: 10, overflow: 'hidden', minWidth: 62, alignItems: 'stretch' },
   tagPrice: { paddingHorizontal: 8, paddingVertical: 3, alignItems: 'center' },
+  tagNoFuel: { fontSize: 12, fontWeight: '800' },
   tagPriceText: { fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] },
   tagBrand: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2 },
   tagBrandText: { fontSize: 10, fontWeight: '700', maxWidth: 76 },

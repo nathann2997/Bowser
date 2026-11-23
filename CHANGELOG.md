@@ -20,7 +20,13 @@ User feedback: changing fuel was hard to find. People look straight at the map a
   - The map opens on every visit (no more `view2` in storage); the List | Map segmented control becomes one button that names the view it switches to, with an icon, as in the app. It is hidden when the map can't load, as before.
   - Fuel named: "U91 prices on the map", "Cheapest U91 in view" (and its aria-label), "U91 189.9" in the station card, "Sydney U91 median" in the hero.
   - Checked in headless Chrome with today's live data: map first, List button, fuel bar at desktop and phone widths.
-- **Not built (design "could"):** pinned stations that don't sell the fuel (Costco on U91) are still left off the map; the design suggests a grey "No U91" tag. A floating List pill on the web map.
+- **Pinned stations that don't sell the fuel** (Costco on U91) used to vanish from the map, which read as a bug. They now show as a grey "No U91" tag with the pin and brand, layered with the other pinned tags.
+  - App: tapping it opens the station page, which lists the fuels it sells (`NoFuelMarker`, `unsold` prop on `StationMap`).
+  - Web: tapping it opens a card, "Doesn't sell U91 · sells E10, P98", with a one-tap "Show E10 prices" per fuel it sells (`openNoFuel`, `source: map_nofuel`; new `web.map_nofuel_opened`). Checked in headless Chrome: pinned Costco Casula on U91 shows the tag; "Show E10 prices" switches the bar, the select and the map, and Costco's E10 tag replaces it.
+- **Design decisions (made as the designer, owner's delegation 2026-11-23):**
+  - The map opens first every time, not "map once, then remember": the feedback is that people look at the map first, and a remembered List after one stray tap would bring the original problem back. List is one tap and lasts the session.
+  - Build the "No U91" tag now, not later: a pin that disappears on a fuel change breaks trust in pins, and the web card turns the dead end into a one-tap fix.
+  - Not built: a floating List pill on the web map (the List button sits by the section title, where the view toggle has always been).
 
 ## 2026-11-22 — Fill-up and fuel discount searches: keyword research and new pages
 
