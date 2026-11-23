@@ -33,6 +33,7 @@ import base64, datetime as dt, hashlib, html, json, math, os, re, shutil, statis
 SITE = "https://checkbowser.app"
 FUELS = ["U91", "E10", "P95", "P98", "DL"]          # fuels.py order; the pages' own copy so this file has no imports
 NAME = {"U91": "Unleaded 91", "E10": "E10", "P95": "Premium 95", "P98": "Premium 98", "DL": "Diesel"}
+WCALL = {"up": "fill now", "down": "wait", "flat": "no rush"}   # the call types, as the accuracy page says them
 SHORT = {"U91": "U91", "E10": "E10", "P95": "95", "P98": "98", "DL": "Diesel"}
 FSLUG = {"U91": "unleaded-91", "E10": "e10", "P95": "premium-95", "P98": "premium-98", "DL": "diesel"}
 TONE = {"now": "act", "by": "act", "wait": "wait", "hi": "wait", "up": "act", "down": "wait"}   # anything else: calm
@@ -318,8 +319,10 @@ def chart(series, lo, hi, labels, alt, band=None):
 
 
 class Site:
-    def __init__(self, out, stations, forecast, history=None, details=None, track=None, site=SITE):
+    def __init__(self, out, stations, forecast, history=None, details=None, track=None, site=SITE, weekly=None):
         self.out, self.site = out, site.rstrip("/")
+        # weekly.py's scored snapshots, oldest first (none: no weekly pages)
+        self.weeks = [w for w in (weekly or []) if isinstance(w, dict) and isodate(w.get("week")) and isodate(w.get("asof")) and isinstance(w.get("score"), dict) and w.get("live")]
         self.asof = stations["asof"]; self.day, self.sday = long_date(self.asof), short_date(self.asof)
         self.live = {r["fuel"]: r for r in forecast["live"]}
         self.stats, self.fc_asof = forecast.get("stats") or {}, forecast.get("asof") or self.asof
@@ -1246,6 +1249,10 @@ class Site:
                  + f'. Check <a href="{up}fuel-prices/">today’s cheapest stations by suburb</a>.</p>']
         if self.xmas and today.month in (11, 12, 1):
             body.append(f'<p>Planning a holiday drive? See <a href="{up}petrol-prices-christmas/">what Sydney petrol prices did over each Christmas since {self.xmas[0]["year"]}</a>.</p>')
+        try:
+            body += self.last_week(up)
+        except Exception as e:   # the forecast page goes out without the block rather than not at all
+            print(f"seo_pages: WARNING last week's outlook block skipped: {type(e).__name__}: {e}")
         # Questions people ask a search engine, answered with today's numbers (shown on the page and as FAQPage data)
         qa = [("Will petrol prices go up or down this week in Sydney?", f"{self.outlook(f0)} Bowser’s call today: {(v or 'no call').lower()}.")]
         if all(num(r.get(k)) for k in ("d1", "lo1", "hi1")):
@@ -1474,6 +1481,122 @@ class Site:
         self.page("404.html", "404", "/404", "Page not found | Bowser", "This page isn’t on Bowser.", "\n".join(body), index=False, root="/")
 
     # ---- guides that answer one question each (docs/SEO.md keyword map)
+    # ---- weekly outlooks (weekly.py): one dated page per saved week, the archive, and last week's result on the forecast page
+    @staticmethod
+    def week_title(w):
+        d = dt.date.fromisoformat(w["week"])
+        return f"Sydney fuel price outlook, week of {d.day} {d:%b %Y}"
+
+    @staticmethod
+    def _main(w):
+        live = {r["fuel"]: r for r in w["live"]}
+        return live.get("U91") or w["live"][0]
+
+    def last_week(self, up):
+        """The forecast page's "last week, scored" block: the newest week whose 7 days are known."""
+        if not self.weeks: return []
+        done = [w for w in self.weeks if w.get("done") and "actual" in (w["score"][self._main(w)["fuel"]].get("h7") or {})]
+        if not done:
+            return [f'<p class="small">Each week’s outlook is saved and scored a week later: <a href="{up}fuel-price-forecast/weekly/">weekly outlooks</a>.</p>']
+        w = done[-1]; r = self._main(w); f = r["fuel"]; sc = w["score"][f]; h7, c = sc["h7"], sc["call"]
+        move = "held about steady" if abs(h7["change"]) < 1 else f"{'risen' if h7['change'] > 0 else 'fallen'} {cents(h7['change'])}"
+        exp = "little change" if abs(r["d7"]) < 1 else f"{'a rise' if r['d7'] > 0 else 'a fall'} of about {cents(r['d7'])}"
+        res = {"right": "right", "close": "close", "wrong": "wrong"}.get(c["status"])
+        return ["<h2>Last week’s outlook, scored</h2>",
+                f"<p>On {esc(long_date(w['asof']))}, Bowser expected {exp} in the Sydney {esc(NAME[f])} median over the week. By {esc(short_date(h7['day']))} it had {move}, to {c1(h7['actual'])}c: "
+                f"{'inside' if h7['inside'] else 'outside'} the likely range"
+                + (f", {abs(h7['err']):.1f}c from the forecast." if abs(h7['err']) >= 0.5 else ", within half a cent of the forecast.")
+                + (f" The call that morning, “{esc(c['head'] or WCALL.get(c['cls'], ''))}”, was <b>{res}</b>." if res else "")
+                + f' <a href="{up}fuel-price-forecast/{w["week"]}/">That week’s outlook</a> · <a href="{up}fuel-price-forecast/weekly/">every week so far</a></p>']
+
+    def week_page(self, w, prev, nxt):
+        path = f"fuel-price-forecast/{w['week']}/"; up = "../../"
+        r0 = self._main(w); f0 = r0["fuel"]; sc0 = w["score"][f0]; c0 = sc0["call"]; h70 = sc0.get("h7")
+        head = self.week_title(w)
+        exp = "stay about where it was" if abs(r0["d7"]) < 1 else f"{'rise' if r0['d7'] > 0 else 'fall'} by about {cents(r0['d7'])}"
+        lead = (f"On {esc(long_date(w['asof']))}, Bowser expected the Sydney median {esc(NAME[f0])} price of {c1(r0['now'])}c to <b>{exp}</b> over the following week. "
+                f"Its call that morning: <b>{esc((c0['head'] or WCALL.get(c0['cls'], '')).lower())}</b>.")
+        if h70 and h70.get("missing"):
+            lead += " There is no Sydney median on record for the day a week later."
+        elif h70:
+            lead += (f" A week later the median was {c1(h70['actual'])}c ({'+' if h70['change'] >= 0 else '−'}{abs(h70['change']):.1f}c), "
+                     f"{'inside' if h70['inside'] else 'outside'} the likely range.")
+        else:
+            lead += f" It is scored once {esc(short_date((dt.date.fromisoformat(w['asof']) + dt.timedelta(days=7)).isoformat()))} is over."
+        rng = lambda r, h: f"{r['now'] + r[f'lo{h}']:.0f}–{r['now'] + r[f'hi{h}']:.0f}"
+        fuels = [r for f in FUELS for r in w["live"] if r["fuel"] == f]
+        out_rows = "".join(
+            f'<tr><td>{esc(NAME[r["fuel"]])}</td><td class="n">{c1(r["now"])}</td><td class="n">{c1(r["now"] + r["d7"])}<br><span class="small">{rng(r, 7)}</span></td>'
+            f'<td class="n">{c1(r["now"] + r["d14"])}<br><span class="small">{rng(r, 14)}</span></td><td class="n">{"under 5%" if r["p_jump7"] < 0.05 else pct0(r["p_jump7"])}</td>'
+            f'<td>{esc((w["score"][r["fuel"]]["call"]["head"] or "").lower() or WCALL.get(w["score"][r["fuel"]]["call"]["cls"], ""))}</td></tr>' for r in fuels)
+        def landed(r, h):
+            x = w["score"][r["fuel"]].get(f"h{h}")
+            if x and x.get("missing"): return '<span class="small">no median that day</span>'
+            if not x: return f'<span class="small">due {esc(short_date((dt.date.fromisoformat(w["asof"]) + dt.timedelta(days=h)).isoformat()))}</span>'
+            return (f'{c1(x["actual"])} ({"+" if x["change"] >= 0 else "−"}{abs(x["change"]):.1f}c)<br><span class="small">'
+                    f'{"in range" if x["inside"] else "outside the range"}, {"+" if x["err"] >= 0 else "−"}{abs(x["err"]):.1f}c vs forecast</span>')
+        land_rows = "".join(f'<tr><td>{esc(NAME[r["fuel"]])}</td><td class="n">{landed(r, 7)}</td><td class="n">{landed(r, 14)}</td></tr>' for r in fuels)
+        def call_cell(r):
+            c = w["score"][r["fuel"]]["call"]
+            if c["status"] == "pending": return '<td class="n">–</td><td>Pending</td>'
+            return f'<td class="n">{"+" if c["move"] >= 0 else "−"}{abs(c["move"]):.1f}c</td><td>{esc(c["status"].capitalize())}</td>'
+        call_rows = "".join(f'<tr><td>{esc(NAME[r["fuel"]])}</td><td>{esc(WCALL.get(w["score"][r["fuel"]]["call"]["cls"], "").capitalize())}</td>{call_cell(r)}</tr>' for r in fuels)
+        links = [f'<a href="{up}fuel-price-forecast/{prev["week"]}/">‹ Week of {esc(short_date(prev["week"]))}</a>' if prev else "",
+                 f'<a href="{up}fuel-price-forecast/weekly/">All weeks</a>',
+                 f'<a href="{up}fuel-price-forecast/{nxt["week"]}/">Week of {esc(short_date(nxt["week"]))} ›</a>' if nxt else "",
+                 f'<a href="{up}fuel-price-forecast/">This week’s forecast</a>']
+        trk = f'<a href="{up}fuel-price-forecast/accuracy/">track record</a>' if self.has_acc else "track record"
+        body = [f"<h1>{esc(head)}</h1>", f'<p class="lead">{lead}</p>',
+                f'<p class="small">Saved {esc(long_date(w["asof"]))} and never revised. Sydney median prices in cents a litre; the range is where Bowser expected the price to land about 8 times in 10.</p>',
+                "<h2>The outlook that week</h2>",
+                '<div class="scroll"><table><thead><tr><th>Fuel</th><th class="n">Then</th><th class="n">In 7 days</th><th class="n">In 14 days</th><th class="n">Jump chance</th><th>Call</th></tr></thead><tbody>'
+                + out_rows + "</tbody></table></div>",
+                "<h2>Where the price landed</h2>",
+                "<p>The Sydney median at the end of the day 7 and 14 days later, against the price the outlook started from: inside or outside the likely range, and how far from the forecast.</p>",
+                '<div class="scroll"><table><thead><tr><th>Fuel</th><th class="n">7 days later</th><th class="n">14 days later</th></tr></thead><tbody>' + land_rows + "</tbody></table></div>",
+                "<h2>The call</h2>",
+                f'<p>Scored the way every call in the {trk} is: the average Sydney median over the 7 days after the call against the price it was made with. '
+                "<b>Fill now</b> is right if that rose 1c or more, <b>wait</b> if it fell 1c or more, <b>no rush</b> if it moved under 3c. "
+                "So a call can be right while the price ends outside the range, or the other way round: they measure different things.</p>",
+                '<div class="scroll"><table><thead><tr><th>Fuel</th><th>Call</th><th class="n">Week’s average vs then</th><th>Result</th></tr></thead><tbody>' + call_rows + "</tbody></table></div>",
+                '<p class="row">' + " ".join(x for x in links if x) + "</p>", self.sources_p()]
+        lastmod = w.get("scored") or w["asof"]
+        d = (f"Bowser’s Sydney fuel price outlook saved {short_date(w['asof'])} {w['asof'][:4]}: the call, the 7 and 14-day forecast with ranges"
+             + (", and how it turned out." if h70 else ". Scored a week later."))
+        art = {**self._art(path, head, d), "datePublished": w["asof"], "dateModified": lastmod}
+        dd = dt.date.fromisoformat(w["week"])
+        title = f"Sydney fuel outlook, week of {dd.day} {dd:%b %Y}" + (", scored" if h70 else "") + " | Bowser"   # under 70 characters
+        self.page(path, "week", "/fuel-price-forecast/:week/", title, d, "\n".join(body),
+                  crumbs=[("Forecast", "fuel-price-forecast/"), ("Weekly", "fuel-price-forecast/weekly/"), (short_date(w["week"]), path)],
+                  ld=[art], priority=0.4, index=bool(w.get("done")), lastmod=lastmod)
+
+    def weekly_pages(self):
+        if not self.weeks: return
+        ws = self.weeks
+        for i, w in enumerate(ws): self.week_page(w, ws[i - 1] if i else None, ws[i + 1] if i + 1 < len(ws) else None)
+        up = "../../"; path = "fuel-price-forecast/weekly/"
+        def row(w):
+            r = self._main(w); sc = w["score"][r["fuel"]]; h7, c = sc.get("h7"), sc["call"]
+            sg = lambda v: f"{'+' if v >= 0 else '−'}{abs(v):.1f}c"
+            actual = sg(h7["change"]) if h7 and "change" in h7 else "–"
+            return (f'<tr><td><a href="{up}fuel-price-forecast/{w["week"]}/">{esc(short_date(w["week"]))} {w["week"][:4]}</a></td><td class="n">{c1(r["now"])}</td>'
+                    f'<td class="n">{sg(r["d7"])}</td><td class="n">{actual}</td>'
+                    f'<td>{esc(WCALL.get(c["cls"], "").capitalize())}</td><td>{esc(c["status"].capitalize())}</td></tr>')
+        head = "Sydney fuel price outlooks, week by week"
+        body = [f"<h1>{head}</h1>",
+                '<p class="lead">Each week Bowser saves the forecast it published on its first run of the week (normally early Monday), and scores it once the week is over: where the price landed against the forecast, and whether the fill-or-wait call was right.</p>',
+                '<p class="small">Unleaded 91, Sydney median, cents a litre. Each week’s page has every fuel. Nothing is revised after it is saved.</p>',
+                '<div class="scroll"><table><thead><tr><th>Week of</th><th class="n">Price then</th><th class="n">Expected in 7 days</th><th class="n">Actual</th><th>Call</th><th>Result</th></tr></thead><tbody>'
+                + "".join(row(w) for w in reversed(ws)) + "</tbody></table></div>",
+                f'<p>See <a href="{up}fuel-price-forecast/">this week’s forecast</a>'
+                + (f' and <a href="{up}fuel-price-forecast/accuracy/">the full track record</a>, replayed back to 2021' if self.has_acc else "") + ".</p>", self.sources_p()]
+        d = "Every weekly Sydney fuel price outlook Bowser has saved, and how each turned out: the forecast against the price, and the fill-or-wait call."
+        done = [w for w in ws if w.get("done")]
+        lastmod = max((w.get("scored") or w["asof"]) for w in ws)
+        self.page(path, "weekly", "/fuel-price-forecast/weekly/", "Sydney fuel price outlooks, week by week | Bowser", d, "\n".join(body),
+                  crumbs=[("Forecast", "fuel-price-forecast/"), ("Weekly", path)], ld=[{**self._art(path, head, d), "datePublished": ws[0]["asof"], "dateModified": lastmod}],
+                  priority=0.5, index=bool(done), lastmod=lastmod)
+
     def _art(self, path, head, desc):
         return {"@context": "https://schema.org", "@type": "Article", "headline": head, "description": desc,
                 "datePublished": PUBLISHED, "dateModified": self.asof, "mainEntityOfPage": f"{self.site}/{path}", "image": f"{self.site}/og.png",
@@ -1961,6 +2084,7 @@ class Site:
                   f"- [The Sydney petrol price cycle]({u}/petrol-price-cycle/): how the cycle works, how long it is each year, and where it is now.",
                   f"- [Bowser and NSW FuelCheck]({u}/nsw-fuelcheck/): what FuelCheck is and what Bowser adds to it.",
                   *([f"- [How accurate the forecast is]({u}/fuel-price-forecast/accuracy/): the fill-or-wait call replayed on every day since 2021, live calls, and the error against assuming no change."] if self.has_acc else []),
+                  *([f"- [Weekly outlooks]({u}/fuel-price-forecast/weekly/): each week's saved forecast for every fuel (normally Monday's), and how it turned out a week and two weeks later."] if any(w.get("done") for w in self.weeks) else []),
                   *([f"- [Best day to buy petrol in Sydney]({u}/best-day-to-buy-petrol/): the price on each weekday since 2019 (cheapest and dearest {max(self.stats['dow']) - min(self.stats['dow']):.1f}c apart) and what matters instead."] if self.has_best else []),
                   *([f"- [Petrol prices at Christmas]({u}/petrol-prices-christmas/): what the Sydney price did over each Christmas since {self.xmas[0]['year']}, and this year's outlook."] if self.xmas else []),
                   f"- [Prices by brand]({u}/brands/): 7-Eleven, Ampol, BP, Shell, Costco and others compared.",
@@ -2059,11 +2183,11 @@ def clear(out):
         if os.path.exists(os.path.join(out, f)): os.remove(os.path.join(out, f))
 
 
-def build(out, stations, forecast, history=None, details=None, track=None, site=SITE, static=None):
+def build(out, stations, forecast, history=None, details=None, track=None, site=SITE, static=None, weekly=None):
     """Write every search page under `out`. Returns {"pages": n, "stations": n, "suburbs": n}. Raises on bad input:
     the caller (export_api.py) then clears the pages and publishes the rest of the site without them."""
     clear(out)
-    S = Site(out, stations, forecast, history, details, track, site)
+    S = Site(out, stations, forecast, history, details, track, site, weekly)
     if len(S.st) < 1 or "U91" not in S.live: raise ValueError(f"search pages: {len(S.st)} stations, fuels {sorted(S.live)}")
     S.hub()
     for f in FUELS:
@@ -2073,6 +2197,11 @@ def build(out, stations, forecast, history=None, details=None, track=None, site=
     S.station_index()
     for s in S.st: S.station(s)
     S.brand_pages(); S.guides()
+    try:
+        S.weekly_pages()
+    except Exception as e:   # a weekly page bug drops those pages only, never the rest of the site
+        print(f"seo_pages: WARNING weekly outlook pages skipped: {type(e).__name__}: {e}")
+        S.urls = [u for u in S.urls if not u[0].startswith("fuel-price-forecast/") or u[0].count("/") < 2 or u[0] == "fuel-price-forecast/accuracy/"]
     if S.has_acc: S.accuracy()
     if S.has_best: S.best_day()
     if S.xmas: S.christmas()
