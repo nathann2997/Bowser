@@ -38,7 +38,7 @@ SHORT = {"U91": "U91", "E10": "E10", "P95": "95", "P98": "98", "DL": "Diesel"}
 FSLUG = {"U91": "unleaded-91", "E10": "e10", "P95": "premium-95", "P98": "premium-98", "DL": "diesel"}
 TONE = {"now": "act", "by": "act", "wait": "wait", "hi": "wait", "up": "act", "down": "wait"}   # anything else: calm
 OWN = ["fuel-prices", "station", "brands", "fuel-price-forecast", "petrol-price-cycle", "best-day-to-buy-petrol", "petrol-prices-christmas",
-       "petrol-deals-sydney", "7-eleven-fuel-price-lock", "woolworths-fuel-discount", "coles-fuel-docket", "nsw-fuelcheck", "about", "privacy"]
+       "petrol-deals-sydney", "7-eleven-fuel-price-lock", "woolworths-fuel-discount", "coles-fuel-docket", "nsw-fuelcheck", "about", "privacy", "badge"]
 DOW = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 STATIC = ["favicon.svg", "apple-touch-icon.png", "og.png"]
 TANK = 50                                           # litres, for "a fill costs"
@@ -48,6 +48,7 @@ DEAD = 30                                           # every price older than thi
 PUBLISHED = "2026-11-17"                            # when the guides first went up (Article datePublished)
 # IndexNow (Bing, Yandex, Seznam, Naver; Bing feeds ChatGPT search and Copilot): the key is public by design, served at
 # /{key}.txt to prove the site is ours. indexnow.py submits the pages whose sitemap date changed after each deploy.
+JUMP_LIKELY = 0.35                                  # U91 p_jump7 from which the cycle stage is "A jump looks likely soon"
 INDEXNOW_KEY = "e102a05131cbd86e3a6af62c8547639e"
 LOCAL_KM = 25                                       # "nearby" for a station outside Sydney and its regions: its local median
 # On the day of a cycle jump (8c+), the share of Sydney stations that had raised their price by each time of day, 2025-26.
@@ -200,7 +201,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;fl
 .logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;color:var(--fg);text-decoration:none;letter-spacing:-.3px}.logo svg{width:24px;height:24px}
 nav{display:flex;gap:4px 16px;flex-wrap:wrap;font-size:14px;font-weight:600}nav a{text-decoration:none}nav a:hover{text-decoration:underline}
 .crumbs{font-size:13px;color:var(--muted)}.crumbs a{color:var(--muted)}
-.lead{font-size:18px;color:var(--fg)}.small{font-size:13px;line-height:1.45;color:var(--muted)}
+.lead{font-size:18px;color:var(--fg)}.badge img{max-width:100%;height:auto}pre{white-space:pre-wrap;word-break:break-all;background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:13px;line-height:1.5}code{font-size:13px;word-break:break-all}.small{font-size:13px;line-height:1.45;color:var(--muted)}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 .eyebrow{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
@@ -316,6 +317,96 @@ def chart(series, lo, hi, labels, alt, band=None):
                 run = []
     out.append(f'<text x="{L}" y="{H - 5}">{esc(labels[0])}</text><text x="{W - R}" y="{H - 5}" text-anchor="end">{esc(labels[1])}</text></svg>')
     return "".join(out)
+
+
+def cycle_stage(stats, fc_asof, live):
+    """Where Sydney is in its price cycle: (days since the last jump, the usual gap, a short label, its tone, a sentence), or
+    None. The cycle page, the forecast page, the badge (badge_svg) and the news-pitch trigger (docs/OUTREACH.md) all use it."""
+    S = stats or {}; last, gap = S.get("last_restore"), S.get("cycle_gap_calm")
+    if not isinstance(last, str) or not num(gap) or gap <= 0: return None
+    try: since = (dt.date.fromisoformat(fc_asof) - dt.date.fromisoformat(last)).days
+    except (TypeError, ValueError): return None
+    if since < 0: return None
+    pj = ((live or {}).get("U91") or {}).get("p_jump7")
+    quiet = num(pj) and pj < 0.2
+    if num(pj) and pj >= JUMP_LIKELY:
+        head, tone, txt = "A jump looks likely soon", "act", f"the forecast puts the chance of a 5c-plus jump within a week at about {pj:.0%}, so fill up before it comes"
+    elif since <= 7:
+        head, tone, txt = "Near the top", "act", "a jump has just happened, so prices are near the top of the cycle; buy as little as you can and wait for them to ease"
+    elif since < 0.75 * gap:
+        head, tone, txt = "Falling", "wait", "prices are in the slow slide that follows a jump, which usually rewards waiting"
+    elif since <= 1.25 * gap:
+        head, tone, txt = "Late in the cycle", "calm", "a jump is due by the usual timing" + (", but the forecast sees little sign of one this week" if quiet else "")
+    else:
+        head, tone, txt = "Running long", "calm", ("this cycle has lasted longer than usual" +
+                                                   (", and the forecast still sees little sign of a jump this week" if quiet else ", so a jump could come at any time"))
+    return since, gap, head, tone, txt
+
+
+# ---- The embeddable badge (docs/OUTREACH.md): an image other sites show, linking to the cycle page. Its address never
+# changes and never 404s: export_api.py writes it after the pages, apart from them, and writes BADGE_FALLBACK if it fails.
+BADGE_PATH = "badge/sydney.svg"
+BADGE_W, BADGE_H = 360, 104
+BADGE_TONE = {"act": ("#fff3d6", "#7a4a00", "#e89a00"), "wait": ("#e4eefa", "#1b5799", "#1d62b5"), "calm": ("#eceeea", "#3d4246", "#8a9096")}
+BADGE_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+
+
+def _badge(head, line, tone, title):
+    """The badge's SVG: fixed colours (it sits on other sites' pages, light or dark), system fonts, every text escaped,
+    no script, no links, nothing fetched. A long head is narrowed to fit rather than run off the edge."""
+    bg, fg, bar = BADGE_TONE.get(tone, BADGE_TONE["calm"])
+    head, line, title = (re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(v)) for v in (head, line, title))   # not allowed in XML
+    x, room = 66, BADGE_W - 66 - 12
+    fs = 21
+    while fs > 14 and len(head) * fs * 0.58 > room: fs -= 1
+    fit = f' textLength="{room}" lengthAdjust="spacingAndGlyphs"' if len(head) * fs * 0.58 > room else ""
+    mark = MARK.replace('viewBox="9 9 82 82" aria-hidden="true"', 'x="14" y="26" width="40" height="40" viewBox="9 9 82 82"')
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{BADGE_W}" height="{BADGE_H}" viewBox="0 0 {BADGE_W} {BADGE_H}" role="img" aria-label="{esc(title)}">'
+            f"<title>{esc(title)}</title>"
+            f'<rect x=".5" y=".5" width="{BADGE_W - 1}" height="{BADGE_H - 1}" rx="10" fill="#ffffff" stroke="#e2e3df"/>'
+            f'<rect x="1" y="1" width="6" height="{BADGE_H - 2}" rx="3" fill="{bar}"/>'
+            f'<rect x="10" y="22" width="48" height="48" rx="10" fill="{bg}"/>{mark}'
+            f'<g font-family="{BADGE_FONT}">'
+            f'<text x="{x}" y="24" font-size="11" font-weight="600" letter-spacing=".6" fill="#6f7479">SYDNEY PETROL PRICE CYCLE</text>'
+            f'<text x="{x}" y="50" font-size="{fs}" font-weight="700" fill="{fg}"{fit}>{esc(head)}</text>'
+            f'<text x="{x}" y="70" font-size="12.5" fill="#45494d">{esc(line)}</text>'
+            f'<text x="{x}" y="92" font-size="10.5" fill="#6f7479"><tspan font-weight="700" fill="#141618">Bowser</tspan> · checkbowser.app · Data: NSW FuelCheck</text>'
+            "</g></svg>")
+
+
+BADGE_FALLBACK = _badge("See today’s cycle stage", "Updated several times a day", "calm", "Sydney petrol price cycle, from Bowser")
+
+
+def badge_svg(forecast):
+    """Today's badge from forecast.json: the cycle stage (cycle_stage, as on the cycle page) and the day it is for, so a
+    stalled feed shows its own age. Without a stage, Bowser's U91 call; without either, BADGE_FALLBACK."""
+    live = {r["fuel"]: r for r in forecast.get("live") or [] if isinstance(r, dict) and r.get("fuel")}
+    fa = forecast.get("asof")
+    day = short_date(fa) if isinstance(fa, str) and fa else None
+    st = cycle_stage(forecast.get("stats") if isinstance(forecast.get("stats"), dict) else {}, fa, live)
+    if st and day:
+        since, gap, head, tone, _ = st
+        when = "A jump began today" if since == 0 else f"Day {since} since the last jump"
+        return _badge(head, f"{when} · {day}", tone, f"Sydney petrol price cycle, {day}: {head}. {when}. From Bowser.")
+    v = (live.get("U91") or {}).get("verdict") or {}
+    if day and isinstance(v.get("head"), str) and v["head"].strip():
+        head = v["head"].strip()
+        if len(head) > 40: head = head[:39].rsplit(" ", 1)[0] + "…"
+        return _badge(head, f"Bowser’s call for Unleaded 91 · {day}", TONE.get(v.get("cls"), "calm"), f"Bowser’s call for Sydney Unleaded 91, {day}: {head}.")
+    return BADGE_FALLBACK
+
+
+def write_badge(out, forecast):
+    """Write OUT/badge/sydney.svg: today's badge, or BADGE_FALLBACK if anything about today's goes wrong. Never raises
+    for bad data; returns True for today's, False for the fallback."""
+    try: svg, ok = badge_svg(forecast), True
+    except Exception as e:
+        print(f"seo_pages: WARNING badge fallback: {type(e).__name__}: {e}")
+        svg, ok = BADGE_FALLBACK, False
+    dest = os.path.join(out, BADGE_PATH)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest, "w", encoding="utf-8") as fh: fh.write(svg)
+    return ok and svg != BADGE_FALLBACK
 
 
 class Site:
@@ -522,24 +613,7 @@ class Site:
 
     def stage(self):
         """Where Sydney is in its price cycle: (days since the last jump, the usual gap, a short label, its tone, a sentence), or None."""
-        S = self.stats; last, gap = S.get("last_restore"), S.get("cycle_gap_calm")
-        if not isinstance(last, str) or not num(gap) or gap <= 0: return None
-        try: since = (dt.date.fromisoformat(self.fc_asof) - dt.date.fromisoformat(last)).days
-        except ValueError: return None
-        pj = (self.live.get("U91") or {}).get("p_jump7")
-        quiet = num(pj) and pj < 0.2
-        if num(pj) and pj >= 0.35:
-            head, tone, txt = "A jump looks likely soon", "act", f"the forecast puts the chance of a 5c-plus jump within a week at about {pj:.0%}, so fill up before it comes"
-        elif since <= 7:
-            head, tone, txt = "Near the top", "act", "a jump has just happened, so prices are near the top of the cycle; buy as little as you can and wait for them to ease"
-        elif since < 0.75 * gap:
-            head, tone, txt = "Falling", "wait", "prices are in the slow slide that follows a jump, which usually rewards waiting"
-        elif since <= 1.25 * gap:
-            head, tone, txt = "Late in the cycle", "calm", "a jump is due by the usual timing" + (", but the forecast sees little sign of one this week" if quiet else "")
-        else:
-            head, tone, txt = "Running long", "calm", ("this cycle has lasted longer than usual" +
-                                                       (", and the forecast still sees little sign of a jump this week" if quiet else ", so a jump could come at any time"))
-        return since, gap, head, tone, txt
+        return cycle_stage(self.stats, self.fc_asof, self.live)
 
     def stage_card(self):
         st = self.stage()
@@ -678,7 +752,7 @@ class Site:
 <footer>
 <nav aria-label="Fuels">{fuels}</nav>
 <nav aria-label="Guides">{guides}</nav>
-<nav aria-label="More"><a href="{up}fuel-prices/">Sydney fuel prices</a><a href="{up}station/">All stations</a><a href="{up}nsw-fuelcheck/">About NSW FuelCheck</a><a href="{up}about/">About Bowser</a><a href="{up}privacy/">Privacy</a></nav>
+<nav aria-label="More"><a href="{up}fuel-prices/">Sydney fuel prices</a><a href="{up}station/">All stations</a><a href="{up}nsw-fuelcheck/">About NSW FuelCheck</a><a href="{up}badge/">Free badge for your site</a><a href="{up}about/">About Bowser</a><a href="{up}privacy/">Privacy</a></nav>
 <div>{SOURCES}</div>
 <div>Prices as reported to FuelCheck for {esc(self.day)}; a station can change its price at any time, so check the board before you fill. Forecasts are estimates for planning, not financial advice.</div>
 <div>Visits are counted anonymously: no cookies, and never your location, your area or your IP address.</div>
@@ -1351,7 +1425,8 @@ class Site:
                         f"(on {esc(short_date(S['high_date']))} {S['high_date'][:4]}).</p>")
         body += ["<h2>Do other fuels follow the cycle?</h2>",
                  "<p>E10, Premium 95 and Premium 98 move with Unleaded 91, a fixed step above or below it at most stations. Diesel does not cycle: it has no sudden jumps and slow slides. It follows the wholesale price, "
-                 f'which can still carry it a long way over a few weeks when oil moves. See the <a href="{up}fuel-prices/diesel/">Sydney diesel price</a> and today’s call for it.</p>', self.sources_p()]
+                 f'which can still carry it a long way over a few weeks when oil moves. See the <a href="{up}fuel-prices/diesel/">Sydney diesel price</a> and today’s call for it.</p>',
+                 f'<p class="small">Run a local news or community site? <a href="{up}badge/">Show where Sydney is in the cycle on it</a>, free, with a small image that updates itself.</p>', self.sources_p()]
         t = "Sydney petrol price cycle today: where are we now? | Bowser"
         d = (f"Where Sydney is in its petrol price cycle on {self.sday}"
              + (f": the last jump began {short_date(last)}, and jumps come about every {gap:.0f} days" if last and num(gap) else "")
@@ -2053,6 +2128,44 @@ class Site:
         self.page(path, "docket", "/" + path, t, desc, "\n".join(x for x in body if x),
                   crumbs=[("Fuel discounts", "petrol-deals-sydney/"), (title_h, path)], ld=[self._art(path, h1, desc), fq_ld], priority=0.7)
 
+    def badge_page(self):
+        """/badge/: the embeddable cycle-stage badge, a preview and the code to copy. The image itself is written apart
+        (write_badge, from export_api.py), so a failed page build never takes it down on the sites that show it."""
+        img = f"{self.site}/{BADGE_PATH}"
+        alt = "Where Sydney is in the petrol price cycle today, from Bowser"
+        code = (f'<a href="{self.site}/petrol-price-cycle/" title="Sydney petrol price cycle today">'
+                f'<img src="{img}" width="{BADGE_W}" height="{BADGE_H}" alt="{alt}" loading="lazy"></a>')
+        st = self.stage()
+        now = f" Today it says <b>{esc(st[2])}</b>: day {st[0]} since the last price jump." if st else ""
+        body = ["<h1>A free Sydney petrol price badge for your website</h1>",
+                '<p class="lead">Show your readers where Sydney is in its petrol price cycle, today, with a small image that updates itself. '
+                "Free for news sites, community pages, car clubs and blogs.</p>",
+                f'<p class="badge"><img src="sydney.svg" width="{BADGE_W}" height="{BADGE_H}" alt="{esc(alt)}"></p>',
+                f"<p>{now.strip()}</p>" if now else "",
+                "<h2>Add it to your site</h2>",
+                "<p>Copy this into your page’s HTML, where you want the badge to appear:</p>",
+                f"<pre><code>{esc(code)}</code></pre>",
+                "<p>It is a plain image in a link: no script, no cookies, no tracking, and nothing that slows your page. "
+                f"It works anywhere you can add HTML or an image with a link (on a site that only takes an image address, use <code>{esc(img)}</code> "
+                f'and link it to <code>{esc(self.site)}/petrol-price-cycle/</code>).</p>',
+                "<h2>What it shows</h2>",
+                "<p>Sydney petrol prices move in a cycle: a sudden jump of 15c a litre or more, then weeks of slow falls. The badge says which part of it Sydney is in, "
+                "from the same figures as the <a href=\"../petrol-price-cycle/\">price cycle page</a>:</p>",
+                "<ul><li><b>A jump looks likely soon</b>: Bowser’s forecast puts the chance of a 5c-plus jump within a week at 35% or more.</li>"
+                "<li><b>Near the top</b>: a jump began within the last week.</li>"
+                "<li><b>Falling</b>: the slow slide after a jump, when waiting usually pays.</li>"
+                "<li><b>Late in the cycle</b>: a jump is due by the usual timing.</li>"
+                "<li><b>Running long</b>: this cycle has lasted longer than usual.</li></ul>",
+                "<p>It is rebuilt several times a day and shows the day it is for, so readers can see it is current. "
+                "If the cycle stage can’t be worked out, it shows Bowser’s call for Unleaded 91 instead.</p>",
+                "<h2>Terms</h2>",
+                "<p>Free to use, with no sign-up. Please keep the link and the credit on the image: prices come from NSW FuelCheck "
+                "(© State of New South Wales, NSW Fair Trading, CC BY-SA 3.0 AU) and the stage is Bowser’s own estimate, for planning, not financial advice. "
+                f"Questions, or want a different size? Email {CONTACT}.</p>", self.sources_p()]
+        self.page("badge/", "badge", "/badge/", "Free Sydney petrol price badge for your website | Bowser",
+                  "A free image for news and community sites that shows where Sydney is in its petrol price cycle today. No script, no tracking; updates itself.",
+                  "\n".join(b for b in body if b), crumbs=[("Badge", "badge/")], priority=0.3)
+
     def finish(self):
         """robots.txt, sitemap.xml (the dashboard's address first) and llms.txt (a plain summary for AI assistants)."""
         rules = "Allow: /\nDisallow: /api/v1/station/\n"   # the per-station JSON files are the app's, one per station page here
@@ -2087,6 +2200,7 @@ class Site:
                   *([f"- [Weekly outlooks]({u}/fuel-price-forecast/weekly/): each week's saved forecast for every fuel (normally Monday's), and how it turned out a week and two weeks later."] if any(w.get("done") for w in self.weeks) else []),
                   *([f"- [Best day to buy petrol in Sydney]({u}/best-day-to-buy-petrol/): the price on each weekday since 2019 (cheapest and dearest {max(self.stats['dow']) - min(self.stats['dow']):.1f}c apart) and what matters instead."] if self.has_best else []),
                   *([f"- [Petrol prices at Christmas]({u}/petrol-prices-christmas/): what the Sydney price did over each Christmas since {self.xmas[0]['year']}, and this year's outlook."] if self.xmas else []),
+                  f"- [Free cycle-stage badge]({u}/badge/): an image for other websites showing where Sydney is in its petrol price cycle today, linking back here.",
                   f"- [Prices by brand]({u}/brands/): 7-Eleven, Ampol, BP, Shell, Costco and others compared.",
                   f"- [Fuel discounts in Sydney]({u}/petrol-deals-sydney/): supermarket dockets, 7-Eleven Fuel Price Lock and codes, NRMA, seniors and Costco, with today's price at the stations that take each.",
                   *([f"- [7-Eleven Fuel Price Lock]({u}/7-eleven-fuel-price-lock/): whether to lock today, from the Sydney forecast, and how the lock works."] if self.built("lock") else []),
@@ -2206,6 +2320,7 @@ def build(out, stations, forecast, history=None, details=None, track=None, site=
     if S.has_best: S.best_day()
     if S.xmas: S.christmas()
     S.deals()
+    S.badge_page()
     S.finish()
     if static:
         for f in STATIC:

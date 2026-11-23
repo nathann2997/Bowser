@@ -2,6 +2,18 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-24 — Links: a free cycle-stage badge, the news pitch and showcase kit (roadmap item 9)
+
+- **Badge** (`seo_pages.py` `badge_svg` / `write_badge`, `export_api.py`): `https://checkbowser.app/badge/sydney.svg`, a 360 × 104 image for other sites. It shows where Sydney is in the petrol price cycle (stage, day since the last jump or "A jump began today", the day it is for) and credits "Data: NSW FuelCheck".
+  - It has fixed colours, system fonts, every text escaped, no script and no links inside the image.
+  - Without a stage it shows Bowser's U91 call; without that, a plain badge.
+  - `export_api.py` writes it after the search pages and apart from them, with a hard-coded image if even that fails, so the address never 404s on the sites that embed it.
+- **One stage for everything:** `Site.stage()` is now the module-level `cycle_stage()`. The cycle page, forecast page, badge and the pitch trigger use it. The "A jump looks likely soon" threshold is named `JUMP_LIKELY` (0.35, unchanged). A last jump dated after today now gives no stage instead of "Near the top".
+- **`/badge/` page:** a preview, the code to copy (an `<img>` in a link to `/petrol-price-cycle/`, shown escaped), what each stage means, and terms (free, keep the link and the FuelCheck credit).
+  - It's in the sitemap and `llms.txt`, linked from every page's footer and from the cycle page. Its styles are in the hashed stylesheet; no inline style or script.
+- **`docs/OUTREACH.md`:** the news pitch kit for the owner to send (the trigger is the badge's "A jump looks likely soon", a template, honesty rules, a log), and the API.NSW Showcase findings and listing text for the owner to submit (no submission route except the Support form's "Others"; best sent once the app is public on Play). Nothing is sent automatically; an automatic heads-up is an open owner decision.
+- Tests: 7 new (`test_badge.py`: the SVG parses, stage and day, "A jump began today", a long call cut at a word, the jump threshold, the U91 fallback with a hostile head escaped, the plain fallback written on bad input, long heads narrowed, the page snippet escaped, sitemap, `llms.txt` and the cycle page link).
+
 ## 2026-11-23 — Weekly outlook pages with an archive (roadmap item 7) (**live**: PR #53, `41dfb3e`, `daily-forecast` run 45179028525 saved `store/weekly/2026-11-23.json`)
 
 - **Snapshot** (`weekly.py`, called by `export_api.py`): the first successful, non-stale run of each Sydney week (Monday to Sunday) saves the forecast it published to `store/weekly/<Monday>.json` on the `data` branch: every fuel's median then, the 1/3/7/14-day change with the 80% range, the jump chance (after the floor) and the call. Saved at the very end with today's calls, so a run that fails earlier saves neither; never rewritten; nothing backfilled (the first week is the week of 23 Nov 2026). A file that doesn't read is skipped.
