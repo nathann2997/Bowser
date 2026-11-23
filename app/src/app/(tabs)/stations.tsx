@@ -8,14 +8,14 @@ import { FilterIcon, ListIcon, MapIcon } from '@/components/icons';
 import { SourceLine } from '@/components/source-line';
 import { MissingPinItem, rowKey, StationItem } from '@/components/station-row';
 import { StationMap } from '@/components/station-map';
-import { Button, Card, Disclosure, FuelChip, Loading, Screen, StaleBanner, T } from '@/components/ui';
+import { Button, Card, Chip, Disclosure, FuelBar, Loading, Screen, Sheet, StaleBanner, T } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
 import { useArea, useAreaLive } from '@/hooks/use-area';
 import { useTheme } from '@/hooks/use-theme';
 import { track, useReady } from '@/lib/analytics';
 import { useForecast, useStations } from '@/lib/api';
 import { WHEN_NOTE } from '@/lib/copy';
-import { applyFilters, brandCounts, filterCount, pinnedRows } from '@/lib/filters';
+import { applyFilters, brandCounts, filterCount, pinnedRows, RADII } from '@/lib/filters';
 import { nice, refreshedText } from '@/lib/format';
 import { areaName, rankStations } from '@/lib/geo';
 import { mapStations } from '@/lib/map';
@@ -40,6 +40,7 @@ export default function Stations() {
   useReady(!sq.isPending);
   const [editing, setEditing] = useState(false);
   const [sheet, setSheet] = useState(false);
+  const [areaSheet, setAreaSheet] = useState(false);   // the map's area bar: change the area over the map, without leaving it
   const view = MAPS_ON ? s.view : 'list';
   const openFilters = () => {
     track('filters.opened', { view });
@@ -82,6 +83,8 @@ export default function Stations() {
   // Older prices stay on the map, greyed (station-map.tsx), instead of hidden: some sites, Costco among them, report rarely
   const mapAll = useMemo(() => applyFilters(mapArea, { ...s, showStale: true }).filter((x) => x.id), [mapArea, s]);   // a tag needs an id (old caches have none)
   const mapPinned = useMemo(() => pinned.flatMap((p) => (p.row ? [p.row] : [])), [pinned]);
+  // Pinned stations that don't sell this fuel stay on the map as a grey "No U91" tag (station-map.tsx)
+  const mapUnsold = useMemo(() => pinned.flatMap((p) => (!p.row && p.station ? [p.station] : [])), [pinned]);
   const mapRows = useMemo(() => (s.pinnedOnly ? [] : mapAll.filter((x) => !pinSet.has(x.id))), [s.pinnedOnly, mapAll, pins]);   // eslint-disable-line react-hooks/exhaustive-deps
   
   const setView = (v: 'list' | 'map') => setSettings({ view: v });
@@ -118,26 +121,23 @@ export default function Stations() {
     return (
       <View style={{ flex: 1, backgroundColor: c.bg }}>
         {/* The list's header (Screen in ui.tsx) without the scroll, so switching views doesn't move it */}
-        <View style={[styles.mapHead, { paddingTop: insets.top + Spacing.four }]}>
-          <View style={styles.toolbar}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <T kind="small">{refreshedText(data.generated_at) || `Prices as of ${nice(data.asof)}`}</T>
-              <T kind="title" accessibilityRole="header">Stations</T>
-            </View>
-            <FuelChip />
-          </View>
+        {/* The fuel bar takes the title row (user feedback 2026-11: eyes go straight to the map, so the fuel chip in the
+            corner went unseen). "Refreshed" moved to the strip above the map (station-map.tsx); the tab bar names the tab. */}
+        <View style={[styles.mapHead, { paddingTop: insets.top + Spacing.three }]}>
+          <FuelBar source="map" label="Stations, fuel type" />
           <View style={styles.toolbar}>
             <Pressable
               onPress={() => {
-                setView('list');
-                setEditing(true);
+                track('area.change_opened', { view: 'map' });
+                setAreaSheet(true);
               }}
               accessibilityRole="button"
-              accessibilityLabel={`Area: ${where}${lastKnown ? ', last known location' : ''}. Change area`}
+              accessibilityLabel={`Area: ${where}${home ? `, ${s.radiusKm} kilometres` : ''}${lastKnown ? ', last known location' : ''}. Change area`}
               style={[styles.area, styles.mapArea, { backgroundColor: c.surface, borderColor: c.line }]}>
               <T color={c.fg} style={{ fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>
                 {home?.gps && !lastKnown ? '◎  ' : ''}{where}
               </T>
+              {home ? <T color={c.fg} style={{ fontWeight: '700' }}>· {s.radiusKm} km</T> : null}
               {lastKnown ? <T kind="small" color={c.muted}>last known</T> : null}
               <View style={{ flex: 1 }} />
               <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>Change</T>
@@ -160,14 +160,30 @@ export default function Stations() {
           <StationMap
             rows={mapRows}
             pinned={mapPinned}
+            unsold={mapUnsold}
             home={home}
             live={live}
             radiusKm={s.radiusKm}
             median={r?.now}
+            refreshed={refreshedText(data.generated_at) || `Prices as of ${nice(data.asof)}`}
             footer={toggle}
           />
         </View>
         {sheetEl}
+        <Sheet title="Your area" visible={areaSheet} onClose={() => setAreaSheet(false)} scroll>
+          {home ? (
+            <View style={{ gap: Spacing.two }}>
+              <T kind="eyebrow">Show within</T>
+              <View style={styles.chips}>
+                {RADII.map((k) => (
+                  <Chip key={k} label={`${k} km`} on={s.radiusKm === k} onPress={() => setSettings({ radiusKm: k })} />
+                ))}
+              </View>
+            </View>
+          ) : null}
+          {/* Radius first: picking a suburb or "Use my location" closes the sheet */}
+          <AreaPicker suburbs={data.suburbs} onDone={() => setAreaSheet(false)} />
+        </Sheet>
       </View>
     );
   }
@@ -178,7 +194,10 @@ export default function Stations() {
       title="Stations"
       subtitle={data ? refreshedText(data.generated_at) || `Prices as of ${nice(data.asof)}` : undefined}
       onRefresh={() => { sq.refetch(); fq.refetch(); }}
-      refreshing={sq.isRefetching}>
+      refreshing={sq.isRefetching}
+      fuel={false}>
+      {/* The same one-tap fuel bar as the map, so the fuel is never behind a chip on this tab */}
+      <FuelBar source="list" />
       {!data ? (
         <Loading error={sq.error} onRetry={() => sq.refetch()} />
       ) : (
@@ -307,6 +326,7 @@ const styles = StyleSheet.create({
   mapHead: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.three, gap: Spacing.three },
   mapArea: { flex: 1, paddingVertical: 0, paddingHorizontal: Spacing.three, minHeight: 44, gap: 6 },
   iconBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1, borderRadius: Radius.chip, minWidth: 44, minHeight: 44, paddingHorizontal: 12 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   toggleWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   toggle: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderRadius: Radius.chip, paddingHorizontal: 22, minHeight: 48,

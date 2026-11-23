@@ -20,6 +20,7 @@ export type EventName =
   | 'onboarding.finished'    // via: start | skip
   | 'area.set'               // source: gps | suburb
   | 'area.locate_failed'
+  | 'area.change_opened'      // view: map (the area bar over the map opens a sheet instead of leaving for the list)
   | 'settings.changed'       // keys changed, plus the new value of the non-personal ones
   | 'filters.reset'
   | 'station.pinned'
@@ -37,6 +38,7 @@ export type EventName =
   | 'app.opened'             // the one open event (PostHog's lifecycle events are off): source, cold
   | 'station.opened'         // from: list | map | fill; pinned
   | 'filters.opened'
+  | 'fuel.changed'           // fuel, source: map | list | header_chip | settings | welcome (which fuel control people use)
   | 'map.cheapest_opened'    // the "Cheapest in view" bar on the map was tapped
   | 'analytics.internal';    // this phone marked (or unmarked) as the owner's/a tester's own
 

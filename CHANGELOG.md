@@ -2,6 +2,32 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-23 — Fuel type in sight, and the map first (app and web)
+
+User feedback: changing fuel was hard to find. People look straight at the map and never see the fuel chip (app) or select (web) at the top. The owner also wants the map as the default view on both, with the list one tap away. Designed with a senior UX/UI review (spec: fuel control where the eye lands, fuel named at each point of attention, the map's area change without leaving the map).
+- **App, Stations tab (JS only, ships as an OTA at runtime 1.1.0):**
+  - A one-tap fuel bar (`FuelBar` in `components/ui.tsx`: U91 | E10 | P95 | P98 | Diesel, full width, labels capped at 1.3x font scale) replaces the map header's title row and its `U91 ▾` chip, so the header gets shorter, not taller. The bar's screen-reader label is "Stations, fuel type". "Refreshed …" moves to the strip above the map.
+  - The list view shows the same bar under its title, with no header chip.
+  - The map opens first on every launch (`normalize` ignores a saved `view`); List from the floating button lasts until the app restarts.
+  - The area bar over the map opens a "Your area" sheet (area picker and radius) instead of switching to the list (radius first, then the area picker, which closes the sheet). The bar shows the radius ("Near Ryde · 5 km").
+  - Fuel named on the map: the strip reads "42 U91 prices in view · refreshed 9:13 pm" (empty: "No P95 prices in view. Zoom out, or change fuel or filters."), the bar reads "CHEAPEST U91 IN VIEW", and the station card shows "U91 189.9". Screen-reader labels match.
+  - Today: the header chip reads "Fuel: U91 ▾"; the hero reads "Sydney U91 median …c/L"; the section is "Cheapest U91 near Ryde".
+  - Analytics: new `fuel.changed` (`fuel`, `source`: map | list | header_chip | settings | welcome) and `area.change_opened` (view: map), to see whether the new bar is what people use. A fuel change is no longer also logged as `settings.changed` (dashboards counting fuel changes there should use `fuel.changed`).
+  - Tests: the view rule's two tests now expect the map first; 454 pass, typecheck and lint clean.
+- **Web dashboard (`template.html`, live at the next pipeline run after merge):**
+  - A fuel bar (`#fuelSeg`, built with `segment()` from the fuels in `live`) is the first row of the stations card, right above the map. It and the header select go through one `setFuel(f, source)` and stay in step. `web.fuel_changed` gains `source` (header | stations).
+  - The header select lists only fuels with data today, like the bar.
+  - The map opens on every visit (no more `view2` in storage); the List | Map segmented control becomes one button that names the view it switches to, with an icon, as in the app. It is hidden when the map can't load, as before.
+  - Fuel named: "U91 prices on the map", "Cheapest U91 in view" (and its aria-label), "U91 189.9" in the station card, "Sydney U91 median" in the hero.
+  - Checked in headless Chrome with today's live data: map first, List button, fuel bar at desktop and phone widths.
+- **Pinned stations that don't sell the fuel** (Costco on U91) used to vanish from the map, which read as a bug. They now show as a grey "No U91" tag with the pin and brand, layered with the other pinned tags.
+  - App: tapping it opens the station page, which lists the fuels it sells (`NoFuelMarker`, `unsold` prop on `StationMap`).
+  - Web: tapping it opens a card, "Doesn't sell U91 · sells E10, P98", with a one-tap "Show E10 prices" per fuel it sells (`openNoFuel`, `source: map_nofuel`; new `web.map_nofuel_opened`). Checked in headless Chrome: pinned Costco Casula on U91 shows the tag; "Show E10 prices" switches the bar, the select and the map, and Costco's E10 tag replaces it.
+- **Design decisions (made as the designer, owner's delegation 2026-11-23):**
+  - The map opens first every time, not "map once, then remember": the feedback is that people look at the map first, and a remembered List after one stray tap would bring the original problem back. List is one tap and lasts the session.
+  - Build the "No U91" tag now, not later: a pin that disappears on a fuel change breaks trust in pins, and the web card turns the dead end into a one-tap fix.
+  - Not built: a floating List pill on the web map (the List button sits by the section title, where the view toggle has always been).
+
 ## 2026-11-23 — Price drop at a pinned station (roadmap item 6, P2) (**live**: PR #50, `ab2b23a`, app-ci run 45174993756, OTA group ef8abd7a on runtime 1.1.0, preview and production channels)
 
 `docs/NOTIFICATIONS_PLAN.md` P2. JS only (OTA to 1.1.0); new switch in More, **off by default**: "Price drops at pinned stations".
