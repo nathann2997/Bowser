@@ -2,7 +2,7 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
-## 2026-11-23 — Weekly outlook pages with an archive (roadmap item 7)
+## 2026-11-23 — Weekly outlook pages with an archive (roadmap item 7) (**live**: PR #53, `41dfb3e`, `daily-forecast` run 45179028525 saved `store/weekly/2026-11-23.json`)
 
 - **Snapshot** (`weekly.py`, called by `export_api.py`): the first successful, non-stale run of each Sydney week (Monday to Sunday) saves the forecast it published to `store/weekly/<Monday>.json` on the `data` branch: every fuel's median then, the 1/3/7/14-day change with the 80% range, the jump chance (after the floor) and the call. Saved at the very end with today's calls, so a run that fails earlier saves neither; never rewritten; nothing backfilled (the first week is the week of 23 Nov 2026). A file that doesn't read is skipped.
 - **Scoring**, two kinds kept apart on the pages: *the call* is taken from the track record itself (`track_api.live_calls`: the first call of that day, the same row checks, rounding and rule), so a week's verdict always matches it; the snapshot's own call only when no call was saved that day; *where the price landed* is the end-of-day Sydney median 7 and 14 days later against the snapshot's starting median: the change, the error against the forecast, inside or outside the range. A horizon is pending until its day is over; a day missing from `daily.csv` uses the nearest known day within 2, else it's marked missing, so one gap never leaves a week unscored.
