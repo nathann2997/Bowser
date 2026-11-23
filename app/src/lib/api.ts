@@ -101,6 +101,10 @@ export const useTrack = () =>
 /** NSW station codes are digits; anything else (a mistyped deep link) is never fetched */
 export const isStationId = (id: string | undefined): id is string => !!id && /^\d+$/.test(id);
 
+/** One station file, outside React (the background drop check, lib/drops.ts) */
+export const getStationDetail = (id: string) =>
+  isStationId(id) ? getJson<StationDetail>(`station/${id}`) : Promise.reject(new Error('bad station id'));
+
 export const useStationDetail = (id: string | undefined) =>
   useQuery({
     queryKey: ['station', id],

@@ -10,6 +10,7 @@ import { useSettings } from '@/lib/settings';
 import type { Forecast, Stations } from '@/lib/types';
 
 import { setWidgetDataSource } from './data';
+import { compactStations } from './logic';
 import { requestWidgetRefresh } from './render';
 
 export { requestWidgetRefresh };
@@ -23,13 +24,19 @@ export function useWidgetSync(client: QueryClient) {
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    const run = () => {
+    // A new forecast (or fuel, or the switch): in step with it, and a rise the app shows counts as seen. New stations:
+    // only a pending alert's text (the cached forecast may be yesterday's)
+    const run = (refreshOnly: boolean) => {
       const f = client.getQueryData<Forecast>(['forecast']);
-      if (f) syncAlerts(f.live, f.asof, { inApp: true });
+      const st = client.getQueryData<Stations>(['stations']);
+      const dataAt = client.getQueryState(['stations'])?.dataUpdatedAt || undefined;
+      if (f) syncAlerts(f.live, f.asof, { inApp: true, refreshOnly, stations: st ? compactStations(st).stations : undefined, dataAt });
     };
-    run();
+    run(false);
     return client.getQueryCache().subscribe((e) => {
-      if (e.type === 'updated' && e.action.type === 'success' && e.query.queryKey[0] === 'forecast') run();
+      if (e.type !== 'updated' || e.action.type !== 'success') return;
+      if (e.query.queryKey[0] === 'forecast') run(false);
+      else if (e.query.queryKey[0] === 'stations') run(true);
     });
   }, [client, s.fuel, s.alerts]);
 
@@ -59,6 +66,20 @@ export function useWidgetSync(client: QueryClient) {
 
   const homeKey = s.home ? `${s.home.la},${s.home.lo}` : '';
   const offKey = JSON.stringify(s.discounts);
+
+  // What the alert names depends on the area, radius, members, discounts, pins and tank: refresh a pending one's text
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const refresh = () => {
+      const f = client.getQueryData<Forecast>(['forecast']);
+      const st = client.getQueryData<Stations>(['stations']);
+      const dataAt = client.getQueryState(['stations'])?.dataUpdatedAt || undefined;
+      if (f) syncAlerts(f.live, f.asof, { inApp: true, refreshOnly: true, stations: st ? compactStations(st).stations : undefined, dataAt });
+    };
+    refresh();
+    const off = onPinsChange(refresh);
+    return () => void off();
+  }, [client, homeKey, s.radiusKm, s.members, offKey, s.tankL]);
   useEffect(() => {
     if (Platform.OS !== 'web') requestWidgetRefresh();
   }, [s.fuel, homeKey, s.radiusKm, s.members, offKey]);

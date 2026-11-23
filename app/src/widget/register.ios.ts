@@ -6,6 +6,8 @@ import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 
 import { syncAlerts } from '@/lib/alerts';
+import { getStationDetail } from '@/lib/api';
+import { syncDrops } from '@/lib/drops';
 import { inBackgroundTask, reportError } from '@/lib/analytics';
 
 import { pushWidgetTimeline } from './render.ios';
@@ -16,7 +18,8 @@ const MIN_INTERVAL_MIN = 4 * 60;   // same as the Android widget's updatePeriodM
 TaskManager.defineTask(REFRESH_TASK, () => inBackgroundTask(async () => {
   try {
     const snap = await pushWidgetTimeline({ allowFetch: true });
-    await syncAlerts(snap?.forecast?.live, snap?.forecast?.asof);
+    await syncAlerts(snap?.forecast?.live, snap?.forecast?.asof, { stations: snap?.stations?.stations, stationsAsof: snap?.stations?.asof, dataAt: snap?.fetchedAt });
+    await syncDrops(snap?.forecast?.live, snap?.stations?.stations, getStationDetail);
     return BackgroundTask.BackgroundTaskResult.Success;
   } catch (e) {
     console.warn('Bowser background refresh failed', e);

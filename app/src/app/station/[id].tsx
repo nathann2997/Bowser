@@ -36,7 +36,7 @@ export default function StationPage() {
   const { id, src } = useLocalSearchParams<{ id: string; src?: string }>();
   // Opened from the widget or a shared link (fuelforecast://station/<id>?src=…): in-app opens log in openStation()
   useEffect(() => {
-    if (src) track('station.opened', { from: src === 'widget' || src === 'share' ? src : 'link', pinned: isPinned(id ?? '') });
+    if (src) track('station.opened', { from: src === 'widget' || src === 'share' || src === 'alert' ? src : 'link', pinned: isPinned(id ?? '') });
   }, [src, id]);
   const c = useTheme();
   const insets = useSafeAreaInsets();

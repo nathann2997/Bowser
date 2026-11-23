@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { alertPlan, alertWorthy, setAlerts, syncAlerts } from '../alerts';
 import { cycleSummary } from '../copy';
+import { outlook } from '../outlook';
 import type { Forecast, LiveRow } from '../types';
-import { buildModel, compactForecast, compactStations, smallBottomLine, type WidgetSnapshot } from '../../widget/logic';
+import { buildModel, cheapestPick, compactForecast, compactStations, smallBottomLine, type WStation, type WidgetSnapshot } from '../../widget/logic';
 import fixture from './forecast.fixture.json';
 
 const mockStore = new Map<string, string>();
@@ -101,6 +102,64 @@ describe('rise alerts', () => {
     expect(mockNotes.scheduled).toHaveLength(0);
     expect(JSON.parse(mockStore.get('settings.v1')!).alerts).toBe(false);
     expect(await setAlerts(true)).toBe(false);
+  });
+  it('names your cheapest station, the rise size and the tank saving (v2)', () => {
+    const pick = { id: '17', name: 'Metro Ashfield', price: 228.9, yours: true };
+    const p = alertPlan(RISING, ASOF, new Date(2026, 9, 21, 6, 0), true, { pick, tankL: 50, dataAt: new Date(2026, 9, 21, 5, 10).getTime() })!;
+    expect(p.body).toBe('Sydney Unleaded 91 is likely to rise about 13c from Sat 24 Oct. Your cheapest: Metro Ashfield 228.9 (your price). Filling first saves about $6.50 on 50 L.');
+    expect(p.stationId).toBe('17');
+    // prices from last night, shown at 7:30: say when
+    const old = alertPlan(RISING, ASOF, new Date(2026, 9, 21, 6, 0), true, { pick: { ...pick, yours: false }, tankL: 50, dataAt: new Date(2026, 9, 20, 21, 5).getTime() })!;
+    expect(old.body).toContain('Your cheapest (at 9:05 pm yesterday): Metro Ashfield 228.9.');
+    // no station: as before
+    expect(alertPlan(RISING, ASOF, new Date(2026, 9, 21, 6, 0))!.body).toContain('Open Bowser for the cheapest near you.');
+    expect(alertPlan(RISING, ASOF, new Date(2026, 9, 21, 6, 0))!.stationId).toBeNull();
+    // a possible rise (not a call): no saving promised
+    const calm = row({ ...RISING, p_jump7: 0.9, verdict: { ...U91.verdict, cls: 'flat' } });
+    expect(alertPlan(calm, ASOF, new Date(2026, 9, 21, 6, 0), true, { pick, tankL: 50 })!.body).not.toContain('saves');
+  });
+  it('the tank saving is Today\'s, old prices say when, and a day-old pick is dropped', () => {
+    const odd = row({ ...RISING, d14: 12.6 });
+    const at6 = new Date(2026, 9, 21, 6, 0);
+    const save = alertPlan(odd, ASOF, at6, true, { tankL: 50 })!.body.match(/about (\$[\d.]+) on/)![1];
+    expect(outlook(odd, ASOF, 50).detail).toContain(`about ${save} on a 50 L tank`);
+    const pick = { id: '17', name: 'Metro Ashfield', price: 228.9, yours: false };
+    const old = (h: number) => alertPlan(RISING, ASOF, at6, true, { pick, dataAt: at6.getTime() + 90 * 60_000 - h * 3600_000 })!.body;
+    expect(old(10)).toContain('(at 9:30 pm yesterday)');
+    expect(old(30)).toContain('Open Bowser for the cheapest near you.');   // over a day: no price named
+    // a pending alert's own time decides
+    const p = alertPlan(RISING, ASOF, new Date(2026, 9, 21, 15, 0), false, { pick, dataAt: new Date(2026, 9, 21, 14).getTime(), at: new Date(2026, 9, 21, 15, 1) })!;
+    expect([p.at.getHours(), p.at.getMinutes()]).toEqual([15, 1]);
+    expect(p.body).not.toContain('(at');
+  });
+  it('a refresh from the app never schedules, cancels or counts as seen', async () => {
+    await setAlerts(true);
+    await syncAlerts([RISING], ASOF, { now: day(21, 10), inApp: true, refreshOnly: true });   // stations arrived first
+    expect(mockStore.get('alerts.state')).toBeUndefined();
+    await syncAlerts([RISING], ASOF, { now: day(21, 22) });                    // the background run: tomorrow 7:30
+    await syncAlerts([FLAT], ASOF, { now: day(21, 23), inApp: true, refreshOnly: true });   // yesterday's cached forecast
+    expect(JSON.parse(mockStore.get('alerts.state')!).at).toBe(new Date(2026, 9, 22, 7, 30).getTime());
+    expect(mockNotes.scheduled).toHaveLength(1);
+  });
+  it('picks the cheapest fresh pinned station, else the cheapest near home, at your price', () => {
+    const st = (id: string, price: number, age: number, extra: Partial<WStation> = {}): WStation =>
+      ({ id, n: `Station ${id}`, b: 'Metro', la: -33.88, lo: 151.13, m: 0, p: { U91: [price, age, 'ok', 'No rush', null] }, ...extra });
+    const list = [st('1', 230, 0), st('2', 225, 9), st('3', 220, 0, { la: -34.5 }), st('4', 228, 1)];
+    const prefs = { fuel: 'U91' as const, home: { la: -33.88, lo: 151.13, label: 'Ashfield' }, radiusKm: 5, members: false, discounts: { Metro: 4 } };
+    expect(cheapestPick(list, prefs, ['1', '2'])).toEqual({ id: '1', name: 'Station 1', price: 226, yours: true });   // 2 is stale
+    expect(cheapestPick(list, prefs, ['2'])!.id).toBe('4');                     // only a stale pin: nearby (3 is too far)
+    expect(cheapestPick(list, { ...prefs, discounts: {} }, [])!.yours).toBe(false);
+    expect(cheapestPick(list, { ...prefs, home: null }, [])).toBeNull();
+    expect(cheapestPick(undefined, prefs, ['1'])).toBeNull();
+  });
+  it('schedules the alert with the station to open on a tap', async () => {
+    await setAlerts(true);
+    mockStore.set('pins.v1', JSON.stringify(['9']));
+    const stations = [{ id: '9', n: 'Pinned Servo', la: -33.9, lo: 151.1, m: 0 as const, p: { U91: [231.9, 0, 'ok', 'No rush', null] as WStation['p']['U91'] } }];
+    await syncAlerts([RISING], ASOF, { now: day(21), stations: stations as WStation[], dataAt: day(21, 5).getTime() });
+    const n = mockNotes.scheduled[0] as unknown as { content: { body: string; data: { stationId: string } } };
+    expect(n.content.body).toContain('Pinned Servo 231.9');
+    expect(n.content.data.stationId).toBe('9');
   });
   it('does nothing without data (the widget task with no snapshot)', async () => {
     await setAlerts(true);
