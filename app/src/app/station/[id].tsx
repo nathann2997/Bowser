@@ -12,7 +12,7 @@ import { MapPinIcon, PumpIcon, ShareIcon } from '@/components/icons';
 import { SourceLine } from '@/components/source-line';
 import { ADVICE_TONE } from '@/components/station-row';
 import { TickerChart } from '@/components/ticker-chart';
-import { Badge, Card, Section, StaleBanner, T } from '@/components/ui';
+import { Badge, Card, CONTENT_MAX, Section, StaleBanner, T } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { track, useReady } from '@/lib/analytics';
@@ -94,27 +94,33 @@ export default function StationPage() {
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={[styles.topBar, { paddingTop: insets.top + 4, backgroundColor: c.bg, borderBottomColor: c.line }]}>
-        <IconButton label="Back" onPress={goBack}>
-          <Svg width={22} height={22} viewBox="0 0 24 24">
-            <Path d="M15 5l-7 7 7 7" stroke={c.fg} strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-        </IconButton>
-        <T numberOfLines={1} style={{ flex: 1, fontWeight: '700', fontSize: 16 }} color={c.fg}>{head ? name : ''}</T>
-        {head && id && fuel && tk?.price != null && canShare() ? (
-          <IconButton
-            label="Share this price"
-            onPress={() => shareText(dealMessage({
-              id, n: head.n, s: head.s, fuel, pump: tk.price!, median: live?.now ?? null, advice: fc?.adv[1] ?? row?.p[fuel]?.[3] ?? null,
-            }), 'deal')}>
-            <ShareIcon color={c.fg} size={22} />
+        {/* In the same column as the content on wide windows (CONTENT_MAX) */}
+        <View style={styles.topBarRow}>
+          <IconButton label="Back" onPress={goBack}>
+            <Svg width={22} height={22} viewBox="0 0 24 24">
+              <Path d="M15 5l-7 7 7 7" stroke={c.fg} strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
           </IconButton>
-        ) : null}
+          <T numberOfLines={1} style={{ flex: 1, fontWeight: '700', fontSize: 16 }} color={c.fg}>{head ? name : ''}</T>
+          {head && id && fuel && tk?.price != null && canShare() ? (
+            <IconButton
+              label="Share this price"
+              onPress={() => shareText(dealMessage({
+                id, n: head.n, s: head.s, fuel, pump: tk.price!, median: live?.now ?? null, advice: fc?.adv[1] ?? row?.p[fuel]?.[3] ?? null,
+              }), 'deal')}>
+              <ShareIcon color={c.fg} size={22} />
+            </IconButton>
+          ) : null}
+        </View>
       </View>
 
       <ScrollView
         style={{ flex: 1 }}
         scrollEnabled={!scrubbing}
-        contentContainerStyle={{ padding: Spacing.four, paddingBottom: Spacing.six + insets.bottom, gap: Spacing.five }}
+        contentContainerStyle={{
+          padding: Spacing.four, paddingBottom: Spacing.six + insets.bottom, gap: Spacing.five,
+          width: '100%', maxWidth: CONTENT_MAX + 2 * Spacing.four, alignSelf: 'center',   // a column on wide windows (ui.tsx)
+        }}
         refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={refresh} tintColor={c.muted} />}>
 
         {/* Header */}
@@ -537,7 +543,8 @@ function LoadingSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  topBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingHorizontal: Spacing.two, paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth },
+  topBar: { paddingHorizontal: Spacing.two, paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth },
+  topBarRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, width: '100%', maxWidth: CONTENT_MAX + 2 * Spacing.four, alignSelf: 'center' },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   // 14 dp sides: Map, Pinned and Filled up fit one row at 360 dp
   action: { minHeight: 46, borderWidth: 1, borderRadius: Radius.input, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
