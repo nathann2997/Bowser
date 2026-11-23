@@ -238,9 +238,21 @@ except Exception as e:
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path: sys.path.insert(0, HERE)
 seo_pages, seo_n = None, 0
+# The weekly outlook archive (weekly.py): saved snapshots plus this week's if none is saved yet (saved at the very end,
+# with today's calls, so a run that fails later saves neither; never on --allow-stale runs). Fails soft: no weekly pages.
+week_new, weeks = None, None
+try:
+    import weekly
+    week_new = None if ALLOW_STALE else weekly.pending(BASE, ctx["asof"], forecast["live"], GENERATED_AT)
+except Exception as e:
+    print(f"export_api: WARNING this week's outlook not snapshotted: {type(e).__name__}: {e}")
+try:   # scoring apart: a scoring bug costs the pages, never the snapshot (scores can be redone, snapshots can't)
+    weeks = weekly.score(BASE, weekly.load(BASE) + ([week_new] if week_new else []))
+except Exception as e:
+    print(f"export_api: WARNING weekly outlook pages unavailable: {type(e).__name__}: {e}")
 try:
     import seo_pages
-    seo = seo_pages.build(OUT, stations, forecast, history, details, track if track_txt is not None else None, static=f"{HERE}/static")
+    seo = seo_pages.build(OUT, stations, forecast, history, details, track if track_txt is not None else None, static=f"{HERE}/static", weekly=weeks)
     seo_n = seo["pages"]
     print(f"export_api: search pages {seo}")
 except Exception as e:
@@ -318,6 +330,10 @@ try:
     if new_calls: track_api.append(BASE, new_calls)   # everything is written: today's calls are now on record
 except Exception as e:
     print(f"export_api: WARNING couldn't save today's calls: {type(e).__name__}: {e}")
+try:
+    if week_new and weekly.save(BASE, week_new): print(f"export_api: weekly outlook saved for the week of {week_new['week']}")
+except Exception as e:
+    print(f"export_api: WARNING couldn't save this week's outlook: {type(e).__name__}: {e}")
 print(f"export_api: {ctx['asof']}, {len(data['stations'])} stations ({n_syd} in Sydney), " + ", ".join(f"{k} {v // 1024}KB" for k, v in files.items() if k != "station/count")
       + (f"; station files {len(sizes)}, p50 {sizes[len(sizes) // 2] // 1024}KB, max {sizes[-1] // 1024}KB" if sizes else "; NO station files")
       + (f"; WARNINGS: {warnings}" if warnings else ""))
