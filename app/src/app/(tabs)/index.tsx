@@ -21,7 +21,7 @@ import { rankStations } from '@/lib/geo';
 import { dayLabel, outlook, riseDay } from '@/lib/outlook';
 import { usePins } from '@/lib/pins';
 import { useSettings } from '@/lib/settings';
-import { marketFor } from '@/lib/market';
+import { marketNote } from '@/lib/market';
 
 export default function Today() {
   const c = useTheme();
@@ -43,8 +43,9 @@ export default function Today() {
       .filter((x) => !isStale(x.age, x.out))
       .slice(0, 3);
   }, [sq.data, home, s.fuel, s.radiusKm, s.members, s.discounts]);
-  // The area's own market when it is outside Sydney (lib/market.ts): from the nearest-cheapest rows, which share it
-  const local = best[0]?.out ? marketFor(best[0], s.fuel, null, sq.data?.regions) : null;
+  // Whose median the rows' gaps are to when it isn't only Sydney's (lib/market.ts): every row, not just the first, since
+  // near a market edge the list can mix Sydney and a region
+  const local = marketNote(best, s.fuel, r?.now, sq.data?.regions);
   const mine = useMemo(
     () => (sq.data ? pinnedRows(sq.data.stations, s.fuel, pins, home, s.discounts) : []),
     [sq.data, s.fuel, pins, home, s.discounts],
@@ -128,7 +129,9 @@ export default function Today() {
                   // Outside Sydney (e.g. Canberra) the rows' gaps are to the local median; say whose, and that the
                   // fill-or-wait card above is Sydney's
                   <T kind="small">
-                    {`Gaps are to the ${local.name} ${shortFuel(s.fuel)} median, ${local.med.toFixed(1)}c (${local.n} stations). The fill-or-wait call above is for Sydney.`}
+                    {'one' in local
+                      ? `Gaps are to the ${local.one.name} ${shortFuel(s.fuel)} median, ${local.one.med.toFixed(1)}c (${local.one.n} stations). The fill-or-wait call above is for Sydney.`
+                      : `Each gap is to the median of the station’s own area: ${local.mixed.join(', ')}. The fill-or-wait call above is for Sydney.`}
                   </T>
                 ) : null}
               </>

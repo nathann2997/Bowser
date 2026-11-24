@@ -87,7 +87,8 @@ export default function StationPage() {
   // and "Avg gap" tile, or the shared message (PM/UX decision 2026-11-24; the site's station pages already do this)
   // The gap is to the station's own market (lib/market.ts): Sydney's median in Sydney, its region's (Canberra, Newcastle…)
   // outside it, or none. The chart's median line and "Avg gap" stay Sydney-only: there is no regional median history.
-  const mkt = marketFor(out == null && !row ? null : { out, rg: row?.rg }, fuel, live?.now ?? null, sq.data?.regions);   // `rg` is on the list's row, not the station file
+  // Unknown only with neither file: the station file alone says where it is (no `out` = Sydney)
+  const mkt = marketFor(!d && !row ? null : { out, rg: row?.rg }, fuel, live?.now ?? null, sq.data?.regions);   // `rg` is on the list's row, not the station file
   const tk = d && fuel ? ticker(d, fuel, mkt?.med ?? null, listPrice) : null;
   const hasHist = !!(d && fuel && d.hist[fuel]?.some((v) => v != null));
   // The React Compiler memoizes this (and the paths in TickerChart key off its identity)

@@ -285,6 +285,7 @@ html.mapfs{overflow:hidden}
 /* A group of stations: one neutral pill, the lowest price inside it and the count in a dark dot; tapping it zooms in
    until it splits (it was a dark circle plus a "from" label under it) */
 .from{display:flex;align-items:center;gap:5px;height:26px;padding:0 3px 0 8px;border-radius:14px;border:1px solid var(--line);font:800 13px/1 var(--font);font-variant-numeric:tabular-nums;white-space:nowrap;background:var(--surface);color:var(--fg);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.from.n{padding-left:3px}
 .from i{font-style:normal;min-width:22px;height:22px;border-radius:11px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;background:var(--fg);color:var(--bg)}
 /* The bar over the map that names the cheapest station in view; selecting it opens that station */
 .bestbar{position:absolute;z-index:45;top:10px;left:10px;max-width:calc(100% - 64px);display:flex;align-items:center;gap:10px;padding:6px 10px 6px 6px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--fg);box-shadow:0 2px 8px rgba(0,0,0,.18);cursor:pointer;font:inherit;text-align:left}
@@ -692,6 +693,17 @@ function marketFor(s, med){
   const r = s.rg && D.regions ? D.regions[s.rg] : null, f = r && r.f[state.fuel];
   return f ? {med: +f[0], name: String(r.name), n: +f[1]} : null;   // numbers as numbers: they go into HTML
 }
+/** Outside Sydney (e.g. Canberra) the rows' gaps are to a local median: say whose, and that the call is Sydney's.
+ *  Looks at every row shown, not the first: near a market edge a list can mix Sydney and a region, or two regions
+ *  (app/src/lib/market.ts marketNote). Null when every gap is to Sydney's median (or there are none). */
+function marketNote(rows, med){
+  if (!rows.some(s => s.out)) return null;
+  const ms = new Map();
+  for (const s of rows) { const m = marketFor(s, med); if (m) ms.set(m.name, m); }
+  if (!ms.size || (ms.size === 1 && ms.has("Sydney"))) return null;
+  if (ms.size === 1) { const m = [...ms.values()][0]; return `Gaps are to the ${m.name} ${shortFuel(state.fuel)} median, ${m.med.toFixed(1)}c (${m.n} stations). The fill-or-wait call is for Sydney.`; }
+  return `Each gap is to the median of the station’s own area: ${[...ms.keys()].join(", ")}. The fill-or-wait call is for Sydney.`;
+}
 function stationItem(s, med, tone, where = "list"){
   const mk = marketFor(s, med);
   const name = stationName(s.n), gap = mk ? s.price - mk.med : null, stale = isOld(s, s.age), pinned = isPinned(s.i);
@@ -831,12 +843,11 @@ function renderStations(){
   oldEl.textContent = `Include ${old} old price${old===1?"":"s"}`;
   oldEl.setAttribute("aria-pressed", String(state.old));
   const tone = outlook(live[f]).tone;
-  // Outside Sydney (e.g. Canberra) the rows' gaps are to the local median: say whose, and that the call is Sydney's
-  const local = rows[0] && rows[0].out ? marketFor(rows[0], med) : null;
   const list = $("stList");
   if (rows.length) {
-    list.innerHTML = rows.slice(0, state.shown).map(s => stationItem(s, med, tone, "list")).join("")
-      + (local ? `<p class="small" style="padding:10px 16px;margin:0">Gaps are to the ${esc(local.name)} ${shortFuel(f)} median, ${(+local.med).toFixed(1)}c (${+local.n} stations). The fill-or-wait call is for Sydney.</p>` : "");
+    const shown = rows.slice(0, state.shown), note = marketNote(shown, med);
+    list.innerHTML = shown.map(s => stationItem(s, med, tone, "list")).join("")
+      + (note ? `<p class="small" style="padding:10px 16px;margin:0">${esc(note)}</p>` : "");
   } else {
     // Built as text, not HTML: the message can hold what was typed in the suburb box
     const e = document.createElement("div"); e.className = "empty";
@@ -1367,10 +1378,10 @@ function syncMap(){
   for (const f of map.querySourceFeatures("st")) {
     const q = f.properties;
     if (q.cluster) {
-      // No "from" when it would undercut the Cheapest tag: a group at the edge can hold a station just out of view
-      // A group whose lowest price would undercut the Cheapest tag shows its count only (no "from")
-      const [lo, la] = f.geometry.coordinates, min = q.min < NO_PRICE && !(best && q.min < best.price) ? q.min : null;
-      wantFrom.set(`${lo.toFixed(5)},${la.toFixed(5)}|${q.point_count}`, {lo, la, n:q.point_count, min, id:q.cluster_id});
+      // A group whose lowest price would undercut the Cheapest tag (a group at the edge can hold a station just out of
+      // view) shows its count only; "Old" is for a group with no current price at all
+      const [lo, la] = f.geometry.coordinates, old = !(q.min < NO_PRICE), min = !old && !(best && q.min < best.price) ? q.min : null;
+      wantFrom.set(`${lo.toFixed(5)},${la.toFixed(5)}|${q.point_count}`, {lo, la, n:q.point_count, min, old, id:q.cluster_id});
       continue;
     }
     const r = MD.byI.get(q.i); if (r && r.i !== bestI && pad(r)) want.set(r.i, r);
@@ -1394,7 +1405,8 @@ function syncMap(){
     // nothing. Green is for single stations. The count dot is what says "group"; the label says "from" in words.
     const el = m.getElement();
     el.dataset.id = g.id;
-    el.innerHTML = `${g.min != null ? g.min.toFixed(1) : "Old"}<i>${g.n}</i>`;
+    el.innerHTML = `${g.min != null ? (+g.min).toFixed(1) : g.old ? "Old" : ""}<i>${+g.n}</i>`;
+    el.classList.toggle("n", g.min == null && !g.old);   // count only
     el.setAttribute("aria-label", `${g.n} stations${g.min != null ? `, from ${g.min.toFixed(1)} cents` : ""}. Zoom in`);
   }
   bestBar();

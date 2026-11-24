@@ -2,7 +2,7 @@
 // opens ready to save: today's price at this station (less your discount) and a full tank. Litres are one-tap chips
 // (full, half, other); the price is only typed when you paid something else. Saving shows a note with Undo instead
 // of asking to confirm first. Opened from the station page and from the map's station card.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button, Chip, Sheet, T } from '@/components/ui';
@@ -134,12 +134,19 @@ export type FillNoteData = { text: string; fill?: Fill };
 export function FillNote({ note, onDone }: { note: FillNoteData; onDone: () => void }) {
   const c = useTheme();
   const [undone, setUndone] = useState(false);
+  // "Fill removed." stays 1.5 s, then the note goes. Cleared on unmount: a newer fill's note (FillNote is keyed by the
+  // fill) mustn't be cleared by this one's timer
+  useEffect(() => {
+    if (!undone) return;
+    const t = setTimeout(onDone, 1500);
+    return () => clearTimeout(t);
+  }, [undone, onDone]);
   return (
     <View style={[styles.note, { backgroundColor: c.fg }]} accessibilityLiveRegion="polite">
       <T kind="small" color={c.bg} style={{ fontWeight: '600', flexShrink: 1 }}>{undone ? 'Fill removed.' : note.text}</T>
       {note.fill && !undone ? (
         <Pressable
-          onPress={() => { removeFill(note.fill!.id); setUndone(true); setTimeout(onDone, 1500); }}
+          onPress={() => { removeFill(note.fill!.id); setUndone(true); }}
           accessibilityRole="button"
           accessibilityLabel="Undo, remove this fill"
           hitSlop={10}>

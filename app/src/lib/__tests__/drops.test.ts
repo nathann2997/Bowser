@@ -133,7 +133,13 @@ describe('syncDrops', () => {
     await cancelPendingDrop(day(23, 23).getTime());                    // what syncAlerts does when it schedules a rise
     expect(JSON.parse(mockStore.get('drops.log')!)).toEqual([]);
     await syncDrops([R], list, get, { now: day(23, 23) });
-    await setDrops(false);
+    // setDrops reads the real clock: pin it to the test's day, or the 7:30 drop counts as already sent once that date passes
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(day(23, 23).getTime());
+    try {
+      await setDrops(false);
+    } finally {
+      clock.mockRestore();
+    }
     expect(JSON.parse(mockStore.get('drops.log')!)).toEqual([]);
   });
 });

@@ -11,14 +11,14 @@ import { ADVICE_TONE, OffTag, openStation } from '@/components/station-row';
 import { Badge, T } from '@/components/ui';
 import { Colors, Radius, Spacing, type Palette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useStations } from '@/lib/api';
+import { useForecast, useStations } from '@/lib/api';
 import { marketFor } from '@/lib/market';
 import { openInMaps } from '@/lib/directions';
 import { offText } from '@/lib/discounts';
 import { isHeld, isStale, OUT_STALE_DAYS, STALE_DAYS } from '@/lib/filters';
 import { track } from '@/lib/analytics';
 import { isPremium } from '@/lib/diesel';
-import { brandSuburb, FUELS, shortFuel, stationName, unchangedText, updatedText } from '@/lib/format';
+import { brandSuburb, FUELS, shortFuel, stationName, sydneyToday, unchangedText, updatedText } from '@/lib/format';
 import type { Place, StationRow } from '@/lib/geo';
 import type { Fuel, Station } from '@/lib/types';
 import {
@@ -194,12 +194,14 @@ export function StationMap({ rows, pinned, unsold = [], footer, home, live, radi
             const [lo, la] = f.geometry.coordinates;
             if ('cluster' in f.properties && f.properties.cluster) {
               const { point_count: count, cluster_id: id, min } = f.properties;
-              // No "from" when it would undercut the Cheapest tag: a group at the edge can hold a station just out of view
-              const from = Number.isFinite(min) && !(best && min < best.price) ? min : null;
+              // No "from" when it would undercut the Cheapest tag: a group at the edge can hold a station just out of view.
+              // Then the pill shows its count only; "Old" is for a group with no current price at all.
+              const old = !Number.isFinite(min);
+              const from = !old && !(best && min < best.price) ? min : null;
               // Keyed by place, not supercluster's id: the ids shift when the cheapest station changes (it leaves the
               // index), and every group would be redrawn
               return (
-                <ClusterMarker key={`c${la.toFixed(5)},${lo.toFixed(5)}|${count}|${from}|${c.bg}`} id={id} la={la} lo={lo} count={count} from={from} c={c} onPress={zoomInto} />
+                <ClusterMarker key={`c${la.toFixed(5)},${lo.toFixed(5)}|${count}|${from}|${old}|${c.bg}`} id={id} la={la} lo={lo} count={count} from={from} old={old} c={c} onPress={zoomInto} />
               );
             }
             const r = byId.get((f.properties as { id: string }).id);
@@ -375,9 +377,9 @@ const PriceMarker = memo(function PriceMarker({
  *  and the count in a dark dot so it reads as a group, not a station. Never green: a group's lowest price is nearly
  *  always in the cheapest third, so green there would mean nothing. Tapping zooms in until it splits. */
 const ClusterMarker = memo(function ClusterMarker({
-  id, la, lo, count, from, c, onPress,
+  id, la, lo, count, from, old, c, onPress,
 }: {
-  id: number; la: number; lo: number; count: number; from: number | null; c: Palette;
+  id: number; la: number; lo: number; count: number; from: number | null; old: boolean; c: Palette;
   onPress: (id: number, la: number, lo: number) => void;
 }) {
   const tracking = useFirstPaint();
@@ -390,8 +392,11 @@ const ClusterMarker = memo(function ClusterMarker({
       onPress={() => onPress(id, la, lo)}
       accessibilityLabel={`${count} stations${from != null ? `, from ${from.toFixed(1)} cents` : ''}. Zoom in`}>
       <View style={styles.clusterWrap}>
-        <View style={[styles.cluster, { backgroundColor: c.surface, borderColor: c.line }]}>
-          <Text style={[styles.clusterFromText, { color: c.fg }]}>{from != null ? from.toFixed(1) : 'Old'}</Text>
+        <View style={[styles.cluster, { backgroundColor: c.surface, borderColor: c.line }, from == null && !old && { paddingLeft: 3 }]}>
+          {/* the lowest price; "Old" only when no price in the group is current; count only when the lowest is hidden */}
+          {from != null || old ? (
+            <Text style={[styles.clusterFromText, { color: c.fg }]}>{from != null ? from.toFixed(1) : 'Old'}</Text>
+          ) : null}
           <View style={[styles.clusterCount, { backgroundColor: c.fg }]}>
             <Text style={[styles.clusterText, { color: c.bg }]}>{count}</Text>
           </View>
@@ -437,6 +442,7 @@ function StationCard({
   const prem = isPremium(r, s.fuel);   // its only diesel is premium diesel (lib/diesel.ts)
   const fuel = prem ? 'Premium diesel' : shortFuel(s.fuel);
   usePins();   // re-render when this station is pinned or unpinned from the card
+  const fq = useForecast();   // the fill sheet takes the Sydney median only when it is today's
   const [filling, setFilling] = useState(false);
   const [note, setNote] = useState<FillNoteData | null>(null);
   useEffect(() => {
@@ -517,7 +523,7 @@ function StationCard({
           fuel={s.fuel}
           price={r.price}
           pump={r.pump}
-          median={!r.out && median != null ? median : null}   // the savings record is against Sydney's median
+          median={!r.out && median != null && fq.data?.asof === sydneyToday() ? median : null}   // the savings record is against today's Sydney median (as the station page)
           tankL={s.tankL}
           onClose={() => setFilling(false)}
           onSaved={setNote}
