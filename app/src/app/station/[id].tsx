@@ -30,6 +30,7 @@ import {
   tankText, ticker, tickerData, type Change, type RangeKey,
 } from '@/lib/station';
 import type { Fuel, Station } from '@/lib/types';
+import { gapWords, marketFor, type Market } from '@/lib/market';
 
 const SHORT: Record<Fuel, string> = { U91: 'U91', E10: 'E10', P95: 'P95', P98: 'P98', DL: 'Diesel' };
 
@@ -83,8 +84,10 @@ export default function StationPage() {
   const out = d?.out ?? row?.out;   // outside Sydney: a price is old from day 21, not day 8 (filters.ts isStale)
   // Outside Sydney there is no gap to the Sydney median anywhere on the page: not in the ticker, the chart's median line
   // and "Avg gap" tile, or the shared message (PM/UX decision 2026-11-24; the site's station pages already do this)
-  const sydMedian = out ? null : live?.now ?? null;
-  const tk = d && fuel ? ticker(d, fuel, sydMedian, listPrice) : null;
+  // The gap is to the station's own market (lib/market.ts): Sydney's median in Sydney, its region's (Canberra, Newcastle…)
+  // outside it, or none. The chart's median line and "Avg gap" stay Sydney-only: there is no regional median history.
+  const mkt = marketFor(out == null && !row ? null : { out, rg: row?.rg }, fuel, live?.now ?? null, sq.data?.regions);   // `rg` is on the list's row, not the station file
+  const tk = d && fuel ? ticker(d, fuel, mkt?.med ?? null, listPrice) : null;
   const hasHist = !!(d && fuel && d.hist[fuel]?.some((v) => v != null));
   // The React Compiler memoizes this (and the paths in TickerChart key off its identity)
   const chart = d && fuel ? tickerData(d, out ? null : hq.data, fuel, hasHist ? range : '1W') : null;
@@ -111,7 +114,7 @@ export default function StationPage() {
             <IconButton
               label="Share this price"
               onPress={() => shareText(dealMessage({
-                id, n: head.n, s: head.s, fuel, pump: tk.price!, median: sydMedian, advice: fc?.adv[1] ?? row?.p[fuel]?.[3] ?? null,
+                id, n: head.n, s: head.s, fuel, pump: tk.price!, median: mkt?.med ?? null, market: mkt?.name, advice: fc?.adv[1] ?? row?.p[fuel]?.[3] ?? null,
               }), 'deal')}>
               <ShareIcon color={c.fg} size={22} />
             </IconButton>
@@ -180,7 +183,7 @@ export default function StationPage() {
         {!d ? (
           q.error || badId ? (
             row ? (
-              <ListFallback row={row} preferred={s.fuel} off={off} medianOf={(f) => (row.out ? undefined : fq.data?.live.find((r) => r.fuel === f)?.now)}
+              <ListFallback row={row} preferred={s.fuel} off={off} medianOf={(f) => marketFor(row, f, fq.data?.live.find((r) => r.fuel === f)?.now, sq.data?.regions)}
                 notFound={badId || isNotFound(q.error)} onRetry={() => q.refetch()} asof={sq.data?.asof} />
             ) : sq.isPending && !badId ? (
               <LoadingSkeleton />
@@ -222,7 +225,7 @@ export default function StationPage() {
             ) : null}
 
             {/* Ticker block */}
-            <View style={{ gap: 6 }} accessible accessibilityLabel={tickerA11y(fuel, tk)}>
+            <View style={{ gap: 6 }} accessible accessibilityLabel={tickerA11y(fuel, tk, mkt?.name)}>
               <T kind="eyebrow">{fuelName(fuel)} · {dayLabel(d.asof)}</T>
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
                 <T kind="hero" style={{ fontSize: 44, lineHeight: 50, letterSpacing: -1.2 }}>
@@ -234,12 +237,10 @@ export default function StationPage() {
                 <Move ch={tk.d1} label="since yesterday" />
                 <Move ch={tk.d7} label="over 7 days" />
               </View>
-              {tk.gap != null && live ? (
+              {tk.gap != null && mkt ? (
                 <T kind="small" color={c.fg2}>
-                  <Text style={{ color: tk.gap < -0.05 ? c.cheap : tk.gap > 0.05 ? c.dear : c.fg2, fontWeight: '700' }}>
-                    {Math.abs(tk.gap) < 0.05 ? 'At the Sydney median' : `${Math.abs(tk.gap).toFixed(1)}c ${tk.gap < 0 ? 'cheaper' : 'dearer'}`}
-                  </Text>
-                  {Math.abs(tk.gap) < 0.05 ? ` (${live.now.toFixed(1)}c)` : ` than the Sydney median (${live.now.toFixed(1)}c)`}
+                  <Text style={{ color: tk.gap < -0.05 ? c.cheap : tk.gap > 0.05 ? c.dear : c.fg2, fontWeight: '700' }}>{gapWords(tk.gap, mkt).lead}</Text>
+                  {gapWords(tk.gap, mkt).rest}
                 </T>
               ) : null}
               {off && tk.price != null ? (
@@ -361,13 +362,13 @@ function lineColor(t: { px: (number | null)[]; today: number }, c: ReturnType<ty
   return ch < -0.05 ? c.cheap : ch > 0.05 ? c.dear : c.fg2;
 }
 
-function tickerA11y(fuel: Fuel, tk: ReturnType<typeof ticker>) {
+function tickerA11y(fuel: Fuel, tk: ReturnType<typeof ticker>, market = 'Sydney') {
   const parts = [`${fuelName(fuel)} ${tk.price != null ? `${tk.price.toFixed(1)} cents a litre` : 'no price'}`];
   const say = (ch: Change, when: string) =>
     ch && parts.push(Math.abs(ch.c) < 0.05 ? `unchanged ${when}` : `${ch.c < 0 ? 'down' : 'up'} ${Math.abs(ch.c).toFixed(1)} cents ${when}`);
   say(tk.d1, 'since yesterday');
   say(tk.d7, 'over 7 days');
-  if (tk.gap != null) parts.push(`${Math.abs(tk.gap).toFixed(1)} cents ${tk.gap < 0 ? 'below' : 'above'} the Sydney median`);
+  if (tk.gap != null) parts.push(`${Math.abs(tk.gap).toFixed(1)} cents ${tk.gap < 0 ? 'below' : 'above'} the ${market} median`);
   return parts.join(', ');
 }
 
@@ -391,15 +392,15 @@ function Move({ ch, label }: { ch: Change; label: string }) {
  *  per-station export failed soft) or can't load, and nothing is cached */
 function ListFallback({
   row, preferred, off, medianOf, notFound, onRetry, asof,
-}: { row: Station; preferred: Fuel; off: number; medianOf: (f: Fuel) => number | undefined; notFound: boolean; onRetry: () => void; asof?: string }) {
+}: { row: Station; preferred: Fuel; off: number; medianOf: (f: Fuel) => Market | null; notFound: boolean; onRetry: () => void; asof?: string }) {
   const c = useTheme();
   const sold = (Object.keys(row.p) as Fuel[]).filter((f) => row.p[f]?.[0] != null);
   const order = (['U91', 'E10', 'P95', 'P98', 'DL'] as Fuel[]).filter((f) => sold.includes(f));
   const [pick, setPick] = useState<Fuel | null>(null);
   const fuel = pick && order.includes(pick) ? pick : pickFuel(order, preferred);
   const p = fuel ? row.p[fuel] : undefined;
-  const med = fuel ? medianOf(fuel) : undefined;
-  const gap = p && med != null ? p[0] - med : null;
+  const med = fuel ? medianOf(fuel) : null;
+  const gap = p && med ? p[0] - med.med : null;
   return (
     <>
       {order.length > 1 && fuel ? (
@@ -415,9 +416,9 @@ function ListFallback({
           {gap != null ? (
             <T kind="small" color={c.fg2}>
               <Text style={{ color: gap < -0.05 ? c.cheap : gap > 0.05 ? c.dear : c.fg2, fontWeight: '700' }}>
-                {Math.abs(gap) < 0.05 ? 'At the Sydney median' : `${Math.abs(gap).toFixed(1)}c ${gap < 0 ? 'cheaper' : 'dearer'}`}
+                {gapWords(gap, med!).lead}
               </Text>
-              {Math.abs(gap) < 0.05 ? ` (${med!.toFixed(1)}c)` : ` than the Sydney median (${med!.toFixed(1)}c)`}
+              {gapWords(gap, med!).rest}
             </T>
           ) : null}
           {off ? (

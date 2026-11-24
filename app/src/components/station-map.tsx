@@ -11,6 +11,7 @@ import { Badge, T } from '@/components/ui';
 import { Colors, Radius, Spacing, type Palette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useStations } from '@/lib/api';
+import { marketFor } from '@/lib/market';
 import { openInMaps } from '@/lib/directions';
 import { offText } from '@/lib/discounts';
 import { isHeld, isStale, OUT_STALE_DAYS, STALE_DAYS } from '@/lib/filters';
@@ -438,7 +439,9 @@ function StationCard({
   usePins();   // re-render when this station is pinned or unpinned from the card
   const [, , code, label, , fc7] = r.adv;
   const name = stationName(r.n);
-  const gap = median != null && !r.out ? r.price - median : null;   // to the Sydney median: none outside Sydney
+  // to the station's own market (lib/market.ts): `median` (Sydney's) in Sydney, its region's outside it
+  const mkt = marketFor(r, useSettings().fuel, median, useStations().data?.regions);
+  const gap = mkt ? r.price - mkt.med : null;
   const stale = isStale(r.age, r.out);
   const held = isHeld(r.age, r.out);   // outside Sydney, 8 to 20 days: still current there
   const asof = useStations().data?.asof;
@@ -470,7 +473,7 @@ function StationCard({
           </View>
           {gap != null ? (
             <T kind="small" color={gap < -0.05 ? c.cheap : gap > 0.05 ? c.dear : c.muted} style={{ fontWeight: '600' }}>
-              {Math.abs(gap) < 0.05 ? 'at median' : `${gap < 0 ? '−' : '+'}${Math.abs(gap).toFixed(1)}c vs median`}
+              {Math.abs(gap) < 0.05 ? 'at median' : `${gap < 0 ? '−' : '+'}${Math.abs(gap).toFixed(1)}c vs ${mkt!.name} median`}
             </T>
           ) : null}
         </View>

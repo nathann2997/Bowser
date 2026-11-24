@@ -21,6 +21,7 @@ import { rankStations } from '@/lib/geo';
 import { dayLabel, outlook, riseDay } from '@/lib/outlook';
 import { usePins } from '@/lib/pins';
 import { useSettings } from '@/lib/settings';
+import { marketFor } from '@/lib/market';
 
 export default function Today() {
   const c = useTheme();
@@ -42,6 +43,8 @@ export default function Today() {
       .filter((x) => !isStale(x.age, x.out))
       .slice(0, 3);
   }, [sq.data, home, s.fuel, s.radiusKm, s.members, s.discounts]);
+  // The area's own market when it is outside Sydney (lib/market.ts): from the nearest-cheapest rows, which share it
+  const local = best[0]?.out ? marketFor(best[0], s.fuel, null, sq.data?.regions) : null;
   const mine = useMemo(
     () => (sq.data ? pinnedRows(sq.data.stations, s.fuel, pins, home, s.discounts) : []),
     [sq.data, s.fuel, pins, home, s.discounts],
@@ -115,11 +118,20 @@ export default function Today() {
             ) : best.length === 0 ? (
               <Card><T>No recent prices within {s.radiusKm} km.</T></Card>
             ) : (
-              <Card style={{ padding: 0, overflow: 'hidden' }}>
-                {best.map((x, i) => (
-                  <StationItem key={rowKey(x)} r={x} median={r.now} sydney={o.tone} last={i === best.length - 1} />
-                ))}
-              </Card>
+              <>
+                <Card style={{ padding: 0, overflow: 'hidden' }}>
+                  {best.map((x, i) => (
+                    <StationItem key={rowKey(x)} r={x} median={r.now} sydney={o.tone} last={i === best.length - 1} />
+                  ))}
+                </Card>
+                {local ? (
+                  // Outside Sydney (e.g. Canberra) the rows' gaps are to the local median; say whose, and that the
+                  // fill-or-wait card above is Sydney's
+                  <T kind="small">
+                    {`Gaps are to the ${local.name} ${shortFuel(s.fuel)} median, ${local.med.toFixed(1)}c (${local.n} stations). The fill-or-wait call above is for Sydney.`}
+                  </T>
+                ) : null}
+              </>
             )}
           </Section>
 

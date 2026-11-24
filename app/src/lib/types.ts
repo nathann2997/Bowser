@@ -105,6 +105,7 @@ export type Station = {
   m: 0 | 1;       // members only
   out?: 1;        // outside Sydney (2026-11-13: the list covers NSW and the ACT): prices only, no forecast. Absent in Sydney
   st?: string;    // the state when it isn't NSW ('ACT'), from the address (2026-11-24). Absent for NSW and in older files
+  rg?: string;    // outside Sydney: the region whose median it is compared with (Stations.regions; 2026-11-24). Absent with none
   p: Partial<Record<Fuel, StationPrice>>;
 };
 
@@ -115,7 +116,11 @@ export type Stations = Stamp & {
   asof: string;
   stations: Station[];
   suburbs: Suburb[];
+  regions?: Record<string, Region>;   // 2026-11-24; absent in older files
 };
+
+/** A regional centre's median for each fuel with 8+ current prices: [c/L, number of prices] (pipeline local_median.py) */
+export type Region = { name: string; f: Partial<Record<Fuel, [number, number]>> };
 
 export type Series = (number | null)[];
 

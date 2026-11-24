@@ -484,12 +484,16 @@ class Pieces(unittest.TestCase):
             hd = html.unescape(re.search(r'<meta name="description" content="(.*?)">', sp.home_head(many, fc)).group(1))
             self.assertLessEqual(len(hd), 155, hd); self.assertIn("2,382 NSW and ACT stations", hd)
 
-    def test_dashboard_rows_have_no_sydney_gap_outside_sydney(self):
-        # template.html: the list row and the map card compare with the Sydney median only for Sydney stations
+    def test_dashboard_rows_compare_with_their_own_market(self):
+        # template.html: the list row and the map card compare with the station's own market (marketFor): the Sydney
+        # median only for Sydney stations, the region's (local_median.py) outside Sydney, else nothing (2026-11-24)
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "template.html"), encoding="utf-8") as fh: t = fh.read()
+        mk = t[t.index("function marketFor("):t.index("function stationItem(")]
         item = t[t.index("function stationItem("):t.index("function brandOptions(")]
         pop = t[t.index("function openPop("):t.index("function openNoFuel(")]
-        self.assertIn("gap = s.out ? null : s.price - med", item); self.assertIn("gap = r.out ? null : r.price - med", pop)
+        self.assertIn('if (!s.out) return med != null ? {med, name: "Sydney"} : null;', mk)   # Sydney's median: Sydney stations only
+        self.assertIn("D.regions[s.rg]", mk)
+        self.assertIn("gap = mk ? s.price - mk.med : null", item); self.assertIn("gap = mk ? r.price - mk.med : null", pop)
         for part in (item, pop): self.assertIn('${gap == null ? "" :', part)
 
     def test_regions_dead_pages_and_ai_files(self):
