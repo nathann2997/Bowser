@@ -20,7 +20,7 @@ So the app answers in this order: **the decision → the place → the saving �
 
 **Today**
 - A hero card coloured by the decision: amber means act (fill now or this week), blue means wait, neutral means no rush. The headline is still the shared verdict rule (unchanged, mirrored in `template.html` / `export_api.py`).
-- Under it, a deadline in plain words, "Prices likely to rise from Sat 24 Oct", computed on the phone with the same rule `build.py` uses for station advice (`market()`, ported to `lib/outlook.ts`). The home screen and the station chips now point to the same date.
+- Under it, a deadline in plain words, "Prices likely to rise from Sat 24 Oct", computed on the phone with the same rule `build.py` uses for station advice (`market()`, ported to `app/src/lib/outlook.ts`). The home screen and the station chips now point to the same date.
 - The saving in dollars for your tank size: "about $6.65 on a 50 L tank if you fill before then."
 - A 14-day price-path sparkline with the likely range and a marker on the rise day. It replaces the four tiles. The exact numbers sit under it as a compact row.
 - **Best near you**: the 3 cheapest fresh stations in your area, with a link to the full list. With no area set, it shows a one-tap "Use my location" or a suburb search.
@@ -61,7 +61,7 @@ The owner asked for a simpler Today ("show the trend for the fuel and the statio
 
 "Best for you" is gone. It duplicated the cheapest nearby and the pinned stations, and pulled attention from the trend.
 
-**Quieter rows:** a station row's advice chip is left out when it only repeats the Sydney headline. On a "Wait if you can" day, 43 rows each said "Wait". The chip stays when it adds something: a Fill by date, Fill now, Skip for now (that station is dear right now), Check price, or advice that differs from the headline. Screen readers still hear the advice (`echoesSydney` in `lib/copy.ts`).
+**Quieter rows:** a station row's advice chip is left out when it only repeats the Sydney headline. On a "Wait if you can" day, 43 rows each said "Wait". The chip stays when it adds something: a Fill by date, Fill now, Skip for now (that station is dear right now), Check price, or advice that differs from the headline. Screen readers still hear the advice (`echoesSydney` in `app/src/lib/copy.ts`).
 
 **Labels that fit 360 dp:**
 - Forecast tiles read 1 day / 3 days / 7 days / 14 days ("TOMORROW" wrapped).
@@ -72,3 +72,18 @@ The owner asked for a simpler Today ("show the trend for the fuel and the statio
 **Station page:** one pin control (the Pin / Pinned button). The duplicate top-bar pin is gone; Share stays in the top bar.
 
 **Not changed:** the web dashboard (`template.html`) keeps its own layout.
+
+# Brand pass — 2026-11-24
+
+User feedback: "the app looks AI made" and "the colours don't match the logo". The logo is an amber drop (#FFB22E) on ink (#141618), but the interface led with blue (links, the Wait card, focus rings), white primary buttons and grey-green neutrals. Reviewed with the Impeccable design skill (craft floor, colorize, layout).
+
+**Colour roles (app `constants/theme.ts`, web `template.html` :root, share page and SEO pages share them):**
+- **Brand amber** `#ffb22e` with ink text: the one primary action (Map, Use my location, the Map/List toggle), the selected fuel, the logo. Never decoration.
+- **Ink** `#141618`: text in light mode, the dark-mode canvas (the icon's own background), selected filter chips in light mode.
+- **Links** are deep amber `#8a5a00` in light (5.4:1 on the canvas) and amber in dark. No blue anywhere except the "you are here" dot, which keeps the colour every maps app uses.
+- **Neutrals** lean warm toward the amber: canvas `#f7f5f0`, lines `#e3dfd6`; dark `#141618` / `#1d2023`.
+- **Decision tones:** act = an amber card with ink text; wait = an ink card with an amber forecast line (a bowser display); calm = a neutral card. In dark mode act is a deep amber tint, to avoid a glaring block at night.
+- **Price meaning** stays green (cheaper) and red-orange (dearer), darkened to pass 4.5:1 on the warm canvas.
+- Warning banners use their own soft amber (`noteBg`), so they don't read as the act card.
+
+**Hierarchy:** the small uppercase tracked labels ("UNLEADED 91 · TUE 24 NOV", "1 DAY", "LOW") are now sentence-case 13 px labels. Tracked small caps were the strongest template tell. Map tags keep their tiny caps, which are there for legibility.

@@ -6,19 +6,30 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex">
 <title>Bowser – a fuel price shared with you</title>
+<!-- Link previews (2026-11-24): the shared link showed no card. The static og.png: its words sit inside the centred
+     square and 4:5 crops Instagram and WhatsApp use (og_image.py) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bowser">
+<meta property="og:title" content="A fuel price shared with you · Bowser">
+<meta property="og:description" content="Today’s price at this station, how it compares and whether to fill up now or wait.">
+<meta property="og:image" content="https://checkbowser.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Bowser: fill up now, or wait? Fuel prices for NSW and the ACT at checkbowser.app">
+<meta name="twitter:card" content="summary_large_image">
 <style>
   /* The app's tokens (app/src/constants/theme.ts) */
   :root {
-    --bg: #f6f6f3; --surface: #ffffff; --sunk: #eeefeb; --line: #e2e3df; --fg: #141618; --fg2: #45494d; --muted: #6f7479;
-    --cheap: #14865c; --dear: #c4511f; --link: #1d62b5; --chip: #ffb22e;
-    --actBg: #fff3d6; --actFg: #7a4a00; --waitBg: #e4eefa; --waitFg: #1b5799; --calmBg: #eceeea; --calmFg: #3d4246;
+    --bg: #f7f5f0; --surface: #ffffff; --sunk: #efece5; --line: #e3dfd6; --fg: #141618; --fg2: #44474b; --muted: #686b6f;
+    --cheap: #0f7a52; --dear: #b4461a; --link: #8a5a00; --chip: #ffb22e;
+    --actBg: #ffb22e; --actFg: #141618; --waitBg: #141618; --waitFg: #f4f1ea; --calmBg: #efece5; --calmFg: #33373a;
     color-scheme: light dark;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0f1113; --surface: #181b1e; --sunk: #131618; --line: #2a2e33; --fg: #eef0f2; --fg2: #c2c7cc; --muted: #8b9197;
-      --cheap: #3cc28f; --dear: #f08a5d; --link: #3987e5;
-      --actBg: #2e2410; --actFg: #ffcf7a; --waitBg: #122238; --waitFg: #9cc6f7; --calmBg: #1d2124; --calmFg: #c2c7cc;
+      --bg: #141618; --surface: #1d2023; --sunk: #191b1e; --line: #2e3236; --fg: #f4f1ea; --fg2: #c9c4ba; --muted: #9a958c;
+      --cheap: #3cc28f; --dear: #f08a5d; --link: #ffb22e;
+      --actBg: #2a2112; --actFg: #ffcf7a; --waitBg: #23272b; --waitFg: #f4f1ea; --calmBg: #1d2023; --calmFg: #c9c4ba;
     }
   }
   * { box-sizing: border-box; }

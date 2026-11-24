@@ -263,6 +263,9 @@ class Pieces(unittest.TestCase):
         self.assertIn('<link rel="canonical" href="https://checkbowser.app/">', head)
         self.assertIn("Unleaded 91 is 213.6c/L (17 Nov)", head)
         self.assertIn("<title>Should you fill up today? Sydney fuel prices | Bowser</title>", head)
+        self.assertIn('<meta property="og:image" content="https://checkbowser.app/og.png">', head)   # the static image by default
+        self.assertIn('<meta property="og:image:width" content="1200">', head); self.assertNotIn("#ffb22e", head)   # theme-color is the page's
+        self.assertIn('content="https://checkbowser.app/og/today.png?d=2026-11-17"', sp.home_head(stations, forecast, og="og/today.png?d=2026-11-17"))
         self.assertIn("Should you fill up today? Bowser’s call for Sydney: wait if you can.", head)
         self.assertEqual(len(re.findall(r"<script\b", head, re.I)), 1); self.assertIn('<script type="application/ld+json">', head)
         links = sp.home_links(stations, forecast)
@@ -477,6 +480,9 @@ class Pieces(unittest.TestCase):
         hd = html.unescape(re.search(r'<meta name="description" content="(.*?)">', head).group(1))
         self.assertIn("with today’s prices at 18 NSW and ACT stations.", hd); self.assertLessEqual(len(hd), 155)
         self.assertIn("<title>Should you fill up today? Sydney fuel prices | Bowser</title>", head)
+        self.assertIn('<meta property="og:image" content="https://checkbowser.app/og.png">', head)   # the static image by default
+        self.assertIn('<meta property="og:image:width" content="1200">', head); self.assertNotIn("#ffb22e", head)   # theme-color is the page's
+        self.assertIn('content="https://checkbowser.app/og/today.png?d=2026-11-17"', sp.home_head(stations, forecast, og="og/today.png?d=2026-11-17"))
         # every call the pipeline can make (export_api.py), with a 4-digit station count: the descriptions stay within 155
         many = {"asof": ASOF, "stations": [dict(st[0], id=str(5000 + i)) for i in range(2381)] + [next(x for x in st if x.get("out"))]}
         for v in ("Fill up today", "Fill up this week", "Wait if you can", "No rush either way"):
@@ -484,12 +490,16 @@ class Pieces(unittest.TestCase):
             hd = html.unescape(re.search(r'<meta name="description" content="(.*?)">', sp.home_head(many, fc)).group(1))
             self.assertLessEqual(len(hd), 155, hd); self.assertIn("2,382 NSW and ACT stations", hd)
 
-    def test_dashboard_rows_have_no_sydney_gap_outside_sydney(self):
-        # template.html: the list row and the map card compare with the Sydney median only for Sydney stations
+    def test_dashboard_rows_compare_with_their_own_market(self):
+        # template.html: the list row and the map card compare with the station's own market (marketFor): the Sydney
+        # median only for Sydney stations, the region's (local_median.py) outside Sydney, else nothing (2026-11-24)
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "template.html"), encoding="utf-8") as fh: t = fh.read()
+        mk = t[t.index("function marketFor("):t.index("function stationItem(")]
         item = t[t.index("function stationItem("):t.index("function brandOptions(")]
         pop = t[t.index("function openPop("):t.index("function openNoFuel(")]
-        self.assertIn("gap = s.out ? null : s.price - med", item); self.assertIn("gap = r.out ? null : r.price - med", pop)
+        self.assertIn('if (!s.out) return med != null ? {med, name: "Sydney"} : null;', mk)   # Sydney's median: Sydney stations only
+        self.assertIn("D.regions[s.rg]", mk)
+        self.assertIn("gap = mk ? s.price - mk.med : null", item); self.assertIn("gap = mk ? r.price - mk.med : null", pop)
         for part in (item, pop): self.assertIn('${gap == null ? "" :', part)
 
     def test_regions_dead_pages_and_ai_files(self):

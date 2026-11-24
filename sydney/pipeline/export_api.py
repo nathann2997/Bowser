@@ -110,13 +110,25 @@ for f in FUELS:
 if quarantined:
     qset = {(i, f) for i, f, *_ in quarantined}
     app_stations = [dict(st, p={f: pr for f, pr in st["p"].items() if (st["id"], f) not in qset}) for st in app_stations]
+# ---- the local median a station outside Sydney is compared with (local_median.py): `rg` on the station, the figures in
+# `regions`. Fails soft: without it the app and site show no gap outside Sydney, as before.
+try:
+    import local_median
+    regions = local_median.add(app_stations, FUELS)
+except Exception as e:
+    regions = {}
+    for st in app_stations: st.pop("rg", None)
+    print(f"::warning::local medians unavailable: {type(e).__name__}: {e}")
 stations = {"schema": SCHEMA, "asof": data["snap_asof"], **STAMP,
             "fields": {"id": "NSW station code (station/{id}.json)", "n": "name", "b": "brand", "s": "suburb", "pc": "postcode (0 = unknown)", "la": "lat", "lo": "lon", "m": "members only (0/1)",
                        "st": "state from the address when it isn't NSW (ACT). Absent for NSW (added 2026-11-24)",
                        "out": "1 = outside Sydney: prices only, no forecast (advice code na, or chk for a price 21+ days old; no 7-day price). Absent for a Sydney station",
+                       "rg": "outside Sydney: the region whose median (regions[rg]) the station is compared with. Absent with no region figure (added 2026-11-24)",
                        "p": "fuel -> [price c/L, days since update, advice code, advice label, advice reason, "
                             "7-day forecast price c/L (= station/{id}.json fc.now + fc.d7; absent if station files failed, and outside Sydney)]"},
-            "stations": app_stations, "suburbs": suburbs, "suburb_stats": data["suburbs"]}
+            "stations": app_stations, "suburbs": suburbs, "suburb_stats": data["suburbs"],
+            "regions": regions,   # {region: {"name": short name, "f": {fuel: [median c/L, current prices]}}}, 8+ prices (local_median.py)
+            }
 history = {"schema": SCHEMA, **STAMP, "start": data["start"], "hist": data["hist"], "tgp": data["tgp"]}
 
 # ---- sanity checks: fail rather than publish something broken or stale
@@ -285,7 +297,17 @@ html = open(f"{BASE}/out/dashboard.html", encoding="utf-8").read()
 try:
     if not seo_n: raise RuntimeError("the search pages weren't built")
     if html.count("<title>Bowser</title>") != 1 or html.count("<!--SEO_LINKS-->") != 1: raise RuntimeError("no <title>Bowser</title> or links marker in the template")
-    html = html.replace("<title>Bowser</title>", seo_pages.home_head(stations, forecast), 1).replace("<!--SEO_LINKS-->", seo_pages.home_links(stations, forecast), 1)
+    # today's link-preview image (og_image.py), behind a date query so apps that cache by address fetch the new one;
+    # without Pillow or a call, the static og.png
+    og = "og.png"
+    try:
+        import og_image
+        d0 = dt.date.fromisoformat(stations["asof"])
+        rel = og_image.write(OUT, forecast, f"{d0.strftime('%a')} {d0.day} {d0.strftime('%b')}")
+        if rel: og = f"{rel}?d={stations['asof']}"
+    except Exception as e:
+        print(f"::warning::today's preview image not drawn, og.png instead: {type(e).__name__}: {e}")
+    html = html.replace("<title>Bowser</title>", seo_pages.home_head(stations, forecast, og=og), 1).replace("<!--SEO_LINKS-->", seo_pages.home_links(stations, forecast), 1)
 except Exception as e:
     print(f"::warning::dashboard head for search not added: {type(e).__name__}: {e}")
 # Content-Security-Policy, added here rather than in the template so it can pin the page's own inline script by hash:

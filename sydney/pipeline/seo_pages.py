@@ -211,11 +211,11 @@ def usable(s):
 
 
 # ---- the look: the dashboard's tokens (template.html), one style block shared by every page
-CSS = """:root{--bg:#f6f6f3;--surface:#fff;--sunk:#eeefeb;--line:#e2e3df;--fg:#141618;--fg2:#45494d;--muted:#6f7479;--link:#1d62b5;--chip:#ffb22e;--cheap:#14865c;--dear:#c4511f;--retail:#eb6834;--median:#8a9096;--band:rgba(235,104,52,.14);--act-bg:#fff3d6;--act-fg:#7a4a00;--wait-bg:#e4eefa;--wait-fg:#1b5799;--calm-bg:#eceeea;--calm-fg:#3d4246;color-scheme:light dark}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1113;--surface:#181b1e;--sunk:#131618;--line:#2a2e33;--fg:#eef0f2;--fg2:#c2c7cc;--muted:#8b9197;--link:#6aa9f0;--cheap:#3cc28f;--dear:#f08a5d;--retail:#e5703f;--median:#8b9197;--band:rgba(229,112,63,.2);--act-bg:#2e2410;--act-fg:#ffcf7a;--wait-bg:#122238;--wait-fg:#9cc6f7;--calm-bg:#1d2124;--calm-fg:#c2c7cc}}
+CSS = """:root{--bg:#f7f5f0;--surface:#fff;--sunk:#efece5;--line:#e3dfd6;--fg:#141618;--fg2:#44474b;--muted:#686b6f;--link:#8a5a00;--focus:#141618;--chip:#ffb22e;--cheap:#0f7a52;--dear:#b4461a;--retail:#b87800;--median:#868a8e;--band:rgba(255,178,46,.22);--act-bg:#ffb22e;--act-fg:#141618;--wait-bg:#141618;--wait-fg:#f4f1ea;--calm-bg:#efece5;--calm-fg:#33373a;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#141618;--surface:#1d2023;--sunk:#191b1e;--line:#2e3236;--fg:#f4f1ea;--fg2:#c9c4ba;--muted:#9a958c;--link:#ffb22e;--focus:#ffb22e;--cheap:#3cc28f;--dear:#f08a5d;--retail:#ffb22e;--median:#9a958c;--band:rgba(255,178,46,.16);--act-bg:#2a2112;--act-fg:#ffcf7a;--wait-bg:#23272b;--wait-fg:#f4f1ea;--calm-bg:#1d2023;--calm-fg:#c9c4ba}}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--fg2);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
-a{color:var(--link)}a:hover{text-decoration-thickness:2px}:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+a{color:var(--link)}a:hover{text-decoration-thickness:2px}:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 h1,h2,h3{color:var(--fg);margin:0;text-wrap:balance}h1{font-size:30px;line-height:1.15;letter-spacing:-.5px}h2{font-size:21px;letter-spacing:-.2px;margin-top:8px}h3{font-size:16px}
 p{margin:0;max-width:72ch}ul{margin:0;padding-left:20px;max-width:72ch}li{margin:4px 0}
 .wrap{max-width:960px;margin:0 auto;padding:16px 16px 56px;display:flex;flex-direction:column;gap:20px}main{display:flex;flex-direction:column;gap:16px;min-width:0}.wrap>*,main>*{min-width:0;max-width:100%}body{overflow-wrap:break-word}
@@ -369,7 +369,7 @@ def cycle_stage(stats, fc_asof, live):
 # changes and never 404s: export_api.py writes it after the pages, apart from them, and writes BADGE_FALLBACK if it fails.
 BADGE_PATH = "badge/sydney.svg"
 BADGE_W, BADGE_H = 360, 104
-BADGE_TONE = {"act": ("#fff3d6", "#7a4a00", "#e89a00"), "wait": ("#e4eefa", "#1b5799", "#1d62b5"), "calm": ("#eceeea", "#3d4246", "#8a9096")}
+BADGE_TONE = {"act": ("#ffb22e", "#141618", "#141618"), "wait": ("#141618", "#f4f1ea", "#ffb22e"), "calm": ("#efece5", "#33373a", "#7d8185")}   # brand tones (2026-11-24)
 BADGE_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
 
@@ -769,8 +769,12 @@ class Site:
 <meta property="og:description" content="{esc(desc)}">
 <meta property="og:url" content="{esc(url)}">
 <meta property="og:image" content="{self.site}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Bowser: fill up now, or wait? Fuel prices for NSW and the ACT at checkbowser.app">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#ffb22e">
+<meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141618" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="{up}favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="{up}apple-touch-icon.png">
 {"".join(jsonld(b) for b in blocks)}
@@ -2407,8 +2411,9 @@ FUEL_NOTE = {
 }
 
 
-def home_head(stations, forecast, site=SITE):
-    """The dashboard's <title> and the tags after it: description, canonical, Open Graph, icons and JSON-LD."""
+def home_head(stations, forecast, site=SITE, og="og.png"):
+    """The dashboard's <title> and the tags after it: description, canonical, Open Graph, icons and JSON-LD. `og`: the
+    link-preview image under the site, today's call (og_image.py, "og/today.png?d=…") when export_api.py drew it."""
     site = site.rstrip("/"); live = {r["fuel"]: r for r in forecast["live"]}
     r = live.get("U91") or next(iter(live.values())); v = (r.get("verdict") or {}).get("head", "")
     n = sum(usable(s) is not None for s in stations["stations"]); day = short_date(stations["asof"])
@@ -2427,12 +2432,15 @@ def home_head(stations, forecast, site=SITE):
               else "Sydney fuel prices today, the cheapest stations near you and a forecast of when to fill up."},
         {"@type": "WebApplication", "name": "Bowser", "url": site + "/", "applicationCategory": "UtilitiesApplication", "operatingSystem": "Any", **area,
          "offers": {"@type": "Offer", "price": "0", "priceCurrency": "AUD"}, "publisher": {"@id": site + "/#org"}}]}
+    alt = f"Bowser: {v}. {NAME[r['fuel']]} in Sydney, {c1(r['now'])}c/L on {day}" if v else "Bowser: fill up now, or wait?"   # the image's words
     return "\n".join([
         f"<title>{esc(title)}</title>", f'<meta name="description" content="{esc(desc)}">', f'<link rel="canonical" href="{site}/">',
         '<meta property="og:type" content="website">', '<meta property="og:site_name" content="Bowser">', '<meta property="og:locale" content="en_AU">',
         f'<meta property="og:title" content="{esc(title)}">', f'<meta property="og:description" content="{esc(desc)}">',
-        f'<meta property="og:url" content="{site}/">', f'<meta property="og:image" content="{site}/og.png">',
-        '<meta name="twitter:card" content="summary_large_image">', '<meta name="theme-color" content="#ffb22e">',
+        f'<meta property="og:url" content="{site}/">', f'<meta property="og:image" content="{site}/{esc(og)}">',
+        '<meta property="og:image:width" content="1200">', '<meta property="og:image:height" content="630">',
+        f'<meta property="og:image:alt" content="{esc(alt)}">',
+        '<meta name="twitter:card" content="summary_large_image">', f'<meta name="twitter:image" content="{site}/{esc(og)}">',
         '<link rel="icon" href="favicon.svg" type="image/svg+xml">', '<link rel="apple-touch-icon" href="apple-touch-icon.png">', jsonld(ld)])
 
 

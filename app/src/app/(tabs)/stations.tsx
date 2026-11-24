@@ -140,7 +140,7 @@ export default function Stations() {
               {home ? <T color={c.fg} style={{ fontWeight: '700' }}>· {s.radiusKm} km</T> : null}
               {lastKnown ? <T kind="small" color={c.muted}>last known</T> : null}
               <View style={{ flex: 1 }} />
-              <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>Change</T>
+              <T kind="small" color={c.link} style={{ fontWeight: '700' }}>Change</T>
             </Pressable>
             <Pressable
               onPress={openFilters}
@@ -217,7 +217,7 @@ export default function Stations() {
               <T color={c.fg} style={{ fontWeight: '700' }}>· {s.radiusKm} km</T>
               {area!.lastKnown ? <T kind="small" color={c.muted}>last known</T> : null}
               <View style={{ flex: 1 }} />
-              <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>Change</T>
+              <T kind="small" color={c.link} style={{ fontWeight: '700' }}>Change</T>
             </Pressable>
           ) : (
             <Card style={{ gap: Spacing.three }}>
@@ -312,9 +312,9 @@ function ViewToggle({ view, onPress }: { view: 'list' | 'map'; onPress: () => vo
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={view === 'map' ? 'Show as a list' : 'Show on a map'}
-      style={({ pressed }) => [styles.toggle, { backgroundColor: c.fg, opacity: pressed ? 0.85 : 1 }]}>
-      {view === 'map' ? <ListIcon color={c.bg} size={20} /> : <MapIcon color={c.bg} size={20} />}
-      <T color={c.bg} style={{ fontWeight: '800', fontSize: 16 }}>{to}</T>
+      style={({ pressed }) => [styles.toggle, { backgroundColor: c.brand, opacity: pressed ? 0.85 : 1 }]}>
+      {view === 'map' ? <ListIcon color={c.onBrand} size={20} /> : <MapIcon color={c.onBrand} size={20} />}
+      <T color={c.onBrand} style={{ fontWeight: '800', fontSize: 16 }}>{to}</T>
     </Pressable>
   );
 }

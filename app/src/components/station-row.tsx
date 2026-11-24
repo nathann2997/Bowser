@@ -9,6 +9,8 @@ import { Badge, T } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useStationDetail, useStations } from '@/lib/api';
+import { marketFor } from '@/lib/market';
+import { useSettings } from '@/lib/settings';
 import { openInMaps } from '@/lib/directions';
 import { offText } from '@/lib/discounts';
 import { isHeld, isStale, STALE_DAYS } from '@/lib/filters';
@@ -80,9 +82,9 @@ function SwipeRow({ id, name, la, lo, children }: { id?: string; name: string; l
             </Pressable>
           ) : null}
           {canGo ? (
-            <Pressable onPress={then(m, go)} accessibilityRole="button" accessibilityLabel={`Show ${name} on the map`} style={[styles.swipeBtn, { backgroundColor: c.tgp }]}>
-              <MapPinIcon color="#ffffff" size={22} />
-              <T kind="small" color="#ffffff" style={{ fontWeight: '700' }}>Map</T>
+            <Pressable onPress={then(m, go)} accessibilityRole="button" accessibilityLabel={`Show ${name} on the map`} style={[styles.swipeBtn, { backgroundColor: c.fg }]}>
+              <MapPinIcon color={c.bg} size={22} />
+              <T kind="small" color={c.bg} style={{ fontWeight: '700' }}>Map</T>
             </Pressable>
           ) : null}
         </View>
@@ -100,11 +102,14 @@ export function StationItem({ r, median, sydney, last }: { r: StationRow; median
   const c = useTheme();
   const [, , code, label] = r.adv;
   const name = stationName(r.n);
-  // The gap is to the Sydney median: none for a station outside Sydney (PM/UX decision 2026-11-24)
-  const gap = median != null && !r.out ? r.price - median : null;
+  // The gap is to the station's own market (lib/market.ts): `median` (Sydney's) in Sydney, its region's outside it
+  const st = useStations().data;
+  const fuel = useSettings().fuel;
+  const mkt = marketFor(r, fuel, median, st?.regions);
+  const gap = mkt ? r.price - mkt.med : null;
   const stale = isStale(r.age, r.out);
   const held = isHeld(r.age, r.out);   // outside Sydney, 8 to 20 days: still current there
-  const asof = useStations().data?.asof;
+  const asof = st?.asof;
   const hasId = !!r.id;   // an old cached stations.json has no ids: no station page and no pin, Map still works
   const pinned = usePins().includes(r.id);
   const quiet = echoesSydney(code, sydney);

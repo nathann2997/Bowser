@@ -147,6 +147,15 @@ os.makedirs(f"{BASE}/out", exist_ok=True)
 # and template.html puts it back. About a quarter of the page's data, which a phone has to parse before anything shows.
 # `data` itself stays whole: export_api.py publishes it as the app's API.
 page = {**data, "stations": [{**s, "p": {f: (v[:2] if s.get("out") and v[2:] == NA else v) for f, v in s["p"].items()}} for s in sta]}
+# Each station outside Sydney's local median (local_median.py, the same figures export_api.py gives the app): `rg` on
+# the page's station copies and `regions` beside them. Fails soft: no regional gaps on the page, as before.
+try:
+    import local_median
+    page["regions"] = local_median.add(page["stations"], FUELS)
+except Exception as e:
+    page["regions"] = {}
+    for s in page["stations"]: s.pop("rg", None)
+    print(f"::warning::build: local medians unavailable: {type(e).__name__}: {e}")
 # Escaped for the inline <script type="application/json">: a station name from the NSW API containing "</script>" or
 # "<!--" must not end the block. \u003c etc. are the same characters to JSON.parse. (ensure_ascii already escapes U+2028/U+2029.)
 js = json.dumps(page, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")

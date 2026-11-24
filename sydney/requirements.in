@@ -10,3 +10,4 @@ xlrd>=2.0   # .xls: EIA Brent and RBA F11.1 history (fetch.py pull_macro)
 pyarrow>=15
 requests>=2.31
 defusedxml>=0.7   # openpyxl parses xlsx XML through it when installed (no entity tricks from a scraped workbook)
+Pillow>=11   # the daily link-preview image (og_image.py)

@@ -25,18 +25,18 @@ const BowserWidget = (props: IosWidgetProps, env: WidgetEnvironment) => {
   const dark = env.colorScheme === 'dark';
   const P = dark
     ? {
-        bg: '#0f1113', surface: '#181b1e', line: '#2a2e33', fg: '#eef0f2', fg2: '#c2c7cc', muted: '#8b9197', chip: '#ffb22e', onChip: '#141618',
+        bg: '#141618', surface: '#1d2023', line: '#2e3236', fg: '#f4f1ea', fg2: '#c9c4ba', muted: '#9a958c', chip: '#ffb22e', onChip: '#141618',
         cheap: '#3cc28f', dear: '#f08a5d', flat: '#a6abb0',
-        act: { bg: '#2e2410', fg: '#ffcf7a', strong: '#ffb22e' },
-        wait: { bg: '#122238', fg: '#9cc6f7', strong: '#3987e5' },
-        calm: { bg: '#1d2124', fg: '#c2c7cc', strong: '#8b9197' },
+        act: { bg: '#2a2112', fg: '#ffcf7a', strong: '#ffb22e' },
+        wait: { bg: '#23272b', fg: '#f4f1ea', strong: '#ffb22e' },
+        calm: { bg: '#1d2023', fg: '#c9c4ba', strong: '#9a958c' },
       }
     : {
-        bg: '#f6f6f3', surface: '#ffffff', line: '#e2e3df', fg: '#141618', fg2: '#45494d', muted: '#6f7479', chip: '#ffb22e', onChip: '#141618',
-        cheap: '#14865c', dear: '#c4511f', flat: '#5e6266',
-        act: { bg: '#fff3d6', fg: '#7a4a00', strong: '#f0a000' },
-        wait: { bg: '#e4eefa', fg: '#1b5799', strong: '#2a78d6' },
-        calm: { bg: '#eceeea', fg: '#3d4246', strong: '#8a9096' },
+        bg: '#f7f5f0', surface: '#ffffff', line: '#e3dfd6', fg: '#141618', fg2: '#44474b', muted: '#686b6f', chip: '#ffb22e', onChip: '#141618',
+        cheap: '#0f7a52', dear: '#b4461a', flat: '#5e6266',
+        act: { bg: '#ffb22e', fg: '#141618', strong: '#141618' },
+        wait: { bg: '#141618', fg: '#f4f1ea', strong: '#ffb22e' },
+        calm: { bg: '#efece5', fg: '#33373a', strong: '#7d8185' },
       };
   const T = P[props.tone] ?? P.calm;
   const noteColor = (t: string) =>
