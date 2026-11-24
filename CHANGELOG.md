@@ -2,7 +2,7 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
-## 2026-11-24 — Web and app: NSW and ACT coverage wording
+## 2026-11-24 — Web and app: NSW and ACT coverage wording (**live** in the app: PR #58, `a58375c`, `app-ci` run 45312473157, OTA at runtime 1.1.1: preview `e912f426`, production `5ac6fb0a`; the site follows at the next `daily-forecast` run)
 
 Station coverage is every station in the NSW FuelCheck feed: NSW and the ACT stations that report to it (2,381 priced on 24 Nov, 62 in the ACT). The forecast is fitted on and covers Sydney only. Each "Sydney"/"NSW" mention was sorted into coverage (stations, prices, maps, search, counts: now "NSW and ACT" or neutral) or forecast (model, median, cycle, call: stays "Sydney"); nothing was find-and-replaced. Branch `site/nsw-act`.
 - **State from the address** (`update.py`): `stations_today.json` rows gain `state` (the token before the postcode); `build.py` adds an optional `st` ("ACT") to a station in `stations.json` only when it isn't NSW (no field renamed or removed; documented in `fields`). `seo_pages.state_of()` uses it, with the postcode ranges as the fallback, so Hume ACT 2620 (18801, 18821), which shares its postcode with Queanbeyan, is ACT in titles, descriptions, ItemList and JSON-LD `addressRegion`.
