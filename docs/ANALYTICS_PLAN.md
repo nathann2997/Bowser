@@ -60,6 +60,7 @@ Every event carries: the app version, the OTA `update` id, the channel (preview 
   - `$pageleave`;
   - `web.fuel_changed` with fuel and source (added 2026-11-23: header, stations for the fuel bar, map_nofuel for a "Show E10 prices" button on a pinned station's "Doesn't sell" card);
   - `web.map_nofuel_opened` with fuel (added 2026-11-23), when a pinned station's grey "No U91" tag is selected. No station or location.
+  - `web.map_woken` (added 2026-11-24), the first tap that switches the map to one-finger moving (and each later wake after it rests). No properties.
   - `web.view_changed` with view (list or map);
   - `web.area_set` with source (gps or suburb), logged once typing settles on a suburb;
   - `web.station_pinned` and `web.station_unpinned` with the pin count;
