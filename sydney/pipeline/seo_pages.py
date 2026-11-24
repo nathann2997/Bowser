@@ -769,8 +769,12 @@ class Site:
 <meta property="og:description" content="{esc(desc)}">
 <meta property="og:url" content="{esc(url)}">
 <meta property="og:image" content="{self.site}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Bowser: fill up now, or wait? Fuel prices for NSW and the ACT at checkbowser.app">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#ffb22e">
+<meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141618" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="{up}favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="{up}apple-touch-icon.png">
 {"".join(jsonld(b) for b in blocks)}
@@ -2407,8 +2411,9 @@ FUEL_NOTE = {
 }
 
 
-def home_head(stations, forecast, site=SITE):
-    """The dashboard's <title> and the tags after it: description, canonical, Open Graph, icons and JSON-LD."""
+def home_head(stations, forecast, site=SITE, og="og.png"):
+    """The dashboard's <title> and the tags after it: description, canonical, Open Graph, icons and JSON-LD. `og`: the
+    link-preview image under the site, today's call (og_image.py, "og/today.png?d=…") when export_api.py drew it."""
     site = site.rstrip("/"); live = {r["fuel"]: r for r in forecast["live"]}
     r = live.get("U91") or next(iter(live.values())); v = (r.get("verdict") or {}).get("head", "")
     n = sum(usable(s) is not None for s in stations["stations"]); day = short_date(stations["asof"])
@@ -2427,12 +2432,15 @@ def home_head(stations, forecast, site=SITE):
               else "Sydney fuel prices today, the cheapest stations near you and a forecast of when to fill up."},
         {"@type": "WebApplication", "name": "Bowser", "url": site + "/", "applicationCategory": "UtilitiesApplication", "operatingSystem": "Any", **area,
          "offers": {"@type": "Offer", "price": "0", "priceCurrency": "AUD"}, "publisher": {"@id": site + "/#org"}}]}
+    alt = f"Bowser: {v}. {NAME[r['fuel']]} in Sydney, {c1(r['now'])}c/L on {day}" if v else "Bowser: fill up now, or wait?"   # the image's words
     return "\n".join([
         f"<title>{esc(title)}</title>", f'<meta name="description" content="{esc(desc)}">', f'<link rel="canonical" href="{site}/">',
         '<meta property="og:type" content="website">', '<meta property="og:site_name" content="Bowser">', '<meta property="og:locale" content="en_AU">',
         f'<meta property="og:title" content="{esc(title)}">', f'<meta property="og:description" content="{esc(desc)}">',
-        f'<meta property="og:url" content="{site}/">', f'<meta property="og:image" content="{site}/og.png">',
-        '<meta name="twitter:card" content="summary_large_image">', '<meta name="theme-color" content="#ffb22e">',
+        f'<meta property="og:url" content="{site}/">', f'<meta property="og:image" content="{site}/{esc(og)}">',
+        '<meta property="og:image:width" content="1200">', '<meta property="og:image:height" content="630">',
+        f'<meta property="og:image:alt" content="{esc(alt)}">',
+        '<meta name="twitter:card" content="summary_large_image">', f'<meta name="twitter:image" content="{site}/{esc(og)}">',
         '<link rel="icon" href="favicon.svg" type="image/svg+xml">', '<link rel="apple-touch-icon" href="apple-touch-icon.png">', jsonld(ld)])
 
 

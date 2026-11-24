@@ -297,7 +297,17 @@ html = open(f"{BASE}/out/dashboard.html", encoding="utf-8").read()
 try:
     if not seo_n: raise RuntimeError("the search pages weren't built")
     if html.count("<title>Bowser</title>") != 1 or html.count("<!--SEO_LINKS-->") != 1: raise RuntimeError("no <title>Bowser</title> or links marker in the template")
-    html = html.replace("<title>Bowser</title>", seo_pages.home_head(stations, forecast), 1).replace("<!--SEO_LINKS-->", seo_pages.home_links(stations, forecast), 1)
+    # today's link-preview image (og_image.py), behind a date query so apps that cache by address fetch the new one;
+    # without Pillow or a call, the static og.png
+    og = "og.png"
+    try:
+        import og_image
+        d0 = dt.date.fromisoformat(stations["asof"])
+        rel = og_image.write(OUT, forecast, f"{d0.strftime('%a')} {d0.day} {d0.strftime('%b')}")
+        if rel: og = f"{rel}?d={stations['asof']}"
+    except Exception as e:
+        print(f"::warning::today's preview image not drawn, og.png instead: {type(e).__name__}: {e}")
+    html = html.replace("<title>Bowser</title>", seo_pages.home_head(stations, forecast, og=og), 1).replace("<!--SEO_LINKS-->", seo_pages.home_links(stations, forecast), 1)
 except Exception as e:
     print(f"::warning::dashboard head for search not added: {type(e).__name__}: {e}")
 # Content-Security-Policy, added here rather than in the template so it can pin the page's own inline script by hash:

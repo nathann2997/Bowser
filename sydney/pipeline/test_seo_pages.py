@@ -263,6 +263,9 @@ class Pieces(unittest.TestCase):
         self.assertIn('<link rel="canonical" href="https://checkbowser.app/">', head)
         self.assertIn("Unleaded 91 is 213.6c/L (17 Nov)", head)
         self.assertIn("<title>Should you fill up today? Sydney fuel prices | Bowser</title>", head)
+        self.assertIn('<meta property="og:image" content="https://checkbowser.app/og.png">', head)   # the static image by default
+        self.assertIn('<meta property="og:image:width" content="1200">', head); self.assertNotIn("#ffb22e", head)   # theme-color is the page's
+        self.assertIn('content="https://checkbowser.app/og/today.png?d=2026-11-17"', sp.home_head(stations, forecast, og="og/today.png?d=2026-11-17"))
         self.assertIn("Should you fill up today? Bowser’s call for Sydney: wait if you can.", head)
         self.assertEqual(len(re.findall(r"<script\b", head, re.I)), 1); self.assertIn('<script type="application/ld+json">', head)
         links = sp.home_links(stations, forecast)
@@ -477,6 +480,9 @@ class Pieces(unittest.TestCase):
         hd = html.unescape(re.search(r'<meta name="description" content="(.*?)">', head).group(1))
         self.assertIn("with today’s prices at 18 NSW and ACT stations.", hd); self.assertLessEqual(len(hd), 155)
         self.assertIn("<title>Should you fill up today? Sydney fuel prices | Bowser</title>", head)
+        self.assertIn('<meta property="og:image" content="https://checkbowser.app/og.png">', head)   # the static image by default
+        self.assertIn('<meta property="og:image:width" content="1200">', head); self.assertNotIn("#ffb22e", head)   # theme-color is the page's
+        self.assertIn('content="https://checkbowser.app/og/today.png?d=2026-11-17"', sp.home_head(stations, forecast, og="og/today.png?d=2026-11-17"))
         # every call the pipeline can make (export_api.py), with a 4-digit station count: the descriptions stay within 155
         many = {"asof": ASOF, "stations": [dict(st[0], id=str(5000 + i)) for i in range(2381)] + [next(x for x in st if x.get("out"))]}
         for v in ("Fill up today", "Fill up this week", "Wait if you can", "No rush either way"):
