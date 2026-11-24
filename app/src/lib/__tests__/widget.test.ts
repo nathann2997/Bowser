@@ -149,6 +149,13 @@ describe('widget cache', () => {
     expect(isFresh({ ...old, fetchedAt: now - 60_000 }, TODAY, now)).toBe(true);
     expect(isFresh(null, TODAY, now)).toBe(false);
   });
+  it('refetches a cache saved before stations kept `out` (all of NSW, none marked outside Sydney)', () => {
+    const now = 1_000_000_000, fresh = snap({ fetchedAt: now - 60_000 });
+    const many = (out: boolean) => Array.from({ length: 2400 }, (_, i) => ({ ...fresh.stations!.stations[0], id: String(i), ...(out && i > 900 ? { out: 1 as const } : {}) }));
+    expect(isFresh({ ...fresh, stations: { ...fresh.stations!, stations: many(false) } }, TODAY, now)).toBe(false);
+    expect(isFresh({ ...fresh, stations: { ...fresh.stations!, stations: many(true) } }, TODAY, now)).toBe(true);
+    expect(isFresh(fresh, TODAY, now)).toBe(true);   // a small (Sydney-sized) list is not that cache
+  });
   it('compacts the medium header on a short widget', () => {
     // the list scrolls and fills whatever is left; only the header changes with height
     expect(mediumLayout(110, 3)).toEqual({ compact: true, caption: false, rowH: 28, listH: 30 });    // 110 - 80, one-line rows

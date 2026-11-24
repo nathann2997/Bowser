@@ -2,6 +2,24 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-25 — Review of the 2026-11-24 changes: six small fixes, a date-bound test, and the 1.1.1 Play build that didn't happen (branch `fix/review-2026-11-24`)
+
+A review of everything merged on 24 Nov (PRs #54, #56, #58, #59, #60, #52): CI, the live site in a mobile browser (no console errors, no overflow; Belconnen and Queanbeyan compare with Canberra's 218.9c, Coffs Harbour and Broken Hill with their own, Parramatta with Sydney's), the API, the sitemap and the code.
+
+**Found, not code: no 1.1.1 build reached Play.** The `play` job of the #54 merge (`app-ci` run 45278865562) failed: the Expo free plan's Android builds for the month were used up (they reset Tue 1 Dec 2026). EAS had already moved versionCode 10 → 11. The preview APK (EAS build `b39b8bdc`) did build and the update notice points at it, so sideloaded testers have 1.1.1. Because runtime = appVersion, the production-channel OTAs of #58 (`5ac6fb0a`) and #60 (`3e2e1783`) are at runtime 1.1.1, which no Play install has (Play: 1.0.1 closed test, 1.1.0 internal draft). HANDOFF corrected.
+
+Fixes (app and dashboard):
+1. **Map groups said "Old" for current prices** (`station-map.tsx`, `template.html`). A group whose lowest price would undercut the Cheapest tag (one at the view edge) hides that price; the new pill then fell back to "Old". It now shows the count only; "Old" is kept for a group with no current price.
+2. **A fill logged from the map could save yesterday's Sydney median** in its savings record. The map's card now passes the median only when the forecast is today's, as the station page does.
+3. **"Gaps are to the X median" looked at the first row only** (Today in the app, the dashboard list). Near a market edge a list mixes Sydney and a region, or two regions: then the note said every gap was to the first row's market, or nothing when a Sydney row came first. `lib/market.ts` `marketNote` (and `marketNote` in the template) look at every row shown: one local market → as before; a mix → "Each gap is to the median of the station's own area: Sydney, Canberra."
+4. **Undo's timer could clear a newer fill's note** (`fill-sheet.tsx`): the 1.5 s "Fill removed." timer is now an effect cleared when the note goes, so logging another fill straight after an Undo keeps its note and Undo.
+5. **Widget cache from before `out` was kept** (`widget/logic.ts` `isFresh`): such a cache read every station outside Sydney as Sydney (gap to the Sydney median, old after 8 days). A cache with more than 1,200 stations and none marked `out` is now refetched.
+6. **Station page, minor** (`station/[id].tsx`): with the station's own file loaded but its `stations.json` row missing, a Sydney station showed no gap; the station file alone now decides (no `out` = Sydney).
+
+Also: `drops.test.ts` read the real clock in `setDrops(false)` and started failing once 24 Nov 2026 07:30 passed (locally on 24 Nov; it would have failed every CI run from now on). The test pins `Date.now` for that call.
+
+Checks: app typecheck and lint clean, jest 491 pass (new: `marketNote`, the old-cache refetch); dashboard script parses (`node --check`) and the template's `marketNote` gives the same answers as the app's on the same cases. Not seen on a phone.
+
 ## 2026-11-24 — User feedback round: brand, one-finger map, Canberra medians, previews, cleaner map, quicker fills (**live**: PR #60, `1adbbac`, `app-ci` run 45323838165, OTA at runtime 1.1.1: preview `c595f3d9`, production `3e2e1783`; site, `regions` and `og/today.png` from `daily-forecast` run 45324718520, a manual run)
 
 Six pieces of user feedback, each built and checked before the next (branch `ux/brand-map-act`, one commit each). Design and data calls made as the designer / data scientist (owner delegation).

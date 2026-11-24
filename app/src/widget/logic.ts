@@ -67,6 +67,10 @@ export function isFresh(s: WidgetSnapshot | null, today: string, now: number, ma
   if (!s?.forecast || !s.stations) return false;
   // A cache from before 0.7 has no brands, so it can't apply your discounts: refetch rather than wait out its age
   if (s.stations.stations.length && s.stations.stations[0].b === undefined) return false;
+  // A cache saved before 2026-11-24 dropped `out`, so its stations outside Sydney read as Sydney ones (gap to the Sydney
+  // median, old after 8 days, not 21). Since all of NSW is listed (~2400 stations, ~860 in Sydney) a real snapshot always
+  // has `out` stations: one with more than Sydney's count and none of them is that old cache. Refetch.
+  if (s.stations.stations.length > 1200 && !s.stations.stations.some((x) => x.out)) return false;
   const age = now - s.fetchedAt;
   if (s.forecast.asof >= today && s.stations.asof >= today) return age < TODAY_FRESH_MS;
   return age < maxAgeMs;
