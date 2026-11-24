@@ -26,8 +26,8 @@ import { togglePin, usePins } from '@/lib/pins';
 import { useSettings } from '@/lib/settings';
 
 // The Stations tab's map view, like NSW FuelCheck: every station on screen as a price tag, loaded as you pan and zoom,
-// grouped into numbered circles when zoomed out. Tags are coloured by the cheapest, middle and dearest third of the
-// stations in view. The cheapest station in view is always its own, larger tag marked "Cheapest" (never inside a
+// grouped into one pill per group ("from 189.9" and a count) when zoomed out. Only the cheapest third of the stations
+// in view is coloured (green); tags show just the price until street level (decluttered 2026-11-24). The cheapest station in view is always its own, larger tag marked "Cheapest" (never inside a
 // group), and a bar at the top of the map names it; a group shows the lowest price inside it. Tapping a tag opens a
 // card over the bottom of the map with the price, the when-to-fill call and directions. Google Maps on Android, Apple
 // Maps on iOS (no key needed there).
@@ -54,9 +54,8 @@ type Props = {
 /** Clustering stops at this zoom (about a suburb across a phone screen): past it every station has its own tag */
 const CLUSTER_MAX_ZOOM = 13;
 /** A group marker's padding, and its "from" label's height and gap (dp): fixed, so the anchor can be worked out */
-const CLUSTER_PAD = 2;
-const CLUSTER_FROM_H = 18;
-const CLUSTER_FROM_GAP = 2;
+/** From this zoom (about street level) every tag shows its brand; further out only the price (decluttered 2026-11-24) */
+const BRAND_ZOOM = 14;
 /** Room at the bottom of the map for the toggle; the Google logo sits above it */
 const TOGGLE_ROOM = 72;
 
@@ -82,6 +81,7 @@ export function StationMap({ rows, pinned, unsold = [], footer, home, live, radi
   const box = useMemo(() => bboxOf(region), [region]);
   const inView = useMemo(() => all.filter((r) => inBox(box, r.la, r.lo)), [all, box]);
   const zoom = zoomOf(region, width);
+  const detail = zoom >= BRAND_ZOOM;   // brands on every tag from street level
 
   // Colours (thirds of the stations in view) and the cheapest fresh price, from exactly what's in view after every
   // settled move, the map centring a tapped tag included. Never held over from an earlier view: a held "Cheapest"
@@ -100,7 +100,7 @@ export function StationMap({ rows, pinned, unsold = [], footer, home, live, radi
     // 60 of supercluster's 512 = 30 dp at Google's zoom: only tags that would sit on top of each other merge.
     // Each group carries the lowest fresh price inside it (`min`; an old price counts as none).
     const sc = new Supercluster<{ id: string; min: number }, { min: number }>({
-      radius: 60,
+      radius: 72,   // wider than before (60): one pill per group is wider than the old circle
       maxZoom: CLUSTER_MAX_ZOOM,
       map: (p) => ({ min: p.min }),
       reduce: (acc, p) => {
@@ -194,18 +194,17 @@ export function StationMap({ rows, pinned, unsold = [], footer, home, live, radi
               const { point_count: count, cluster_id: id, min } = f.properties;
               // No "from" when it would undercut the Cheapest tag: a group at the edge can hold a station just out of view
               const from = Number.isFinite(min) && !(best && min < best.price) ? min : null;
-              const tier = from != null ? tierOf(from) : 'mid';
               // Keyed by place, not supercluster's id: the ids shift when the cheapest station changes (it leaves the
               // index), and every group would be redrawn
               return (
-                <ClusterMarker key={`c${la.toFixed(5)},${lo.toFixed(5)}|${count}|${from}|${tier}|${c.bg}`} id={id} la={la} lo={lo} count={count} from={from} tier={tier} c={c} onPress={zoomInto} />
+                <ClusterMarker key={`c${la.toFixed(5)},${lo.toFixed(5)}|${count}|${from}|${c.bg}`} id={id} la={la} lo={lo} count={count} from={from} c={c} onPress={zoomInto} />
               );
             }
             const r = byId.get((f.properties as { id: string }).id);
             if (!r) return null;
             const tier = tierOf(r.price);
             const isSel = r.id === selected;
-            return <PriceMarker key={`${r.id}|${tier}|${isSel}|${r.price}|${r.age}|${c.bg}`} r={r} tier={tier} selected={isSel} pinned={false} cheapest={false} c={c} onPress={setSelected} />;
+            return <PriceMarker key={`${r.id}|${tier}|${isSel}|${r.price}|${r.age}|${detail}|${c.bg}`} r={r} tier={tier} selected={isSel} pinned={false} cheapest={false} detail={detail} c={c} onPress={setSelected} />;
           })}
           {best && !pinIds.has(best.id) ? (
             <PriceMarker key={`b${best.id}|${best.id === selected}|${best.price}|${c.bg}`} r={best} tier="low" selected={best.id === selected} pinned={false} cheapest c={c} onPress={setSelected} />
@@ -311,10 +310,12 @@ const NoFuelMarker = memo(function NoFuelMarker({ s, fuel, c }: { s: Station; fu
 /** An old price (over 7 days in Sydney, 20 outside it: filters.ts isStale): shown grey, as a check-before-you-drive */
 const isOld = (r: StationRow) => isStale(r.age, r.out);
 
-/** Price text on a tier colour: white on the light theme's deep fills, dark on the dark theme's bright ones (contrast) */
+/** One colour that means something (map declutter, 2026-11-24): the cheapest third in view is green, every other price
+ *  a plain pill. Three colours across the whole map read as noise, and the dear third's orange as an alarm. Price text
+ *  on green: white on the light theme's deep green, dark on the dark theme's bright one (contrast). */
 const tierColors = (c: Palette, t: Tier) => {
   const on = c.bg === Colors.dark.bg ? c.onChip : '#ffffff';
-  return t === 'low' ? { bg: c.cheap, fg: on } : t === 'high' ? { bg: c.dear, fg: on } : { bg: c.chip, fg: c.onChip };
+  return t === 'low' ? { bg: c.cheap, fg: on } : { bg: c.surface, fg: c.fg };
 };
 
 /** True for a moment after mount, so Android draws the marker's view (text included) before it stops tracking it */
@@ -327,12 +328,13 @@ function useFirstPaint() {
   return tracking;
 }
 
-/** One station's price tag: the price on its colour, the brand below; pinned ones have a dark outline and a pin. The
- *  cheapest in view is green whatever its third, with a bigger price under the word "Cheapest" and a green outline, and
- *  sits above every tag but the selected one. */
+/** One station's price tag: the price, green in the cheapest third; the brand below only from street level (`detail`)
+ *  or on a pinned, selected or cheapest tag. Pinned ones have a dark outline and a pin. The cheapest in view is green
+ *  whatever its third, with a bigger price under the word "Cheapest" and a green outline, and sits above every tag but
+ *  the selected one. */
 const PriceMarker = memo(function PriceMarker({
-  r, tier, selected, pinned, cheapest, c, onPress,
-}: { r: StationRow; tier: Tier; selected: boolean; pinned: boolean; cheapest: boolean; c: Palette; onPress: (id: string) => void }) {
+  r, tier, selected, pinned, cheapest, detail, c, onPress,
+}: { r: StationRow; tier: Tier; selected: boolean; pinned: boolean; cheapest: boolean; detail?: boolean; c: Palette; onPress: (id: string) => void }) {
   const tracking = useFirstPaint();
   const old = isOld(r);
   const col = cheapest ? tierColors(c, 'low') : old ? { bg: c.calmBg, fg: c.calmFg } : tierColors(c, tier);
@@ -353,10 +355,12 @@ const PriceMarker = memo(function PriceMarker({
             {cheapest ? <Text style={[styles.tagBestText, { color: col.fg }]}>CHEAPEST</Text> : null}
             <Text style={[styles.tagPriceText, cheapest && styles.tagPriceBest, { color: col.fg }]}>{r.price.toFixed(1)}</Text>
           </View>
-          <View style={styles.tagBrand}>
-            {pinned ? <PinIcon filled color={c.fg} size={11} /> : null}
-            <Text style={[styles.tagBrandText, { color: c.fg2 }]} numberOfLines={1}>{brandLabel(r.b)}</Text>
-          </View>
+          {detail || pinned || selected || cheapest ? (
+            <View style={styles.tagBrand}>
+              {pinned ? <PinIcon filled color={c.fg} size={11} /> : null}
+              <Text style={[styles.tagBrandText, { color: c.fg2 }]} numberOfLines={1}>{brandLabel(r.b)}</Text>
+            </View>
+          ) : null}
         </View>
         <View style={[styles.tagPoint, { borderTopColor: edge }]} />
       </View>
@@ -364,37 +368,32 @@ const PriceMarker = memo(function PriceMarker({
   );
 });
 
-/** A group of stations too close to show apart at this zoom: the count, in the app's primary colours (not blue, so it
- *  can't be taken for the "you" dot), and under it the lowest fresh price inside ("from 189.9") on its tier colour, so
- *  you can tell which group is worth opening. Tapping zooms in until it splits. */
+/** A group of stations too close to show apart at this zoom: one neutral pill (decluttered 2026-11-24; it was a dark
+ *  circle plus a "from" label under it). The lowest fresh price inside, so you can tell which group is worth opening,
+ *  and the count in a dark dot so it reads as a group, not a station. Never green: a group's lowest price is nearly
+ *  always in the cheapest third, so green there would mean nothing. Tapping zooms in until it splits. */
 const ClusterMarker = memo(function ClusterMarker({
-  id, la, lo, count, from, tier, c, onPress,
+  id, la, lo, count, from, c, onPress,
 }: {
-  id: number; la: number; lo: number; count: number; from: number | null; tier: Tier; c: Palette;
+  id: number; la: number; lo: number; count: number; from: number | null; c: Palette;
   onPress: (id: number, la: number, lo: number) => void;
 }) {
   const tracking = useFirstPaint();
-  const size = count < 10 ? 36 : count < 50 ? 42 : 48;
-  const col = tierColors(c, tier);
-  // The circle's centre stays on the point: the label below it makes the marker taller
-  const h = CLUSTER_PAD * 2 + size + (from != null ? CLUSTER_FROM_H + CLUSTER_FROM_GAP : 0);
   return (
     <Marker
       coordinate={{ latitude: la, longitude: lo }}
-      anchor={{ x: 0.5, y: (CLUSTER_PAD + size / 2) / h }}
+      anchor={{ x: 0.5, y: 0.5 }}
       tracksViewChanges={tracking}
       zIndex={5}
       onPress={() => onPress(id, la, lo)}
       accessibilityLabel={`${count} stations${from != null ? `, from ${from.toFixed(1)} cents` : ''}. Zoom in`}>
       <View style={styles.clusterWrap}>
-        <View style={[styles.cluster, { width: size, height: size, borderRadius: size / 2, backgroundColor: c.fg, borderColor: c.bg }]}>
-          <Text style={[styles.clusterText, { color: c.bg }]}>{count}</Text>
-        </View>
-        {from != null ? (
-          <View style={[styles.clusterFrom, { backgroundColor: col.bg, borderColor: c.bg }]}>
-            <Text style={[styles.clusterFromText, { color: col.fg }]}>from {from.toFixed(1)}</Text>
+        <View style={[styles.cluster, { backgroundColor: c.surface, borderColor: c.line }]}>
+          <Text style={[styles.clusterFromText, { color: c.fg }]}>{from != null ? from.toFixed(1) : 'Old'}</Text>
+          <View style={[styles.clusterCount, { backgroundColor: c.fg }]}>
+            <Text style={[styles.clusterText, { color: c.bg }]}>{count}</Text>
           </View>
-        ) : null}
+        </View>
       </View>
     </Marker>
   );
@@ -410,19 +409,16 @@ function MeMarker({ home, c }: { home: Place; c: Palette }) {
   );
 }
 
-/** Cheaper ● ● ● Dearer: what the tag colours mean */
+/** ● Cheapest third  ● Old: what the tag colours mean */
 export function MapLegend() {
   const c = useTheme();
   return (
     <View
       style={styles.legend}
       accessible
-      accessibilityLabel="Price colours: green is the cheapest third of the stations in view, amber the middle, red the dearest third, grey a price over 7 days old">
-      <Text style={[styles.legendText, { color: c.muted }]}>Cheaper</Text>
-      {(['low', 'mid', 'high'] as const).map((t) => (
-        <View key={t} style={[styles.legendDot, { backgroundColor: tierColors(c, t).bg }]} />
-      ))}
-      <Text style={[styles.legendText, { color: c.muted }]}>Dearer</Text>
+      accessibilityLabel="Price colours: green is the cheapest third of the stations in view, grey a price over 7 days old">
+      <View style={[styles.legendDot, { backgroundColor: tierColors(c, 'low').bg }]} />
+      <Text style={[styles.legendText, { color: c.muted }]}>Cheapest third in view</Text>
       <View style={[styles.legendDot, { backgroundColor: c.calmStrong, marginLeft: 6 }]} />
       <Text style={[styles.legendText, { color: c.muted }]}>Old</Text>
     </View>
@@ -562,14 +558,11 @@ const styles = StyleSheet.create({
   },
   tagBestText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
   tagPriceBest: { fontSize: 18 },
-  clusterWrap: { padding: CLUSTER_PAD, alignItems: 'center' },
-  clusterFrom: {
-    height: CLUSTER_FROM_H, marginTop: CLUSTER_FROM_GAP, paddingHorizontal: 6, borderRadius: CLUSTER_FROM_H / 2, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  clusterFromText: { fontSize: 11, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  cluster: { alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-  clusterText: { fontWeight: '800', fontSize: 15, fontVariant: ['tabular-nums'] },
+  clusterWrap: { padding: 2 },
+  cluster: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 26, paddingLeft: 8, paddingRight: 3, borderRadius: 13, borderWidth: 1 },
+  clusterFromText: { fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  clusterCount: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
+  clusterText: { fontWeight: '800', fontSize: 11, fontVariant: ['tabular-nums'] },
   meRing: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(42,120,214,0.25)', alignItems: 'center', justifyContent: 'center' },
   meDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#ffffff' },
   info: {

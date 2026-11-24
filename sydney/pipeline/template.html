@@ -258,13 +258,21 @@ html.mapfs{overflow:hidden}
 @media (pointer:coarse){.maptap{display:inline-flex}}
 .mapcard.mapon .maptap{display:inline-flex;background:var(--brand);color:var(--on-brand)}
 #mapView.fs .maptap{display:none}
-.maplegend{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
+.lg{display:inline-flex;align-items:center;gap:6px;margin-right:10px;white-space:nowrap}
+.grpkey{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 2px 0 6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg);font-size:11px;font-weight:800}
+.grpkey b{min-width:16px;height:16px;border-radius:8px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;background:var(--fg);color:var(--bg)}
+.maplegend{display:flex;flex-wrap:wrap;row-gap:6px;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
 .maplegend i{display:inline-block;width:10px;height:10px;border-radius:50%}
 .tag{display:flex;flex-direction:column;align-items:stretch;padding:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;cursor:pointer;font:inherit;min-width:60px;box-shadow:0 1px 4px rgba(0,0,0,.18);margin-bottom:7px}   /* no position: the tag is MapLibre's marker element, which it positions absolutely */
 .tag::after{content:"";position:absolute;left:50%;bottom:-7px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top:7px solid var(--line)}
-.tag b{display:block;padding:2px 8px;border-radius:9px 9px 0 0;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;background:var(--chip);color:var(--on-chip)}
-.tag span{display:flex;align-items:center;justify-content:center;gap:3px;padding:1px 6px 2px;font-size:10px;font-weight:700;color:var(--fg2);white-space:nowrap;max-width:84px;overflow:hidden;text-overflow:ellipsis}
-.tag.low b{background:var(--cheap);color:var(--on-tier)} .tag.high b{background:var(--dear);color:var(--on-tier)}
+.tag b{display:block;padding:2px 8px;border-radius:9px;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;background:var(--surface);color:var(--fg)}
+.tag span{align-items:center;justify-content:center;gap:3px;padding:1px 6px 2px;font-size:10px;font-weight:700;color:var(--fg2);white-space:nowrap;max-width:84px;overflow:hidden;text-overflow:ellipsis}
+/* Decluttered 2026-11-24: one colour that means something (the cheapest third in view is green, every other price a
+   plain pill) and just the price until street level (#map.detail, zoom 14+); pinned, selected and cheapest tags keep
+   their brand line */
+.tag.low b{background:var(--cheap);color:var(--on-tier)}
+.tag span{display:none} #map.detail .tag span,.tag.pinned span,.tag.sel span,.tag.best span{display:flex}
+#map.detail .tag b,.tag.pinned b,.tag.sel b,.tag.best b{border-radius:9px 9px 0 0}
 .tag.old{opacity:.8} .tag.old b{background:var(--calm-bg);color:var(--calm-fg)}
 /* The cheapest station in view: green whatever its third, the word above a bigger price, a green outline */
 .tag.best{border:2px solid var(--cheap)} .tag.best::after{border-top-color:var(--cheap)}
@@ -274,9 +282,10 @@ html.mapfs{overflow:hidden}
 .tag.pinned,.tag.sel{border-color:var(--fg);border-width:2px} .tag.sel{border-width:3px}
 .tag.pinned::after,.tag.sel::after{border-top-color:var(--fg)}
 .tag.nofuel{opacity:.85} .tag.nofuel.sel{opacity:1;z-index:30!important} .tag.nofuel b{background:var(--calm-bg);color:var(--calm-fg);font-size:12px}   /* a pinned station that doesn't sell the fuel */
-/* Under a group's circle: the lowest price inside it, on its third's colour, so you can tell which group to open */
-.from{pointer-events:none;padding:1px 6px;border-radius:9px;border:1px solid var(--bg);font-size:11px;font-weight:800;line-height:1.35;font-variant-numeric:tabular-nums;white-space:nowrap;background:var(--chip);color:var(--on-chip)}
-.from.low{background:var(--cheap);color:var(--on-tier)} .from.high{background:var(--dear);color:var(--on-tier)}
+/* A group of stations: one neutral pill, the lowest price inside it and the count in a dark dot; tapping it zooms in
+   until it splits (it was a dark circle plus a "from" label under it) */
+.from{display:flex;align-items:center;gap:5px;height:26px;padding:0 3px 0 8px;border-radius:14px;border:1px solid var(--line);font:800 13px/1 var(--font);font-variant-numeric:tabular-nums;white-space:nowrap;background:var(--surface);color:var(--fg);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.from i{font-style:normal;min-width:22px;height:22px;border-radius:11px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;background:var(--fg);color:var(--bg)}
 /* The bar over the map that names the cheapest station in view; selecting it opens that station */
 .bestbar{position:absolute;z-index:45;top:10px;left:10px;max-width:calc(100% - 64px);display:flex;align-items:center;gap:10px;padding:6px 10px 6px 6px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--fg);box-shadow:0 2px 8px rgba(0,0,0,.18);cursor:pointer;font:inherit;text-align:left}
 .bestbar:hover{border-color:var(--cheap)}
@@ -362,7 +371,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
       <div class="section" id="mapView" hidden>
         <div class="card mapcard"><button type="button" class="bestbar" id="bestBar" hidden></button><div id="map" role="region" aria-label="Map of stations. Prices are buttons; numbered groups split as you zoom in. The list view has every station."></div></div>
         <div class="card pop" id="mapSel" aria-live="polite" hidden></div>
-        <div class="maplegend"><span aria-hidden="true">Cheaper</span> <i style="background:var(--cheap)"></i><i style="background:var(--chip)"></i><i style="background:var(--dear)"></i> <span aria-hidden="true">Dearer</span><span class="sr">Price colours: green is the cheapest third of the stations in view, amber the middle, red the dearest third.</span> <i style="background:var(--calm-strong);margin-left:10px"></i> Price over 7 days old (3 weeks outside Sydney)</div>
+        <div class="maplegend"><span class="lg"><i style="background:var(--cheap)"></i>Cheapest third in view</span> <span class="lg"><span class="grpkey">189.9<b>12</b></span>Lowest of 12 nearby</span> <span class="lg"><i style="background:var(--calm-strong)"></i>Old price (over 7 days; 3 weeks outside Sydney)</span></div>
       </div>
       <p class="small" id="stNote"></p>
       <details class="disc" id="whenBox"><summary>How the “when to fill” advice works</summary><div class="disc-body"><p class="small" style="color:var(--fg2)" id="whenText"></p></div></details>
@@ -1292,25 +1301,17 @@ function initMap(){
   // The credits start folded to their (i) button, so they don't cover tags; one tap shows them
   map.once("load", () => map.getContainer().querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show"));
   map.on("moveend", queueSync); map.on("idle", queueSync);
-  map.on("click", "cl", async e => {
-    const f = e.features[0], z = await map.getSource("st").getClusterExpansionZoom(f.properties.cluster_id);
-    map.easeTo({center: f.geometry.coordinates, zoom: Math.min(z, 13) + 0.3});   // where it splits; from 13 everything is a price
-  });
   map.on("click", e => { if (!e.originalEvent.target.closest?.(".tag")) closeSel(); });
-  map.on("mouseenter", "cl", () => map.getCanvas().style.cursor = "pointer");
-  map.on("mouseleave", "cl", () => map.getCanvas().style.cursor = "");
   MD = mapData(); meDot();
 }
 function addLayers(){
   if (map.getSource("st")) return;
   // Only tags that would sit on top of each other merge (a 36 px radius, about half a tag), and nothing merges from
   // street level (zoom 13) in, so every station is readable without a wall of overlapping tags on a phone
-  map.addSource("st", {type:"geojson", data: geo(MD.rows), cluster:true, clusterMaxZoom:12, clusterRadius:36, clusterProperties:{min:["min",["get","p"]]}});
-  map.addLayer({id:"cl", type:"circle", source:"st", filter:["has","point_count"],
-    paint:{"circle-color":css("--fg"), "circle-stroke-color":css("--bg"), "circle-stroke-width":2, "circle-radius":["step",["get","point_count"],17,10,20,50,23]}});
-  map.addLayer({id:"cl-n", type:"symbol", source:"st", filter:["has","point_count"],
-    layout:{"text-field":["get","point_count_abbreviated"], "text-font":["Noto Sans Bold"], "text-size":13, "text-allow-overlap":true},
-    paint:{"text-color":css("--bg")}});
+  map.addSource("st", {type:"geojson", data: geo(MD.rows), cluster:true, clusterMaxZoom:12, clusterRadius:64, clusterProperties:{min:["min",["get","p"]]}});
+  // No circle layers: each group is drawn as one pill marker in syncMap ("from 189.9" and the count), which zooms in
+  // A layer that draws nothing keeps the source tiled, so querySourceFeatures (syncMap) still finds the groups and stations
+  map.addLayer({id:"st-q", type:"circle", source:"st", paint:{"circle-radius":0, "circle-opacity":0, "circle-stroke-width":0}});
   queueSync();
 }
 function updateMapData(){
@@ -1347,6 +1348,7 @@ function syncMap(){
     if (selI != null) openPop(selI, true);       // the open card's "Cheapest in view" badge follows
   }
   const best = bestI != null ? MD.byI.get(bestI) : null;
+  map.getContainer().classList.toggle("detail", map.getZoom() >= 14);   // brands on every tag from street level
   // Tags: the unclustered stations a little past the edges (so they don't pop in), the cheapest, and every pinned one
   const pad = r => r.lo >= b.getWest()-W*.15 && r.lo <= b.getEast()+W*.15 && r.la >= b.getSouth()-H*.4 && r.la <= b.getNorth()+H*.15;
   const want = new Map(), wantFrom = new Map();
@@ -1354,7 +1356,9 @@ function syncMap(){
     const q = f.properties;
     if (q.cluster) {
       // No "from" when it would undercut the Cheapest tag: a group at the edge can hold a station just out of view
-      if (q.min < NO_PRICE && !(best && q.min < best.price)) { const [lo, la] = f.geometry.coordinates; wantFrom.set(`${lo.toFixed(5)},${la.toFixed(5)}|${q.point_count}`, {lo, la, n:q.point_count, min:q.min}); }
+      // A group whose lowest price would undercut the Cheapest tag shows its count only (no "from")
+      const [lo, la] = f.geometry.coordinates, min = q.min < NO_PRICE && !(best && q.min < best.price) ? q.min : null;
+      wantFrom.set(`${lo.toFixed(5)},${la.toFixed(5)}|${q.point_count}`, {lo, la, n:q.point_count, min, id:q.cluster_id});
       continue;
     }
     const r = MD.byI.get(q.i); if (r && r.i !== bestI && pad(r)) want.set(r.i, r);
@@ -1365,13 +1369,21 @@ function syncMap(){
   for (const [k, g] of wantFrom) {
     let m = froms.get(k);
     if (!m) {
-      const el = document.createElement("div"); el.className = "from"; el.setAttribute("aria-hidden", "true");
-      m = new maplibregl.Marker({element: el, anchor:"top", offset:[0, (g.n < 10 ? 17 : g.n < 50 ? 20 : 23) + 1]}).setLngLat([g.lo, g.la]).addTo(map);
+      const el = document.createElement("button"); el.type = "button"; el.className = "from"; el.style.zIndex = 5;
+      el.addEventListener("click", async e => {
+        e.stopPropagation();
+        const id = +el.dataset.id, z = await map.getSource("st").getClusterExpansionZoom(id);
+        map.easeTo({center: m.getLngLat(), zoom: Math.min(z, 13) + 0.3});   // where it splits; from 13 everything is a price
+      });
+      m = new maplibregl.Marker({element: el, anchor:"center"}).setLngLat([g.lo, g.la]).addTo(map);
       froms.set(k, m);
     }
-    const el = m.getElement(), t = tierOf(g.min);
-    el.textContent = `from ${g.min.toFixed(1)}`;
-    ["low","mid","high"].forEach(c => el.classList.toggle(c, c === t));
+    // Groups stay neutral: a group's lowest price is nearly always in the cheapest third, so green there would mean
+    // nothing. Green is for single stations. The count dot is what says "group"; the label says "from" in words.
+    const el = m.getElement();
+    el.dataset.id = g.id;
+    el.innerHTML = `${g.min != null ? g.min.toFixed(1) : "Old"}<i>${g.n}</i>`;
+    el.setAttribute("aria-label", `${g.n} stations${g.min != null ? `, from ${g.min.toFixed(1)} cents` : ""}. Zoom in`);
   }
   bestBar();
   for (const [i, m] of tags) if (!want.has(i)) { m.remove(); tags.delete(i); }
