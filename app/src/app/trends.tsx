@@ -24,7 +24,7 @@ function brandStats(st: Stations, fuel: Fuel, median: number) {
   const by: Record<string, number[]> = {};
   for (const s of st.stations) {
     const p = s.p[fuel];
-    if (p && p[0] != null && !s.out) (by[s.b] ??= []).push(p[0]);   // Sydney stations only (out: elsewhere in NSW)
+    if (p && p[0] != null && !s.out && !s.pd) (by[s.b] ??= []).push(p[0]);   // Sydney only (out: elsewhere in NSW); not premium diesel (pd), against the regular median
   }
   return Object.entries(by)
     .filter(([, a]) => a.length >= 3)

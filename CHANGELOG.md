@@ -2,6 +2,53 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-25 — Premium diesel (PDL): the diesel stations that were missing (pipeline, site, app JS at runtime 1.1.1)
+
+A user said their station didn't show under Diesel. NSW FuelCheck has two diesel codes, `DL` (Diesel) and `PDL` (Premium Diesel), and Bowser kept only `DL`. In today's snapshot **846 Sydney stations sell diesel, but only 260 list `DL`. 586 (69%) list only `PDL`**: nearly every 7-Eleven, most BP, Metro, Ampol Foodary, EG Ampol and Shell Reddy Express. PDL is a premium-grade diesel (extra additives) sold under brand names; any diesel vehicle takes either.
+- **Data (42 archived snapshots, 13 Oct – 25 Nov, Sydney):**
+  - The PDL-only stations' median sits 3–7c above the DL median every day, and the two move together (both down about 23c over the period).
+  - Where a station lists both, PDL is about 3c dearer (middle 80%: 2–4c).
+  - The raw snapshots keep PDL. The stored monthly extracts didn't: `fetch.py` filtered them to `FUELS`. It now keeps PDL, and `lacks_fuel` re-pulls the last three months on the next run, as it did for P95. Every other reader of those files (`build_history.py`, `station_profile.py`, `station_experiment.py`) still filters to `FUELS`.
+- **Data science call:** PDL is a **station-level fuel**, not a sixth tracked fuel.
+  - It is never in Sydney's medians, the regions, the model, the backtest or health.
+  - A station's PDL forecast and advice borrow DL's market (they co-move), with no "above its usual" call, because `station_profile.py` doesn't track PDL.
+  - No new fuel chip: a sixth chip crowds the 360 dp fuel bar, and a diesel driver wants every diesel station under Diesel.
+- **Pipeline:**
+  - `fuels.py`: new `STATION_FUELS` (FUELS + PDL) and `MARKET` (`PDL -> DL`).
+  - `update.py`: PDL stays in the station list (`stations_today.json`), but not in the daily rows.
+  - `build.py` `advise()` and `station_api.py`: PDL's forecast, band and advice come from DL's market; PDL's station history comes from snapshots and today's prices.
+  - `export_api.py`: PDL prices are quarantined against their own median.
+  - The API carries it as `p.PDL` (and `hist.PDL`, `fc.PDL` in station files). It is never written into `DL`, so nothing that aggregates station prices mixes the two.
+- **The rule, applied the same way in all four clients (app `lib/diesel.ts`, dashboard, share page, search pages):**
+  - A station that lists no regular diesel shows its premium diesel as its Diesel, marked premium.
+  - A station that lists both keeps regular diesel; the premium price is shown on its own.
+  - In the app, on load, `p`, `hist` and `fc` keep only the five `Fuel` keys, so nothing keyed on `Fuel` meets an unknown key.
+- **What users see:**
+  - Lists and pin rows: "· Premium" after brand and suburb, and "premium diesel" in the screen-reader label.
+  - Map card: "Premium diesel 263.9".
+  - Station page: "Premium diesel · today" and "The only diesel this station lists is premium diesel." A station with both shows "Premium diesel here: 261.9 c/L".
+  - Dashboard row details: the same notes. Share page: "Premium diesel".
+  - Search station pages: "premium diesel 263.9c" and a "Premium diesel" card.
+  - The gap to the Sydney (or regional) diesel median is still shown: it is what the driver pays against regular diesel.
+  - Brand stats (app Trends, dashboard) leave premium-only prices out, so 7-Eleven doesn't read as a dear diesel brand.
+- **Older app builds:** they ignore `p.PDL`. The station page filters by a fixed fuel list, and the widget copies the key without using it. They keep showing what they showed before; the OTA brings the stations.
+- **Checks:**
+  - Pipeline unit tests: 129 OK, including a new `test_premium_diesel`.
+  - App: tsc and lint clean. jest 492/493; the 1 failure (`drops.test.ts`, pending drop log) also fails on unmodified `main` locally.
+  - New `diesel.test.ts`: 7 tests.
+  - Inline page scripts parse.
+- **QA audit (subagent): no crash, no Sydney median or model touched. Fixed:**
+  - **Station file vs list:** a DL history is forward-filled for up to 30 days after a station stops listing DL. So the app's history-based test could keep a stale regular diesel on the station page while the list showed premium.
+    - `station_api.py` now writes `pd: 1` in the station file, the same test as the row, and the app trusts it. It falls back to the history test for older files.
+    - The station's old `typ.DL` profile is dropped for a premium station.
+  - **Charts:** Sydney stations' PDL charts would have shrunk each time a monthly extract landed (`_snapshot_events` skips covered days). Fixed by keeping PDL in the extracts (above).
+  - **Search pages:** premium prices went into diesel medians and brand averages. A new `reg()` keeps them out of every average, but they still list and count for "cheapest". The brand page falls back to premium prices for a brand with no regular diesel.
+  - **Search station pages:** charts and forecast text read `hist.PDL` and `fc.PDL` for a premium station (on a copy of `details`).
+  - **App:** a stations copy saved on the phone by an older build is normalised through the query's `select`.
+- **Follow-ups:**
+  - The widget and drop-alert text say "Diesel", not "premium diesel", for a premium-only station: `compactStations` doesn't carry `pd`.
+  - Decide whether PDL earns its own tracked series once a year of snapshots exists.
+
 ## 2026-11-24 — User feedback round: brand, one-finger map, Canberra medians, previews, cleaner map, quicker fills (**live**: PR #60, `1adbbac`, `app-ci` run 45323838165, OTA at runtime 1.1.1: preview `c595f3d9`, production `3e2e1783`; site, `regions` and `og/today.png` from `daily-forecast` run 45324718520, a manual run)
 
 Six pieces of user feedback, each built and checked before the next (branch `ux/brand-map-act`, one commit each). Design and data calls made as the designer / data scientist (owner delegation).

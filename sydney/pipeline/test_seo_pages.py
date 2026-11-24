@@ -252,6 +252,16 @@ class Pieces(unittest.TestCase):
         self.assertEqual(sp.station_name("O'CONNELL FUEL D'ARCY ST"), "O'Connell Fuel D'Arcy ST")
         self.assertEqual(sp.station_name("Yogi's Place"), "Yogi's Place")
 
+    def test_premium_diesel(self):
+        """PDL is a station's diesel only where it lists no regular diesel; the pages say premium (fuels.py)"""
+        only = station(7, "BP Ryde", "BP", "Ryde", 2112, -33.8, 151.1, {"U91": (205.9, 0), "PDL": (263.9, 0)})
+        both = station(8, "Ampol Ryde", "Ampol", "Ryde", 2112, -33.8, 151.1, {"DL": (258.9, 0), "PDL": (261.9, 0)})
+        none = station(9, "Metro Ryde", "Metro Fuel", "Ryde", 2112, -33.8, 151.1, {"PDL": (262.9, 0)})
+        self.assertEqual(sp.usable(only)["DL"][0], 263.9); self.assertTrue(sp.premium(only))
+        self.assertEqual(sp.usable(both)["DL"][0], 258.9); self.assertFalse(sp.premium(both))
+        self.assertEqual(list(sp.usable(none)), ["DL"]); self.assertTrue(sp.premium(none))
+        self.assertNotIn("PDL", sp.usable(only))
+
     def test_slug(self):
         self.assertEqual(sp.slug("St Mary's & King’s Cross"), "st-marys-and-kings-cross")
         self.assertEqual(sp.slug("../../etc"), "etc")

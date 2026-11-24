@@ -20,6 +20,7 @@ import { isNotFound, isStationId, useForecast, useHistory, useStationDetail, use
 import { offFor, offText, yourPrice } from '@/lib/discounts';
 import { isHeld, isStale } from '@/lib/filters';
 import { brandSuburb, fmt, fuelName, nice, stationName, sydneyToday, unchangedText, updatedText } from '@/lib/format';
+import { fuelLabel, isPremium } from '@/lib/diesel';
 import { km } from '@/lib/geo';
 import { dayLabel, toneOf } from '@/lib/outlook';
 import { isPinned, MAX_PINS, togglePin, usePins } from '@/lib/pins';
@@ -223,8 +224,8 @@ export default function StationPage() {
             ) : null}
 
             {/* Ticker block */}
-            <View style={{ gap: 6 }} accessible accessibilityLabel={tickerA11y(fuel, tk, mkt?.name)}>
-              <T kind="eyebrow">{fuelName(fuel)} · {dayLabel(d.asof)}</T>
+            <View style={{ gap: 6 }} accessible accessibilityLabel={tickerA11y(fuelLabel(d, fuel), tk, mkt?.name)}>
+              <T kind="eyebrow">{fuelLabel(d, fuel)} · {dayLabel(d.asof)}</T>
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
                 <T kind="hero" style={{ fontSize: 44, lineHeight: 50, letterSpacing: -1.2 }}>
                   {tk.price != null ? tk.price.toFixed(1) : '–'}
@@ -241,6 +242,7 @@ export default function StationPage() {
                   {gapWords(tk.gap, mkt).rest}
                 </T>
               ) : null}
+              <PremiumNote premium={isPremium(d, fuel)} other={fuel === 'DL' ? row?.pdl?.[0] : undefined} />
               {off && tk.price != null ? (
                 <T kind="small" color={c.fg2}>
                   You pay <Text style={{ color: c.cheap, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{yourPrice(tk.price, off).toFixed(1)}</Text>
@@ -360,8 +362,16 @@ function lineColor(t: { px: (number | null)[]; today: number }, c: ReturnType<ty
   return ch < -0.05 ? c.cheap : ch > 0.05 ? c.dear : c.fg2;
 }
 
-function tickerA11y(fuel: Fuel, tk: ReturnType<typeof ticker>, market = 'Sydney') {
-  const parts = [`${fuelName(fuel)} ${tk.price != null ? `${tk.price.toFixed(1)} cents a litre` : 'no price'}`];
+/** Diesel at a station: where its only diesel is premium, say so; where it lists both, give the premium price too */
+function PremiumNote({ premium, other }: { premium: boolean; other?: number }) {
+  const c = useTheme();
+  if (premium) return <T kind="small" color={c.fg2}>The only diesel this station lists is premium diesel.</T>;
+  if (other == null) return null;
+  return <T kind="small" color={c.fg2}>Premium diesel here: {other.toFixed(1)} c/L</T>;
+}
+
+function tickerA11y(name: string, tk: ReturnType<typeof ticker>, market = 'Sydney') {
+  const parts = [`${name} ${tk.price != null ? `${tk.price.toFixed(1)} cents a litre` : 'no price'}`];
   const say = (ch: Change, when: string) =>
     ch && parts.push(Math.abs(ch.c) < 0.05 ? `unchanged ${when}` : `${ch.c < 0 ? 'down' : 'up'} ${Math.abs(ch.c).toFixed(1)} cents ${when}`);
   say(tk.d1, 'since yesterday');
@@ -406,7 +416,7 @@ function ListFallback({
       ) : null}
       {p && fuel ? (
         <View style={{ gap: 6 }}>
-          <T kind="eyebrow">{fuelName(fuel)} · today</T>
+          <T kind="eyebrow">{fuelLabel(row, fuel)} · today</T>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
             <T kind="hero" style={{ fontSize: 44, lineHeight: 50, letterSpacing: -1.2 }}>{p[0].toFixed(1)}</T>
             <T kind="small" style={{ fontWeight: '600' }}>c/L</T>
@@ -419,6 +429,7 @@ function ListFallback({
               {gapWords(gap, med!).rest}
             </T>
           ) : null}
+          <PremiumNote premium={isPremium(row, fuel)} other={fuel === 'DL' ? row.pdl?.[0] : undefined} />
           {off ? (
             <T kind="small" color={c.fg2}>
               You pay <Text style={{ color: c.cheap, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{yourPrice(p[0], off).toFixed(1)}</Text>

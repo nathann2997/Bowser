@@ -5,7 +5,7 @@ usage: python build.py BASE  -> BASE/out/dashboard.html
 import json, os, sys
 import numpy as np, pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fuels import FUELS
+from fuels import FUELS, MARKET
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STORE = f"{BASE}/store"
@@ -93,8 +93,11 @@ def market(f):
     return r, d, J
 MK = {f: market(f) for f in LIVE}
 def advise(f, price, age, key):
+    # PDL (premium diesel) has no Sydney forecast of its own: it follows DL's market (fuels.py MARKET). Its typical
+    # premium is its own (station_profile.py doesn't track PDL, so None: no "above its usual" call for it)
+    f, own = MARKET.get(f, f), f
     r, d, J = MK[f]; p = PF["stations"].get(key, {})
-    typ = p.get("typ", {}).get(f); xs = None if typ is None else price - r["now"] - typ
+    typ = p.get("typ", {}).get(own); xs = None if typ is None else price - r["now"] - typ
     if age is not None and age > 10:
         return ["chk", "Check price", f"Not updated for {age} days"]
     if p.get("n", 0) >= 5 and p.get("part", 1) < 0.25:

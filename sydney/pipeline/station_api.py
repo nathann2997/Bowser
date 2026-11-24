@@ -42,7 +42,7 @@ fc    Per fuel the station sells today: the Sydney forecast for that fuel turned
 import glob, gzip, json, os, re
 import numpy as np, pandas as pd
 
-from fuels import FUELS
+from fuels import FUELS, MARKET, STATION_FUELS
 import station_revert as SR
 DAYS = 400          # days of history per file, ending at asof
 FFILL = 30          # max days the last known price is carried forward after a station-fuel's last change/observation
@@ -64,7 +64,7 @@ def _history_events(ev_dir, since, keys):
         if (y, mo) < (since.year, since.month): continue
         e = pd.read_csv(f, dtype={"hhmm": str})
         e["key"] = e.sid.astype(int).map(sid2key) if "sid" in e.columns else e.key.map(norm)
-        e = e[e.fuel.isin(FUELS) & e.key.isin(keys) & e.price.between(50, 600) & (e.ymd >= int(since.strftime("%Y%m%d")))]
+        e = e[e.fuel.isin(STATION_FUELS) & e.key.isin(keys) & e.price.between(50, 600) & (e.ymd >= int(since.strftime("%Y%m%d")))]
         parts.append(e[["key", "fuel", "ymd", "hhmm", "price"]])
     if not parts: return pd.DataFrame(columns=["key", "fuel", "ts", "price"]), None
     ev = pd.concat(parts, ignore_index=True)
@@ -92,7 +92,7 @@ def _snapshot_events(arch_dir, after, asof, codes, extra=frozenset(), since=None
         p = pd.DataFrame(j.get("prices", []))
         if p.empty: continue
         p["code"] = p.stationcode.astype(str)
-        p = p[p.code.isin(extra if covered else codes) & p.fueltype.isin(FUELS) & p.price.between(50, 600)].copy()
+        p = p[p.code.isin(extra if covered else codes) & p.fueltype.isin(STATION_FUELS) & p.price.between(50, 600)].copy()
         if p.empty: continue                                        # e.g. a Sydney-only snapshot from before 2026-11-13
         p["ts"] = pd.to_datetime(p.lastupdated, dayfirst=True, errors="coerce")
         # When the snapshot was taken: the newest update among the Sydney stations, as before the archive covered all
@@ -141,7 +141,7 @@ def build(base, G, schema):
     hev = hev.assign(code=hev.key.map(k2c)).explode("code")[["code", "fuel", "ts", "price"]]
     outside = {i for i, s in zip(ids, data["stations"]) if s.get("out")}
     sev, addr = _snapshot_events(f"{base}/archive", hist_end, asof, codes, extra=outside, since=warm)
-    today = S[S.code.astype(str).isin(codes) & S.fueltype.isin(FUELS)]
+    today = S[S.code.astype(str).isin(codes) & S.fueltype.isin(STATION_FUELS)]
     tev = pd.DataFrame({"code": today.code.astype(str), "fuel": today.fueltype, "ts": asof + pd.Timedelta(hours=23, minutes=59, seconds=59),
                         "price": today.price.astype(float)})
     ev = pd.concat([hev, sev, tev], ignore_index=True)
@@ -150,7 +150,7 @@ def build(base, G, schema):
     eod = ev.groupby(["fuel", "date", "code"]).price.last()
     days = pd.date_range(warm, asof)
     H = {}
-    for f in FUELS:
+    for f in STATION_FUELS:
         if f not in eod.index.get_level_values(0): continue
         M = eod.loc[f].unstack().reindex(days)
         later = M.notna().iloc[::-1].cummax().iloc[::-1]          # True where this station-fuel is seen again on/after the day
@@ -180,11 +180,12 @@ def build(base, G, schema):
         idx = np.clip(hs - shift, 0, 14)
         fc = {}
         for f, pr in s["p"].items():
-            if f not in MK or s.get("out"): continue   # outside Sydney: no forecast
-            _, d, J = MK[f]; lo, hi = band[f]
+            m = MARKET.get(f, f)                        # PDL: DL's market (fuels.py); its own price and typical premium
+            if m not in MK or s.get("out"): continue   # outside Sydney: no forecast
+            _, d, J = MK[m]; lo, hi = band[m]
             ds = w * d[idx]; los = ds + np.sqrt(w) * (lo[idx] - d[idx]); his = ds + np.sqrt(w) * (hi[idx] - d[idx])
             typ = p.get("typ", {}).get(f)
-            x0 = None if typ is None else pr[0] - LIVE[f]["now"] - typ
+            x0 = None if typ is None else pr[0] - LIVE[m]["now"] - typ
             if REV and not steady and x0 is not None and abs(x0) <= SR.SLIP and pr[1] is not None and pr[1] <= SR.FRESH:   # as trained
                 rv = SR.term(x0, REV, hs)
                 ds, los, his = ds + rv, los + rv, his + rv
@@ -203,6 +204,9 @@ def build(base, G, schema):
         out[sid] = {"schema": schema, "asof": str(asof.date()), "id": sid,
                     "n": s["n"], "b": s["b"], "s": s["s"], "pc": s["pc"], "la": s["la"], "lo": s["lo"], "m": s["m"],
                     **({"out": 1} if s.get("out") else {}),
+                    # premium diesel is this station's diesel today (its row lists PDL, no DL): the clients read hist.PDL
+                    # and fc.PDL as its Diesel. Said here because a DL history can run on for weeks after DL goes (FFILL)
+                    **({"pd": 1} if "PDL" in s["p"] and "DL" not in s["p"] else {}),
                     "addr": addr.get(sid), "start": str(start.date()), "hist": hist,
                     "profile": None if prof is None else {"typ": prof.get("typ", {}), "lag": prof.get("lag"), "part": prof.get("part"), "n": prof.get("n", 0)},
                     "fc": fc}

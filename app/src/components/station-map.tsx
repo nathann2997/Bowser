@@ -17,6 +17,7 @@ import { openInMaps } from '@/lib/directions';
 import { offText } from '@/lib/discounts';
 import { isHeld, isStale, OUT_STALE_DAYS, STALE_DAYS } from '@/lib/filters';
 import { track } from '@/lib/analytics';
+import { isPremium } from '@/lib/diesel';
 import { brandSuburb, FUELS, shortFuel, stationName, unchangedText, updatedText } from '@/lib/format';
 import type { Place, StationRow } from '@/lib/geo';
 import type { Fuel, Station } from '@/lib/types';
@@ -433,7 +434,8 @@ function StationCard({
 }: { r: StationRow; pinned: boolean; cheapest: boolean; median: number | undefined; onClose: () => void; bottom: number; onHeight: (h: number) => void }) {
   const c = useTheme();
   const s = useSettings();
-  const fuel = shortFuel(s.fuel);
+  const prem = isPremium(r, s.fuel);   // its only diesel is premium diesel (lib/diesel.ts)
+  const fuel = prem ? 'Premium diesel' : shortFuel(s.fuel);
   usePins();   // re-render when this station is pinned or unpinned from the card
   const [filling, setFilling] = useState(false);
   const [note, setNote] = useState<FillNoteData | null>(null);

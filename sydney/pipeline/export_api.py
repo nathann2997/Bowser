@@ -29,7 +29,7 @@ ALLOW_STALE = "--allow-stale" in sys.argv          # read before sys.argv is rep
 BASE = args[0] if args else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = args[1] if len(args) > 1 else f"{BASE}/out/site"
 SCHEMA = 1
-from fuels import FUELS
+from fuels import FUELS, STATION_FUELS
 
 sys.argv = ["build.py", BASE]
 G = runpy.run_path(f"{BASE}/pipeline/build.py")
@@ -99,7 +99,7 @@ app_stations = [dict(id=i, **s) for i, s in zip(ids, data["stations"])]
 QUAR_LO, QUAR_HI, QUAR_ABS = -45, 80, (80, 600)
 QUAR_OUT_LO, QUAR_OUT_HI = -50, 150
 quarantined = []
-for f in FUELS:
+for f in STATION_FUELS:   # PDL too, held to its own median
     for out, lo, hi in [(False, QUAR_LO, QUAR_HI), (True, QUAR_OUT_LO, QUAR_OUT_HI)]:
         grp = [st for st in app_stations if bool(st.get("out")) == out and isinstance((st["p"].get(f) or [None])[0], (int, float))]
         bad_abs = [st for st in grp if not QUAR_ABS[0] <= st["p"][f][0] <= QUAR_ABS[1]]

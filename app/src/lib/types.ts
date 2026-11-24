@@ -107,6 +107,8 @@ export type Station = {
   st?: string;    // the state when it isn't NSW ('ACT'), from the address (2026-11-24). Absent for NSW and in older files
   rg?: string;    // outside Sydney: the region whose median it is compared with (Stations.regions; 2026-11-24). Absent with none
   p: Partial<Record<Fuel, StationPrice>>;
+  pd?: 1;         // p.DL is premium diesel, the only diesel it lists (set on load, lib/diesel.ts; the API sends it as PDL)
+  pdl?: StationPrice;   // premium diesel at a station that also lists regular diesel (set on load, lib/diesel.ts)
 };
 
 export type Suburb = { s: string; pc: number; la: number; lo: number; n: number };
@@ -160,6 +162,7 @@ export type StationDetail = Stamp & {
   hist: Partial<Record<Fuel, Series>>;      // end-of-day price c/L per day from start to asof, null = not sold / unknown
   profile: StationProfile | null;
   fc: Partial<Record<Fuel, StationForecast>>;
+  pd?: 1;                         // hist.DL and fc.DL are premium diesel (set on load, lib/diesel.ts)
 };
 
 // ---- track.json: Bowser's daily calls and how they turned out (sydney/pipeline/track_api.py). Added in 0.7; an older

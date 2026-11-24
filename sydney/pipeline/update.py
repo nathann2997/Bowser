@@ -16,7 +16,7 @@ import numpy as np, pandas as pd
 BASE = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INBOX = sys.argv[2] if len(sys.argv) > 2 else f"{BASE}/inbox"
 STORE = f"{BASE}/store"
-from fuels import FUELS
+from fuels import FUELS, STATION_FUELS
 is_syd = lambda pc: (2000 <= pc <= 2234) or (2555 <= pc <= 2574) or (2740 <= pc <= 2786)
 # Addresses the regexes below can't split (no comma before the suburb, or extra words in it): the suburb, by station code.
 # Checked against the 2026-11-24 snapshot; a station not in the feed is simply not used.
@@ -53,13 +53,13 @@ def snapshot_rows(j, snap):
     pr = pr[pr.code.str.fullmatch(r"\d+")]; st = st[st.code.str.fullmatch(r"\d+")]
     st["key"] = st.address.str.upper().str.replace(",", " ").str.replace(r"\s+", " ", regex=True).str.strip()
     pr = pr.merge(st[["code", "name", "brand", "postcode", "suburb", "state", "location", "key", "syd"]], on="code")
-    pr = pr[pr.fueltype.isin(FUELS) & pr.price.between(50, 600)].copy()
+    pr = pr[pr.fueltype.isin(STATION_FUELS) & pr.price.between(50, 600)].copy()   # PDL: station list only (fuels.py)
     pr["ts"] = pd.to_datetime(pr.lastupdated, dayfirst=True, errors="coerce")
     asof = pd.Timestamp(re.search(r"(\d{8})", os.path.basename(snap)).group(1)) if re.search(r"(\d{8})", os.path.basename(snap)) else pr[pr.syd].ts.max().normalize()
     pr["age"] = (asof - pr.ts.dt.normalize()).dt.days
     allpr = pr; st, pr = st[st.syd], pr[pr.syd].drop(columns="syd")
     rows = []
-    for f, g in pr.groupby("fueltype"):
+    for f, g in pr[pr.fueltype.isin(FUELS)].groupby("fueltype"):   # Sydney's daily rows: tracked fuels only
         a = g.price.values; rec, old = g[g.age <= 2].price, g[g.age > 7].price
         rows.append(dict(date=asof.date(), fuel=f, n=len(a), median=np.median(a), mean=a.mean(),
                          p10=np.percentile(a, 10), p25=np.percentile(a, 25), p75=np.percentile(a, 75),
