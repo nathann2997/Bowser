@@ -47,6 +47,8 @@ Either way, EAS keeps signing uploads with its key, which is then the **upload k
 
 - **App name:** `Bowser`. The brand rule is no descriptor after the name (`docs/BRAND.md`). The short description carries the search words.
 - **Short description (80 max):** `Sydney petrol price forecast: fill up today or wait? Cheapest fuel across NSW.` (78 characters; 2026-11-20, so Play search matches "petrol price forecast" and "fuel", the words people search: `docs/SEO.md`. Before: `When to fill up in Sydney, and where fuel is cheapest near you.`)
+- **Next listing (paste after the current review clears; don't change the live listing during review):**
+  - Short description: `Sydney petrol price forecast: fill now or wait? Cheapest fuel in NSW and ACT.` (77 characters; 2026-11-24, `docs/MARKETING_NSW_ACT.md` A1). The forecast stays Sydney's; only the coverage changes. Paste it together with the full description below, which already carries the NSW and ACT wording.
 - **Full description (4000 max):**
 
 ```
@@ -54,14 +56,14 @@ Bowser is not a government app. It is independent and is not affiliated with, en
 
 Bowser tells you whether to fill up today or wait, and where fuel is cheapest near you.
 
-Sydney petrol prices move in cycles: they climb sharply, then drift down for weeks. Bowser reads every price NSW service stations report to the NSW Government's FuelCheck service, up to five times a day, and turns it into one plain call: fill now, or wait.
+Sydney petrol prices move in cycles: they climb sharply, then drift down for weeks. Bowser reads the prices NSW and ACT service stations report to the NSW Government's FuelCheck service, up to five times a day, and for Sydney turns them into one plain call: fill now, or wait.
 
 The fuel price forecast is tested: replayed on every day since 2021 using only what was known at the time, and every live call is scored in public a week later.
 
-• Today's call for your fuel: Unleaded 91, E10, Premium 95 and 98, or Diesel
+• Today's Sydney call for your fuel: Unleaded 91, E10, Premium 95 and 98, or Diesel
 • A 1, 3, 7 and 14-day outlook for Sydney prices, with a likely range
-• The cheapest stations near you on a list or a map, across all of NSW
-• Every station's price history and 7-day forecast
+• The cheapest stations near you on a list or a map, across NSW and the ACT
+• Every station's price history, and a 7-day forecast for each Sydney station
 • Pin the stations you use, and log your fills to see what you saved
 • An alert before prices are expected to jump
 • Home-screen widgets with today's call and your stations
@@ -69,7 +71,7 @@ The fuel price forecast is tested: replayed on every day since 2021 using only w
 
 No account, no ads. Your location stays on your phone.
 
-The forecast covers Sydney; prices cover all of NSW. Forecasts are estimates for planning, not financial advice. Prices are the stations' own reports and can be a few hours old, so check the board before you fill.
+The fill-or-wait forecast covers Sydney only. Elsewhere in NSW and the ACT you get today's prices. Forecasts are estimates for planning, not financial advice. Prices are the stations' own reports and can be a few hours old, so check the board before you fill.
 
 SOURCES
 • Fuel prices: NSW Government FuelCheck – https://www.fuelcheck.nsw.gov.au

@@ -183,7 +183,7 @@ export function TickerChart({
         {t.px.some((p) => p != null) ? (
           <>
             <Key color={color} text="This station" />
-            <Key color={c.muted} text="Sydney median" dashed />
+            {t.med.some((m) => m != null) ? <Key color={c.muted} text="Sydney median" dashed /> : null}
           </>
         ) : null}
         {today != null && lastFc > today ? <Key color={color} text="Forecast and likely range" block /> : null}

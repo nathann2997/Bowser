@@ -5,7 +5,7 @@ import { StyleSheet, Switch, TextInput, View } from 'react-native';
 import { Button, Chip, Segmented, Sheet, T } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { ADVICE_GROUPS, brandOptions, RADII, STALE_DAYS } from '@/lib/filters';
+import { ADVICE_GROUPS, brandOptions, OUT_STALE_DAYS, RADII, STALE_DAYS } from '@/lib/filters';
 import { resetFilters, setSettings, useSettings } from '@/lib/settings';
 
 const BRANDS_SHOWN = 12;
@@ -128,7 +128,7 @@ export function FilterSheet({
       <View style={{ gap: Spacing.one }}>
         <Toggle label="Members-only sites (Costco)" value={s.members} onChange={(v) => setSettings({ members: v })} />
         <Toggle
-          label={`Prices older than ${STALE_DAYS} days${staleCount ? ` (${staleCount})` : ''}`}
+          label={`Old prices: over ${STALE_DAYS} days, ${OUT_STALE_DAYS} outside Sydney${staleCount ? ` (${staleCount})` : ''}`}
           value={s.showStale}
           onChange={(v) => setSettings({ showStale: v })}
         />

@@ -109,6 +109,14 @@ describe('forecast path', () => {
 });
 
 describe('tickerData', () => {
+  it('outside Sydney (the page passes no median and no history): no gap, no median line, no average gap', () => {
+    expect(ticker(D, 'U91', null).gap).toBeNull();
+    const t = tickerData(D, null, 'U91', '1W');
+    expect(t.med.every((m) => m == null)).toBe(true);
+    expect(t.px[t.today]).toBe(195);
+    expect(rangeStats(t).avgGap).toBeNull();
+    expect(chartSummary(t, rangeStats(t), 'U91', '1W')).not.toMatch(/median/);
+  });
   it('windows the history, aligns the Sydney median by date and continues with the forecast', () => {
     const t = tickerData(D, H, 'U91', '1W');
     expect(t.dates[0]).toBe(addDays(ASOF, -7));

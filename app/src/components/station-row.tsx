@@ -8,14 +8,14 @@ import { notify, PINS_FULL } from '@/components/station-actions';
 import { Badge, T } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useStationDetail } from '@/lib/api';
+import { useStationDetail, useStations } from '@/lib/api';
 import { openInMaps } from '@/lib/directions';
 import { offText } from '@/lib/discounts';
-import { STALE_DAYS } from '@/lib/filters';
+import { isHeld, isStale, STALE_DAYS } from '@/lib/filters';
 import { track } from '@/lib/analytics';
 import { isPinned, togglePin, usePins } from '@/lib/pins';
 import { echoesSydney } from '@/lib/copy';
-import { brandSuburb, shortFuel, stationName, updatedText } from '@/lib/format';
+import { brandSuburb, shortFuel, stationName, unchangedText, updatedText } from '@/lib/format';
 import type { StationRow } from '@/lib/geo';
 import type { Tone } from '@/lib/outlook';
 import type { AdviceCode, Fuel, Station } from '@/lib/types';
@@ -94,14 +94,17 @@ function SwipeRow({ id, name, la, lo, children }: { id?: string; name: string; l
 
 type A11y = Pick<PressableProps, 'accessibilityActions' | 'onAccessibilityAction'>;
 
-/** One station: name, where, the when-to-fill chip, price and gap to the median. Tapping opens the station page;
+/** One station: name, where, the when-to-fill chip, price and gap to the Sydney median (Sydney stations only). Tapping opens the station page;
  *  swiping left shows Pin and Map. A pinned station shows a small pin by its name. */
 export function StationItem({ r, median, sydney, last }: { r: StationRow; median: number | undefined; sydney?: Tone; last?: boolean }) {
   const c = useTheme();
   const [, , code, label] = r.adv;
   const name = stationName(r.n);
-  const gap = median != null ? r.price - median : null;
-  const stale = r.age != null && r.age > STALE_DAYS;
+  // The gap is to the Sydney median: none for a station outside Sydney (PM/UX decision 2026-11-24)
+  const gap = median != null && !r.out ? r.price - median : null;
+  const stale = isStale(r.age, r.out);
+  const held = isHeld(r.age, r.out);   // outside Sydney, 8 to 20 days: still current there
+  const asof = useStations().data?.asof;
   const hasId = !!r.id;   // an old cached stations.json has no ids: no station page and no pin, Map still works
   const pinned = usePins().includes(r.id);
   const quiet = echoesSydney(code, sydney);
@@ -126,11 +129,12 @@ export function StationItem({ r, median, sydney, last }: { r: StationRow; median
               <T kind="small" numberOfLines={1}>
                 {brandSuburb(name, r.b, r.s)}{r.d != null ? ` · ${r.d.toFixed(1)} km` : ''}{r.m ? ' · Members' : ''}
               </T>
-              {!quiet || r.off || stale ? (
+              {!quiet || r.off || stale || held ? (
                 <View style={[styles.row, { gap: Spacing.two, marginTop: 2 }]}>
                   {!quiet ? <Badge tone={ADVICE_TONE[code] ?? 'calm'}>{label}</Badge> : null}
                   {r.off ? <OffTag off={r.off} /> : null}
                   {stale ? <T kind="small" color={c.up} numberOfLines={1} style={{ flexShrink: 1 }}>{updatedText(r.age)}</T> : null}
+                  {held ? <T kind="small" numberOfLines={1} style={{ flexShrink: 1 }}>{unchangedText(r.age!, asof)}</T> : null}
                 </View>
               ) : null}
             </View>

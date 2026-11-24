@@ -4,7 +4,7 @@ usage: python export_api.py BASE [OUT] [--allow-stale]   (OUT defaults to BASE/o
 Runs build.py unchanged (so the dashboard HTML is rebuilt too) and reuses the `data` it assembles, then writes
   OUT/api/v1/meta.json       schema version, generation time, freshness of each source, file sizes
   OUT/api/v1/forecast.json   per-fuel forecast + verdict, model context, consumer stats, brands, backtest
-  OUT/api/v1/stations.json   today's NSW stations with per-fuel price, suburb centroids, and for the Sydney ones "when
+  OUT/api/v1/stations.json   today's NSW and ACT stations with per-fuel price, suburb centroids, and for the Sydney ones "when
                              to fill" advice (a station outside Sydney has `out: 1` and prices only)
   OUT/api/v1/history.json    daily Sydney median / p10 / p90 per fuel and wholesale TGP since 2019
   OUT/api/v1/track.json      the track record: recent live calls and how they turned out, plus the replayed backtest
@@ -112,7 +112,8 @@ if quarantined:
     app_stations = [dict(st, p={f: pr for f, pr in st["p"].items() if (st["id"], f) not in qset}) for st in app_stations]
 stations = {"schema": SCHEMA, "asof": data["snap_asof"], **STAMP,
             "fields": {"id": "NSW station code (station/{id}.json)", "n": "name", "b": "brand", "s": "suburb", "pc": "postcode (0 = unknown)", "la": "lat", "lo": "lon", "m": "members only (0/1)",
-                       "out": "1 = outside Sydney: prices only, no forecast (advice code na, or chk for an old price; no 7-day price). Absent for a Sydney station",
+                       "st": "state from the address when it isn't NSW (ACT). Absent for NSW (added 2026-11-24)",
+                       "out": "1 = outside Sydney: prices only, no forecast (advice code na, or chk for a price 21+ days old; no 7-day price). Absent for a Sydney station",
                        "p": "fuel -> [price c/L, days since update, advice code, advice label, advice reason, "
                             "7-day forecast price c/L (= station/{id}.json fc.now + fc.d7; absent if station files failed, and outside Sydney)]"},
             "stations": app_stations, "suburbs": suburbs, "suburb_stats": data["suburbs"]}

@@ -10,11 +10,12 @@ import { ADVICE_TONE, OffTag, openStation } from '@/components/station-row';
 import { Badge, T } from '@/components/ui';
 import { Colors, Radius, Spacing, type Palette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useStations } from '@/lib/api';
 import { openInMaps } from '@/lib/directions';
 import { offText } from '@/lib/discounts';
-import { STALE_DAYS } from '@/lib/filters';
+import { isHeld, isStale, OUT_STALE_DAYS, STALE_DAYS } from '@/lib/filters';
 import { track } from '@/lib/analytics';
-import { brandSuburb, FUELS, shortFuel, stationName, updatedText } from '@/lib/format';
+import { brandSuburb, FUELS, shortFuel, stationName, unchangedText, updatedText } from '@/lib/format';
 import type { Place, StationRow } from '@/lib/geo';
 import type { Fuel, Station } from '@/lib/types';
 import {
@@ -90,7 +91,7 @@ export function StationMap({ rows, pinned, unsold = [], footer, home, live, radi
   );
 
   // The cheapest fresh price in view: its own tag (left out of the groups below), and named in the bar over the map
-  const best = useMemo(() => cheapestOf(inView, STALE_DAYS), [inView]);
+  const best = useMemo(() => cheapestOf(inView, STALE_DAYS, OUT_STALE_DAYS), [inView]);
   const bestId = best?.id ?? null;
   const close = () => setSelected(null);
 
@@ -306,8 +307,8 @@ const NoFuelMarker = memo(function NoFuelMarker({ s, fuel, c }: { s: Station; fu
   );
 });
 
-/** A price not updated for over STALE_DAYS: shown grey, as a check-before-you-drive */
-const isOld = (r: StationRow) => r.age != null && r.age > STALE_DAYS;
+/** An old price (over 7 days in Sydney, 20 outside it: filters.ts isStale): shown grey, as a check-before-you-drive */
+const isOld = (r: StationRow) => isStale(r.age, r.out);
 
 /** Price text on a tier colour: white on the light theme's deep fills, dark on the dark theme's bright ones (contrast) */
 const tierColors = (c: Palette, t: Tier) => {
@@ -437,8 +438,10 @@ function StationCard({
   usePins();   // re-render when this station is pinned or unpinned from the card
   const [, , code, label, , fc7] = r.adv;
   const name = stationName(r.n);
-  const gap = median != null ? r.price - median : null;
-  const stale = r.age != null && r.age > STALE_DAYS;
+  const gap = median != null && !r.out ? r.price - median : null;   // to the Sydney median: none outside Sydney
+  const stale = isStale(r.age, r.out);
+  const held = isHeld(r.age, r.out);   // outside Sydney, 8 to 20 days: still current there
+  const asof = useStations().data?.asof;
   const fcDelta = fc7 != null ? fc7 - r.pump : null;
   const pin = () => {
     if (!togglePin(r.id)) notify(PINS_FULL);
@@ -457,7 +460,7 @@ function StationCard({
           style={{ flex: 1, gap: 2 }}>
           <T style={{ fontWeight: '700', fontSize: 16 }} color={c.fg} numberOfLines={1}>{name}</T>
           <T kind="small" numberOfLines={1} color={stale ? c.up : undefined}>
-            {stale ? updatedText(r.age) : `${brandSuburb(name, r.b, r.s)}${r.d != null ? ` · ${r.d.toFixed(1)} km` : ''}${r.m ? ' · Members' : ''}`}
+            {stale ? updatedText(r.age) : held ? unchangedText(r.age!, asof) : `${brandSuburb(name, r.b, r.s)}${r.d != null ? ` · ${r.d.toFixed(1)} km` : ''}${r.m ? ' · Members' : ''}`}
           </T>
         </Pressable>
         <View style={{ alignItems: 'flex-end' }}>

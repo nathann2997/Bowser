@@ -6,7 +6,7 @@ This covers the fuel price data in this repository (`store/` and `archive/` on t
 
 Contains NSW Government FuelCheck data © State of New South Wales (NSW Fair Trading, Department of Customer Service), from the FuelCheck API (API.NSW) and the FuelCheck price history on [data.nsw.gov.au](https://data.nsw.gov.au/data/dataset/fuel-check). It is licensed under [Creative Commons Attribution-ShareAlike 3.0 Australia](https://creativecommons.org/licenses/by-sa/3.0/au/).
 
-Bowser adapts this data: it filters it to Sydney, computes medians and percentiles, adds per-station advice and forecasts, and reformats it. As the licence requires, these adapted datasets are released under the same licence, CC BY-SA 3.0 AU, and must be attributed as above. The NSW Government does not endorse Bowser or its forecasts.
+Bowser adapts this data: it publishes today's prices for every station in the feed (NSW and ACT service stations that report to NSW FuelCheck), computes Sydney medians and percentiles, adds per-station advice and forecasts (the forecast uses Sydney prices only and covers Sydney only), and reformats it. As the licence requires, these adapted datasets are released under the same licence, CC BY-SA 3.0 AU, and must be attributed as above. The NSW Government does not endorse Bowser or its forecasts.
 
 ## Other sources
 

@@ -141,3 +141,14 @@ describe('misc', () => {
     expect(sc.getClusters([150, -34, 152, -33], 10)).toHaveLength(1);
   });
 });
+
+describe('cheapestOf outside Sydney', () => {
+  it('counts a price outside Sydney as fresh to 20 days, not 21', () => {
+    const s = (id: string, p: number, age: number, out?: 1): Station =>
+      ({ id, n: id, b: 'B', s: 'S', pc: 2600, la: -35.3, lo: 149.1, m: 0, ...(out ? { out } : {}), p: { U91: [p, age, 'na', 'Price only', ''] } });
+    const rows = (x: Station[]) => mapStations(x, 'U91', { home: null, members: true });
+    expect(cheapestOf(rows([s('o', 180, 20, 1), s('b', 195, 0, 1)]))!.id).toBe('o');
+    expect(cheapestOf(rows([s('o', 180, 21, 1), s('b', 195, 0, 1), s('c', 199, 0, 1)]))!.id).toBe('b');
+    expect(cheapestOf(rows([s('syd', 180, 8), s('b', 195, 0), s('c', 199, 0)]))!.id).toBe('b');   // Sydney: old from day 8
+  });
+});

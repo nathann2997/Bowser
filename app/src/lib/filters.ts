@@ -5,6 +5,10 @@ import type { AdviceCode, Fuel, Station } from './types';
 
 export const RADII = [2, 5, 10, 20] as const;
 export const STALE_DAYS = 7;
+/** Outside Sydney (`out`: the rest of NSW and the ACT) prices change less often (no weekly cycle; Canberra's can sit for
+ *  weeks), so a price there is old only from day 21. The same rule as the site (build.py OUT_STALE, seo_pages.py,
+ *  template.html) and the widget (widget/logic.ts). */
+export const OUT_STALE_DAYS = 20;
 
 /** "When to fill" groups in the sheet; each maps to one or more advice codes from stations.json. */
 export type AdviceGroup = 'now' | 'by' | 'wait' | 'calm' | 'chk';
@@ -20,7 +24,7 @@ export type FilterSettings = {
   sort: 'price' | 'distance';
   radiusKm: number;
   members: boolean;          // include members-only sites
-  showStale: boolean;        // include prices not updated for over STALE_DAYS
+  showStale: boolean;        // include old prices (isStale: over STALE_DAYS, or OUT_STALE_DAYS outside Sydney)
   brands: string[];          // empty = all brands
   advice: AdviceGroup[];     // empty = any advice
   maxPrice: number | null;   // c/L, null = no limit
@@ -44,7 +48,10 @@ export function filterCount(f: FilterSettings) {
   );
 }
 
-export const isStale = (age: number | null) => age != null && age > STALE_DAYS;
+/** An old price: over 7 days in Sydney, over 20 outside it (`out`) */
+export const isStale = (age: number | null, out?: number | boolean | null) => age != null && age > (out ? OUT_STALE_DAYS : STALE_DAYS);
+/** A price outside Sydney that is over a week old but still current there (8 to 20 days): shown as "Unchanged since 12 Nov" */
+export const isHeld = (age: number | null, out?: number | boolean | null) => !!out && age != null && age > STALE_DAYS && age <= OUT_STALE_DAYS;
 
 /** Brands of the stations selling `fuel` today, most stations first, then by name. */
 export function brandCounts(stations: Station[], fuel: Fuel): { brand: string; n: number }[] {
@@ -73,7 +80,7 @@ export function applyFilters(rows: StationRow[], f: FilterSettings): StationRow[
   const brands = new Set(f.brands);
   return rows.filter(
     (r) =>
-      (f.showStale || !isStale(r.age)) &&
+      (f.showStale || !isStale(r.age, r.out)) &&
       (!brands.size || brands.has(r.b)) &&
       (!codes.size || codes.has(r.adv[2])) &&
       (f.maxPrice == null || r.price <= f.maxPrice),
