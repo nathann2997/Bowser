@@ -20,7 +20,7 @@ So the app answers in this order: **the decision → the place → the saving �
 
 **Today**
 - A hero card coloured by the decision: amber means act (fill now or this week), blue means wait, neutral means no rush. The headline is still the shared verdict rule (unchanged, mirrored in `template.html` / `export_api.py`).
-- Under it, a deadline in plain words, "Prices likely to rise from Sat 24 Oct", computed on the phone with the same rule `build.py` uses for station advice (`market()`, ported to `lib/outlook.ts`). The home screen and the station chips now point to the same date.
+- Under it, a deadline in plain words, "Prices likely to rise from Sat 24 Oct", computed on the phone with the same rule `build.py` uses for station advice (`market()`, ported to `app/src/lib/outlook.ts`). The home screen and the station chips now point to the same date.
 - The saving in dollars for your tank size: "about $6.65 on a 50 L tank if you fill before then."
 - A 14-day price-path sparkline with the likely range and a marker on the rise day. It replaces the four tiles. The exact numbers sit under it as a compact row.
 - **Best near you**: the 3 cheapest fresh stations in your area, with a link to the full list. With no area set, it shows a one-tap "Use my location" or a suburb search.
@@ -61,7 +61,7 @@ The owner asked for a simpler Today ("show the trend for the fuel and the statio
 
 "Best for you" is gone. It duplicated the cheapest nearby and the pinned stations, and pulled attention from the trend.
 
-**Quieter rows:** a station row's advice chip is left out when it only repeats the Sydney headline. On a "Wait if you can" day, 43 rows each said "Wait". The chip stays when it adds something: a Fill by date, Fill now, Skip for now (that station is dear right now), Check price, or advice that differs from the headline. Screen readers still hear the advice (`echoesSydney` in `lib/copy.ts`).
+**Quieter rows:** a station row's advice chip is left out when it only repeats the Sydney headline. On a "Wait if you can" day, 43 rows each said "Wait". The chip stays when it adds something: a Fill by date, Fill now, Skip for now (that station is dear right now), Check price, or advice that differs from the headline. Screen readers still hear the advice (`echoesSydney` in `app/src/lib/copy.ts`).
 
 **Labels that fit 360 dp:**
 - Forecast tiles read 1 day / 3 days / 7 days / 14 days ("TOMORROW" wrapped).
