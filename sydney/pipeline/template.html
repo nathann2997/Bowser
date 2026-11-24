@@ -828,9 +828,16 @@ function renderStations(){
   const tone = outlook(live[f]).tone;
   // Outside Sydney (e.g. Canberra) the rows' gaps are to the local median: say whose, and that the call is Sydney's
   const local = rows[0] && rows[0].out ? marketFor(rows[0], med) : null;
-  $("stList").innerHTML = (rows.slice(0, state.shown).map(s => stationItem(s, med, tone, "list")).join("")
-    + (local ? `<p class="small" style="padding:10px 16px;margin:0">Gaps are to the ${esc(local.name)} ${shortFuel(f)} median, ${local.med.toFixed(1)}c (${local.n} stations). The fill-or-wait call is for Sydney.</p>` : ""))
-    || `<div class="empty">${missing ? `No suburb matches “${esc(qEl.value)}”. Try a postcode.` : area ? `No recent prices within ${state.radius} km. Try a wider radius.` : "No stations match these filters."}</div>`;
+  const list = $("stList");
+  if (rows.length) {
+    list.innerHTML = rows.slice(0, state.shown).map(s => stationItem(s, med, tone, "list")).join("")
+      + (local ? `<p class="small" style="padding:10px 16px;margin:0">Gaps are to the ${esc(local.name)} ${shortFuel(f)} median, ${local.med.toFixed(1)}c (${local.n} stations). The fill-or-wait call is for Sydney.</p>` : "");
+  } else {
+    // Built as text, not HTML: the message can hold what was typed in the suburb box
+    const e = document.createElement("div"); e.className = "empty";
+    e.textContent = missing ? `No suburb matches “${qEl.value}”. Try a postcode.` : area ? `No recent prices within ${state.radius} km. Try a wider radius.` : "No stations match these filters.";
+    list.replaceChildren(e);
+  }
   $("more").hidden = rows.length <= state.shown;
   $("more").textContent = `Show more (${rows.length - state.shown} left)`;
   const o = outlook(live[f]);
