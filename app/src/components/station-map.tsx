@@ -4,7 +4,8 @@ import MapView, { Marker, PROVIDER_GOOGLE, type MapStyleElement } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Supercluster from 'supercluster';
 
-import { LocateIcon, MapPinIcon, PinIcon } from '@/components/icons';
+import { FillNote, FillSheet, type FillNoteData } from '@/components/fill-sheet';
+import { LocateIcon, MapPinIcon, PinIcon, PumpIcon } from '@/components/icons';
 import { notify, PINS_FULL } from '@/components/station-actions';
 import { ADVICE_TONE, OffTag, openStation } from '@/components/station-row';
 import { Badge, T } from '@/components/ui';
@@ -431,8 +432,16 @@ function StationCard({
   r, pinned, cheapest, median, onClose, bottom, onHeight,
 }: { r: StationRow; pinned: boolean; cheapest: boolean; median: number | undefined; onClose: () => void; bottom: number; onHeight: (h: number) => void }) {
   const c = useTheme();
-  const fuel = shortFuel(useSettings().fuel);
+  const s = useSettings();
+  const fuel = shortFuel(s.fuel);
   usePins();   // re-render when this station is pinned or unpinned from the card
+  const [filling, setFilling] = useState(false);
+  const [note, setNote] = useState<FillNoteData | null>(null);
+  useEffect(() => {
+    if (!note) return;
+    const t = setTimeout(() => setNote(null), 7000);   // time to read the line and Undo
+    return () => clearTimeout(t);
+  }, [note]);
   const [, , code, label, , fc7] = r.adv;
   const name = stationName(r.n);
   // to the station's own market (lib/market.ts): `median` (Sydney's) in Sydney, its region's outside it
@@ -494,10 +503,24 @@ function StationCard({
       </View>
 
       <View style={styles.cardActions}>
-        <CardButton label="Directions" onPress={() => openInMaps(r.la, r.lo, name)} c={c} primary icon={<MapPinIcon color={c.bg} size={18} />} />
+        <CardButton label="Directions" onPress={() => openInMaps(r.la, r.lo, name)} c={c} primary icon={<MapPinIcon color={c.onBrand} size={18} />} />
+        {/* Log a fill from the map, where people are at the pump (2026-11-24); the name above opens the station page */}
+        <CardButton label="Filled up" onPress={() => setFilling(true)} c={c} icon={<PumpIcon color={c.fg} size={16} />} />
         <CardButton label={pinned ? 'Unpin' : 'Pin'} onPress={pin} c={c} icon={<PinIcon filled={!pinned} color={c.fg} size={16} />} />
-        <CardButton label="Details" onPress={() => openStation(r.id, 'map')} c={c} />
       </View>
+      {note ? <FillNote key={note.fill?.id ?? note.text} note={note} onDone={() => setNote(null)} /> : null}
+      {filling ? (
+        <FillSheet
+          station={{ id: r.id, n: r.n, b: r.b, s: r.s }}
+          fuel={s.fuel}
+          price={r.price}
+          pump={r.pump}
+          median={!r.out && median != null ? median : null}   // the savings record is against Sydney's median
+          tankL={s.tankL}
+          onClose={() => setFilling(false)}
+          onSaved={setNote}
+        />
+      ) : null}
     </View>
   );
 }
@@ -509,10 +532,10 @@ function CardButton({ label, onPress, c, primary, icon }: { label: string; onPre
       accessibilityRole="button"
       style={({ pressed }) => [
         styles.cardBtn,
-        { flex: primary ? 1.4 : 1, backgroundColor: primary ? c.fg : c.surface, borderColor: primary ? c.fg : c.line, opacity: pressed ? 0.7 : 1 },
+        { flex: primary ? 1.4 : 1, backgroundColor: primary ? c.brand : c.surface, borderColor: primary ? c.brand : c.line, opacity: pressed ? 0.7 : 1 },
       ]}>
       {icon}
-      <Text style={{ color: primary ? c.bg : c.fg, fontWeight: '700', fontSize: 14 }}>{label}</Text>
+      <Text style={{ color: primary ? c.onBrand : c.fg, fontWeight: '700', fontSize: 14 }} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }

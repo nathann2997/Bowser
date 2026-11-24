@@ -7,7 +7,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
-import { FillSheet } from '@/components/fill-sheet';
+import { FillNote, FillSheet, type FillNoteData } from '@/components/fill-sheet';
 import { MapPinIcon, PumpIcon, ShareIcon } from '@/components/icons';
 import { SourceLine } from '@/components/source-line';
 import { ADVICE_TONE } from '@/components/station-row';
@@ -57,18 +57,18 @@ export default function StationPage() {
   const fuel = fuelSel && sold.includes(fuelSel) ? fuelSel : pickFuel(sold, s.fuel);
   const [range, setRange] = useState<RangeKey>('3M');
   const [scrubbing, setScrubbing] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
+  const [note, setNote] = useState<FillNoteData | null>(null);
   const [filling, setFilling] = useState(false);
   useEffect(() => {
     if (!note) return;
-    const t = setTimeout(() => setNote(null), note.length > 40 ? 5000 : 2500);   // a fill's "Logged…" line needs longer
+    const t = setTimeout(() => setNote(null), note.fill ? 7000 : note.text.length > 40 ? 5000 : 2500);   // time to read a fill's line and Undo
     return () => clearTimeout(t);
   }, [note]);
 
   const pinned = !!id && pins.includes(id);
   const onPin = () => {
     if (!id) return;
-    if (!togglePin(id)) setNote(`You can pin up to ${MAX_PINS} stations`);
+    if (!togglePin(id)) setNote({ text: `You can pin up to ${MAX_PINS} stations` });
   };
 
   // Header facts: from the station file, or from today's stations.json while it loads (or if it fails)
@@ -174,9 +174,7 @@ export default function StationPage() {
             />
           ) : null}
           {note ? (
-            <View style={[styles.note, { backgroundColor: c.fg }]} accessibilityLiveRegion="polite">
-              <T kind="small" color={c.bg} style={{ fontWeight: '600' }}>{note}</T>
-            </View>
+            <FillNote key={note.fill?.id ?? note.text} note={note} onDone={() => setNote(null)} />
           ) : null}
         </View>
 
