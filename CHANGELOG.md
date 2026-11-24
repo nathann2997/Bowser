@@ -2,7 +2,9 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
-## 2026-11-25 — Premium diesel (PDL): the diesel stations that were missing (pipeline, site, app JS at runtime 1.1.1)
+## 2026-11-25 — Premium diesel (PDL): the diesel stations that were missing (**live**: PR #62, `5602a93`, `app-ci` run 45513418524, OTA at runtime 1.1.1: preview `56911fde`, production `bd514a5f`; site and API at the next `daily-forecast` run)
+
+Before the merge, `pipeline-ci` run 45513067106 built the whole site from real data: 2,402 station files, no fail-soft warnings, health OK. Its `stations.json` has 846 Sydney diesel stations, 586 of them premium-only (before the change: 260).
 
 A user said their station didn't show under Diesel. NSW FuelCheck has two diesel codes, `DL` (Diesel) and `PDL` (Premium Diesel), and Bowser kept only `DL`. In today's snapshot **846 Sydney stations sell diesel, but only 260 list `DL`. 586 (69%) list only `PDL`**: nearly every 7-Eleven, most BP, Metro, Ampol Foodary, EG Ampol and Shell Reddy Express. PDL is a premium-grade diesel (extra additives) sold under brand names; any diesel vehicle takes either.
 - **Data (42 archived snapshots, 13 Oct – 25 Nov, Sydney):**
