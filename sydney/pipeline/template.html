@@ -1,5 +1,7 @@
 <html lang="en-AU" class="boot">
 <meta charset="utf-8">
+<meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141618" media="(prefers-color-scheme: dark)">
 <title>Bowser</title>
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,33 +16,41 @@
    cheapest near you). One tone scale (act / wait / calm) colours the hero, the advice chips and the
    sparkline. System font with tabular figures; light and dark themes match. */
 :root{
-  --bg:#f6f6f3; --surface:#ffffff; --sunk:#eeefeb; --line:#e2e3df; --fg:#141618; --fg2:#45494d; --muted:#6f7479;
+  /* Brand: the logo's amber drop (--brand) on ink (#141618). Amber marks the one primary action and the current
+     choice; ink carries text. Neutrals are warm, toward the amber, not grey-green. No blue: links are deep amber. */
+  --bg:#f7f5f0; --surface:#ffffff; --sunk:#efece5; --line:#e3dfd6; --fg:#141618; --fg2:#44474b; --muted:#686b6f;
+  --brand:#ffb22e; --on-brand:#141618; --link:#8a5a00; --focus:#141618;
+  --sel-bg:#141618; --sel-fg:#ffffff; --sel-line:#141618;
   --chip:#ffb22e; --on-chip:#141618;
-  --retail:#eb6834; --tgp:#2a78d6; --cheap:#14865c; --dear:#c4511f; --band:rgba(235,104,52,.12); --fan:rgba(235,104,52,.18);
+  --retail:#b87800; --tgp:#868a8e; --cheap:#0f7a52; --dear:#b4461a; --band:rgba(255,178,46,.22); --fan:rgba(255,178,46,.26);
   --up:#b4361b; --down:#1f6e3a; --flat:#5e6266;
-  --act-bg:#fff3d6; --act-fg:#7a4a00; --act-strong:#f0a000;
-  --wait-bg:#e4eefa; --wait-fg:#1b5799; --wait-strong:#2a78d6;
-  --calm-bg:#eceeea; --calm-fg:#3d4246; --calm-strong:#8a9096;
+  --act-bg:#ffb22e; --act-fg:#141618; --act-strong:#141618; --act-soft:rgba(20,22,24,.14);
+  --wait-bg:#141618; --wait-fg:#f4f1ea; --wait-strong:#ffb22e; --wait-soft:rgba(255,178,46,.24);
+  --calm-bg:#efece5; --calm-fg:#33373a; --calm-strong:#7d8185; --calm-soft:rgba(20,22,24,.08);
   --on-tier:#ffffff;
   --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0f1113; --surface:#181b1e; --sunk:#131618; --line:#2a2e33; --fg:#eef0f2; --fg2:#c2c7cc; --muted:#8b9197;
-  --retail:#e5703f; --tgp:#3987e5; --cheap:#3cc28f; --dear:#f08a5d; --band:rgba(217,89,38,.16); --fan:rgba(255,178,46,.16);
+  --bg:#141618; --surface:#1d2023; --sunk:#191b1e; --line:#2e3236; --fg:#f4f1ea; --fg2:#c9c4ba; --muted:#9a958c;
+  --brand:#ffb22e; --on-brand:#141618; --link:#ffb22e; --focus:#ffb22e;
+  --sel-bg:#3a2c0e; --sel-fg:#ffcf7a; --sel-line:#ffb22e;
+  --retail:#ffb22e; --tgp:#9a958c; --cheap:#3cc28f; --dear:#f08a5d; --band:rgba(255,178,46,.16); --fan:rgba(255,178,46,.2);
   --up:#ff8a6b; --down:#8fdc9f; --flat:#a6abb0;
-  --act-bg:#2e2410; --act-fg:#ffcf7a; --act-strong:#ffb22e;
-  --wait-bg:#122238; --wait-fg:#9cc6f7; --wait-strong:#3987e5;
-  --calm-bg:#1d2124; --calm-fg:#c2c7cc; --calm-strong:#8b9197; --on-tier:#141618; color-scheme:dark}}
+  --act-bg:#2a2112; --act-fg:#ffcf7a; --act-strong:#ffb22e; --act-soft:rgba(255,178,46,.2);
+  --wait-bg:#23272b; --wait-fg:#f4f1ea; --wait-strong:#ffb22e; --wait-soft:rgba(255,178,46,.18);
+  --calm-bg:#1d2023; --calm-fg:#c9c4ba; --calm-strong:#9a958c; --calm-soft:rgba(244,241,234,.08); --on-tier:#141618; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0f1113; --surface:#181b1e; --sunk:#131618; --line:#2a2e33; --fg:#eef0f2; --fg2:#c2c7cc; --muted:#8b9197;
-  --retail:#e5703f; --tgp:#3987e5; --cheap:#3cc28f; --dear:#f08a5d; --band:rgba(217,89,38,.16); --fan:rgba(255,178,46,.16);
+  --bg:#141618; --surface:#1d2023; --sunk:#191b1e; --line:#2e3236; --fg:#f4f1ea; --fg2:#c9c4ba; --muted:#9a958c;
+  --brand:#ffb22e; --on-brand:#141618; --link:#ffb22e; --focus:#ffb22e;
+  --sel-bg:#3a2c0e; --sel-fg:#ffcf7a; --sel-line:#ffb22e;
+  --retail:#ffb22e; --tgp:#9a958c; --cheap:#3cc28f; --dear:#f08a5d; --band:rgba(255,178,46,.16); --fan:rgba(255,178,46,.2);
   --up:#ff8a6b; --down:#8fdc9f; --flat:#a6abb0;
-  --act-bg:#2e2410; --act-fg:#ffcf7a; --act-strong:#ffb22e;
-  --wait-bg:#122238; --wait-fg:#9cc6f7; --wait-strong:#3987e5;
-  --calm-bg:#1d2124; --calm-fg:#c2c7cc; --calm-strong:#8b9197; --on-tier:#141618; color-scheme:dark}
-.t-act{--t-bg:var(--act-bg);--t-fg:var(--act-fg);--t-strong:var(--act-strong)}
-.t-wait{--t-bg:var(--wait-bg);--t-fg:var(--wait-fg);--t-strong:var(--wait-strong)}
-.t-calm{--t-bg:var(--calm-bg);--t-fg:var(--calm-fg);--t-strong:var(--calm-strong)}
+  --act-bg:#2a2112; --act-fg:#ffcf7a; --act-strong:#ffb22e; --act-soft:rgba(255,178,46,.2);
+  --wait-bg:#23272b; --wait-fg:#f4f1ea; --wait-strong:#ffb22e; --wait-soft:rgba(255,178,46,.18);
+  --calm-bg:#1d2023; --calm-fg:#c9c4ba; --calm-strong:#9a958c; --calm-soft:rgba(244,241,234,.08); --on-tier:#141618; color-scheme:dark}
+.t-act{--t-bg:var(--act-bg);--t-fg:var(--act-fg);--t-strong:var(--act-strong);--t-soft:var(--act-soft)}
+.t-wait{--t-bg:var(--wait-bg);--t-fg:var(--wait-fg);--t-strong:var(--wait-strong);--t-soft:var(--wait-soft)}
+.t-calm{--t-bg:var(--calm-bg);--t-fg:var(--calm-fg);--t-strong:var(--calm-strong);--t-soft:var(--calm-soft)}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--fg2);font-family:var(--font);font-size:15px;line-height:1.47;-webkit-font-smoothing:antialiased}
@@ -48,17 +58,18 @@ h1,h2,h3{margin:0;color:var(--fg);text-wrap:balance}
 h2{font-size:22px;font-weight:700;letter-spacing:-.2px}
 h3{font-size:16px;font-weight:700}
 p{margin:0}
-a{color:var(--tgp)}
+a{color:var(--link);text-underline-offset:2px}
+::selection{background:var(--brand);color:var(--on-brand)}
 button,input,select{font:inherit}
 [hidden]{display:none!important}
 .num,.bignum{font-variant-numeric:tabular-nums}
 .small{font-size:13px;line-height:1.4;color:var(--muted)}
-.eyebrow{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.eyebrow{font-size:13px;font-weight:600;color:var(--muted)}   /* a quiet sentence-case label, not tracked small caps */
 .bignum{font-size:24px;font-weight:800;color:var(--fg);letter-spacing:-.3px;line-height:1.1}
 .cheap{color:var(--cheap)} .dear{color:var(--dear)} .up{color:var(--up)}
 .wrap{max-width:1120px;margin:0 auto;padding:20px 16px 64px;display:flex;flex-direction:column;gap:40px}
 @media (min-width:720px){.wrap{padding-inline:32px}}
-:focus-visible{outline:2px solid var(--tgp);outline-offset:2px}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 
 /* header: wordmark, then the fuel chip (the app's header chip; the tank size is in the hero's savings sentence) */
 header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -91,11 +102,11 @@ details.disc[open]>summary::after{content:"\2212"}
 .seg button:disabled{opacity:.4;cursor:not-allowed}
 .seg.off button[aria-pressed="true"]{background:transparent;border-color:transparent;color:var(--muted);font-weight:600}   /* nothing to choose yet */
 .chip{border:1px solid var(--line);background:var(--surface);color:var(--fg2);font-weight:600;font-size:13px;min-height:34px;padding:0 12px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.chip[aria-pressed="true"]{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+.chip[aria-pressed="true"]{background:var(--sel-bg);border-color:var(--sel-line);color:var(--sel-fg)}
 .badge{display:inline-block;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:700;background:var(--t-bg);color:var(--t-fg);white-space:nowrap}
 .btn{border:1px solid var(--line);background:var(--surface);color:var(--fg);font-weight:700;font-size:15px;border-radius:12px;padding:11px 16px;cursor:pointer}
 .btn:disabled{opacity:.7;cursor:progress}
-.link{background:none;border:0;padding:0;color:var(--tgp);font-weight:700;cursor:pointer;text-decoration:none;font-size:15px}
+.link{background:none;border:0;padding:0;color:var(--link);font-weight:700;cursor:pointer;text-decoration:none;font-size:15px}
 .link:hover{text-decoration:underline}
 /* Fingers need bigger targets than a mouse (the app's rows and chips are 44 pt) */
 @media (pointer:coarse){.seg button,.chip{min-height:40px}.chip-select{min-height:44px}.st-actions .link{padding:9px 0}}
@@ -138,12 +149,13 @@ details.disc[open]>summary::after{content:"\2212"}
    User feedback 2026-11: the fuel select at the top of the page went unseen. Kept in step with the header select. */
 .seg.fuelseg{display:flex;flex-wrap:nowrap;align-self:stretch}
 .seg.fuelseg button{flex:1 1 0;min-width:0;padding:0 4px;font-size:14px;white-space:nowrap}
+.seg.fuelseg button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
 /* Map is the stations' home; the list is one button away (the app's floating Map / List button) */
 .viewbtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .multi>summary{list-style:none}
 .multi>summary::-webkit-details-marker{display:none}
 .multi>summary::after{content:"\25BE";color:var(--muted)}
-.multi>summary[aria-pressed="true"]::after{color:var(--bg)}
+.multi>summary[aria-pressed="true"]::after{color:var(--sel-fg)}
 .filters{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
 .multi-panel{position:absolute;z-index:5;top:calc(100% + 6px);left:16px;width:min(300px,calc(100% - 32px));max-height:min(420px,60vh);overflow:auto;overscroll-behavior:contain;background:var(--surface);border:1px solid var(--calm-strong);border-radius:12px;padding:0 10px 10px;box-shadow:0 16px 40px rgba(0,0,0,.35)}
 .multi-head{position:sticky;top:0;z-index:1;align-self:stretch;display:flex;align-items:center;justify-content:space-between;margin:0 -10px;padding:10px 12px 8px;background:var(--surface);border-bottom:1px solid var(--line);color:var(--fg);font-weight:700}   /* stays put while the brands scroll */
@@ -200,7 +212,7 @@ details.disc[open]>summary::after{content:"\2212"}
 .tablewrap{overflow-x:auto;padding:4px}
 table{border-collapse:collapse;width:100%;font-size:14px}
 th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-th{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:700}
+th{font-size:13px;color:var(--muted);font-weight:600}
 td{color:var(--fg)}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 tr:last-child td{border-bottom:0}
@@ -267,7 +279,7 @@ html.mapfs{overflow:hidden}
 .bestbar .bname span+span{color:var(--fg2);flex:none}
 .bestbar::after{content:"\203A";flex:none;color:var(--muted);font-size:20px;font-weight:700;line-height:1}
 .tag svg{width:10px;height:10px;fill:var(--fg)}
-.me{width:14px;height:14px;border-radius:50%;background:var(--tgp);border:2px solid #fff;box-shadow:0 0 0 6px rgba(42,120,214,.25)}
+.me{width:14px;height:14px;border-radius:50%;background:#2a78d6;border:2px solid #fff;box-shadow:0 0 0 6px rgba(42,120,214,.25)}
 .pop{display:flex;flex-direction:column;gap:8px}
 .pop .ph{display:flex;gap:12px;align-items:flex-start}
 .pop .x{background:none;border:0;color:var(--muted);font-size:18px;cursor:pointer;padding:0 0 0 4px;line-height:1}
@@ -284,7 +296,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:va
     <div class="brandline">
       <!-- Bowser lockup: geometry from app/src/components/brand.tsx (docs/BRAND.md) -->
       <svg viewBox="0 0 369 80" role="img" aria-label="Bowser">
-        <path transform="translate(-22 -10)" style="fill:var(--act-strong)" fill-rule="evenodd" d="M50 10C58 22 78 40 78 62A28 28 0 0 1 22 62C22 40 42 22 50 10ZM45.5 42A4.5 4.5 0 0 1 54.5 42V63.14L59.82 57.82A4.5 4.5 0 0 1 66.18 64.18L53.18 77.18A4.5 4.5 0 0 1 46.82 77.18L33.82 64.18A4.5 4.5 0 0 1 40.18 57.82L45.5 63.14Z"/>
+        <path transform="translate(-22 -10)" style="fill:var(--brand)" fill-rule="evenodd" d="M50 10C58 22 78 40 78 62A28 28 0 0 1 22 62C22 40 42 22 50 10ZM45.5 42A4.5 4.5 0 0 1 54.5 42V63.14L59.82 57.82A4.5 4.5 0 0 1 66.18 64.18L53.18 77.18A4.5 4.5 0 0 1 46.82 77.18L33.82 64.18A4.5 4.5 0 0 1 40.18 57.82L45.5 63.14Z"/>
         <path transform="translate(79 5)" style="stroke:var(--fg)" fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" d="M6 64V6H20A14 14 0 0 1 20 34H6M20 34H23A15 15 0 0 1 23 64H6M55 46A18 18 0 1 0 91 46A18 18 0 1 0 55 46M107 28L118 64L128.5 37L139 64L150 28M194 32.32C190 28 186 28 180.5 28C172 28 167 32.32 167 37.72C167 44.2 175 45 180.5 46C187 47 195 49 195 55C195 61.12 188 64 180.5 64C173 64 168 61.84 166 58.24M211 46H247A18 18 0 1 0 241.73 58.73M263 64V28M263 45C263 34 270 28 281 28H283"/>
       </svg>
       <p class="tagline">When to fill up in Sydney, and where it’s cheapest across NSW and the ACT.</p>

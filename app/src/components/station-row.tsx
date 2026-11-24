@@ -80,9 +80,9 @@ function SwipeRow({ id, name, la, lo, children }: { id?: string; name: string; l
             </Pressable>
           ) : null}
           {canGo ? (
-            <Pressable onPress={then(m, go)} accessibilityRole="button" accessibilityLabel={`Show ${name} on the map`} style={[styles.swipeBtn, { backgroundColor: c.tgp }]}>
-              <MapPinIcon color="#ffffff" size={22} />
-              <T kind="small" color="#ffffff" style={{ fontWeight: '700' }}>Map</T>
+            <Pressable onPress={then(m, go)} accessibilityRole="button" accessibilityLabel={`Show ${name} on the map`} style={[styles.swipeBtn, { backgroundColor: c.fg }]}>
+              <MapPinIcon color={c.bg} size={22} />
+              <T kind="small" color={c.bg} style={{ fontWeight: '700' }}>Map</T>
             </Pressable>
           ) : null}
         </View>

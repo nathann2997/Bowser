@@ -97,7 +97,8 @@ export function T({ kind = 'body', color, style, ...rest }: TextProps & { kind?:
     h2: { fontSize: 18, fontWeight: '700', color: c.fg, letterSpacing: -0.2 },
     body: { fontSize: 15, lineHeight: 22, color: c.fg2 },
     small: { fontSize: 13, lineHeight: 18, color: c.muted },
-    eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', color: c.muted },
+    // A quiet sentence-case label (2026-11-24): no small caps with tracking, which read as template UI
+    eyebrow: { fontSize: 13, fontWeight: '600', color: c.muted },
     num: { ...tab, fontSize: 15, fontWeight: '600', color: c.fg },
     bignum: { ...tab, fontSize: 24, fontWeight: '800', color: c.fg, letterSpacing: -0.3 },
     hero: { ...tab, fontSize: 30, lineHeight: 36, fontWeight: '800', color: c.fg, letterSpacing: -0.6 },
@@ -120,7 +121,7 @@ export function Section({
         <T kind="h2" style={{ flexShrink: 1 }}>{title}</T>
         {action ? (
           <Pressable onPress={action.onPress} accessibilityRole="button" hitSlop={8}>
-            <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>{action.label}</T>
+            <T kind="small" color={c.link} style={{ fontWeight: '700' }}>{action.label}</T>
           </Pressable>
         ) : null}
       </View>
@@ -149,13 +150,13 @@ export function Segmented<K extends string>({
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             hitSlop={{ top: 3, bottom: 3 }}   // with the control's 3 px padding: a 44 dp target
-            style={[styles.segBtn, fill && styles.segBtnFill, on && { backgroundColor: c.surface, borderColor: c.line }]}>
+            style={[styles.segBtn, fill && styles.segBtnFill, on && (fill ? { backgroundColor: c.brand, borderColor: c.brand } : { backgroundColor: c.surface, borderColor: c.line })]}>
             <Text
               numberOfLines={fill ? 1 : undefined}
               maxFontSizeMultiplier={fill ? 1.3 : undefined}
               adjustsFontSizeToFit={fill}   // "Diesel" on a narrow phone shrinks a little rather than clipping
               minimumFontScale={0.85}
-              style={{ color: on ? c.fg : c.muted, fontWeight: on ? '700' : '600', fontSize: fill ? 14 : 13, textAlign: 'center' }}>
+              style={{ color: on ? (fill ? c.onBrand : c.fg) : c.muted, fontWeight: on ? '700' : '600', fontSize: fill ? 14 : 13, textAlign: 'center' }}>
               {label}
             </Text>
           </Pressable>
@@ -174,8 +175,8 @@ export function Chip({ label, on, onPress }: { label: string; on?: boolean; onPr
       accessibilityRole="button"
       accessibilityState={{ selected: !!on }}
       hitSlop={{ top: 4, bottom: 4 }}   // 36 dp chip, 44 dp target (chip rows have an 8 dp gap)
-      style={[styles.chip, { borderColor: on ? c.fg : c.line, backgroundColor: on ? c.fg : c.surface }]}>
-      <Text style={{ color: on ? c.bg : c.fg2, fontWeight: '600', fontSize: 13 }}>{label}</Text>
+      style={[styles.chip, { borderColor: on ? c.selLine : c.line, backgroundColor: on ? c.selBg : c.surface }]}>
+      <Text style={{ color: on ? c.selFg : c.fg2, fontWeight: '600', fontSize: 13 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -204,9 +205,9 @@ export function Button({
       accessibilityState={disabled ? { disabled: true } : undefined}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: primary ? c.fg : c.surface, borderColor: primary ? c.fg : c.line, opacity: disabled ? 0.4 : pressed || busy ? 0.7 : 1 },
+        { backgroundColor: primary ? c.brand : c.surface, borderColor: primary ? c.brand : c.line, opacity: disabled ? 0.4 : pressed || busy ? 0.7 : 1 },
       ]}>
-      <Text style={{ color: primary ? c.bg : c.fg, fontWeight: '700', fontSize: 15 }}>{busy ? 'Locating…' : label}</Text>
+      <Text style={{ color: primary ? c.onBrand : c.fg, fontWeight: '700', fontSize: 15 }}>{busy ? 'Locating…' : label}</Text>
     </Pressable>
   );
 }
@@ -297,7 +298,7 @@ export function FuelChip() {
               onPress={() => { changeFuel(k, 'header_chip'); setOpen(false); }}
               accessibilityRole="radio"
               accessibilityState={{ selected: k === fuel }}
-              style={[styles.option, { borderColor: k === fuel ? c.fg : c.line, backgroundColor: k === fuel ? c.sunk : c.surface }]}>
+              style={[styles.option, { borderColor: k === fuel ? c.brand : c.line, backgroundColor: k === fuel ? c.sunk : c.surface }]}>
               <T style={{ fontWeight: '700', flex: 1 }} color={c.fg}>{label}</T>
               {k === fuel ? <T color={c.fg}>✓</T> : null}
             </Pressable>
@@ -350,7 +351,7 @@ export function Loading({ error, onRetry }: { error?: unknown; onRetry?: () => v
       <T>{errorText(error)}</T>
       {onRetry ? (
         <Pressable onPress={onRetry} accessibilityRole="button">
-          <T color={c.tgp} style={{ fontWeight: '700' }}>Try again</T>
+          <T color={c.link} style={{ fontWeight: '700' }}>Try again</T>
         </Pressable>
       ) : null}
     </Card>
@@ -362,8 +363,8 @@ export function StaleBanner({ asof }: { asof: string | undefined }) {
   const c = useTheme();
   if (!asof || asof === sydneyToday()) return null;
   return (
-    <View style={[styles.banner, { backgroundColor: c.actBg }]}>
-      <T kind="small" color={c.actFg}>
+    <View style={[styles.banner, { backgroundColor: c.noteBg }]}>
+      <T kind="small" color={c.noteFg}>
         Showing prices from {nice(asof)}. Today’s update hasn’t arrived yet.
       </T>
     </View>

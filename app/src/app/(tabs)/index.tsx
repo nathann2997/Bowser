@@ -136,7 +136,7 @@ export default function Today() {
           </Disclosure>
 
           <Pressable onPress={() => router.push('/trends')} accessibilityRole="link" hitSlop={8}>
-            <T color={c.tgp} style={{ fontWeight: '700' }}>Price trends and the cycle →</T>
+            <T color={c.link} style={{ fontWeight: '700' }}>Price trends and the cycle →</T>
           </Pressable>
 
           <TrackStrip />

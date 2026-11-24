@@ -107,8 +107,8 @@ export function UpdateNotice({ releaseUrl, onAction }: {
 
   if (!rel) return null;
   const c = dark
-    ? { card: '#181b1e', fg: '#eef0f2', fg2: '#c2c7cc', line: '#2a2e33' }
-    : { card: '#ffffff', fg: '#141618', fg2: '#45494d', line: '#e2e3df' };
+    ? { card: '#1d2023', fg: '#f4f1ea', fg2: '#c9c4ba', line: '#2e3236' }
+    : { card: '#ffffff', fg: '#141618', fg2: '#44474b', line: '#e3dfd6' };
   const close = (a: UpdateAction) => {
     onAction?.(a, rel.version);
     setRel(null);

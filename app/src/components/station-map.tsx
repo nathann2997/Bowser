@@ -404,7 +404,7 @@ function MeMarker({ home, c }: { home: Place; c: Palette }) {
   const tracking = useFirstPaint();
   return (
     <Marker coordinate={{ latitude: home.la, longitude: home.lo }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={tracking} zIndex={1} accessibilityLabel="You">
-      <View style={styles.meRing}><View style={[styles.meDot, { backgroundColor: c.tgp }]} /></View>
+      <View style={styles.meRing}><View style={[styles.meDot, { backgroundColor: ME_BLUE }]} /></View>
     </Marker>
   );
 }
@@ -520,6 +520,9 @@ function CardButton({ label, onPress, c, primary, icon }: { label: string; onPre
 
 // ---- Google map styles (Android). Business places are hidden so Google's own petrol-station icons don't sit under
 // the price tags; the dark one follows the app's dark palette.
+/** "You are here" stays the blue every maps app uses; it is a convention, not a brand colour. */
+const ME_BLUE = '#2a78d6';
+
 const LIGHT_STYLE: MapStyleElement[] = [
   { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
   { featureType: 'poi', elementType: 'labels.icon', stylers: [{ saturation: -60 }, { lightness: 20 }] },

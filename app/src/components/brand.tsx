@@ -29,7 +29,7 @@ export function BowserMark({ size = 32, color }: { size?: number; color?: string
   const c = useTheme();
   return (
     <Svg width={size} height={size} viewBox="9 9 82 82" accessibilityLabel="Bowser">
-      <MarkShape color={color ?? c.actStrong} />
+      <MarkShape color={color ?? c.brand} />
     </Svg>
   );
 }
@@ -40,7 +40,7 @@ export function BowserWordmark({ height = 28, color }: { height?: number; color?
   return (
     <Svg width={(height * LOCKUP_W) / LOCKUP_H} height={height} viewBox={`0 0 ${LOCKUP_W} ${LOCKUP_H}`} accessibilityLabel="Bowser">
       <G transform="translate(-22 -10)">
-        <MarkShape color={color ?? c.actStrong} />
+        <MarkShape color={color ?? c.brand} />
       </G>
       <Path d={WORD} transform="translate(79 5)" fill="none" stroke={color ?? c.fg} strokeWidth={12} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>

@@ -151,7 +151,7 @@ export default function StationPage() {
               />
               <ActionButton
                 label={pinned ? 'Pinned' : 'Pin'} onPress={onPin} selected={pinned}
-                icon={<PinIcon on={pinned} color={pinned ? c.actStrong : c.fg} size={18} />}
+                icon={<PinIcon on={pinned} color={pinned ? c.selFg : c.fg} size={18} />}
               />
               {fuel && tk?.price != null ? (
                 <ActionButton label="Filled up" onPress={() => setFilling(true)} icon={<PumpIcon color={c.fg} size={18} />} />
@@ -190,7 +190,7 @@ export default function StationPage() {
                 <T>{badId || isNotFound(q.error) ? 'This station isn’t in today’s data.' : 'Check your connection and try again.'}</T>
                 {!badId && (!isNotFound(q.error) || sq.isError) ? (
                   <Pressable onPress={refresh} accessibilityRole="button" style={styles.retry} hitSlop={8}>
-                    <T color={c.tgp} style={{ fontWeight: '700' }}>Try again</T>
+                    <T color={c.link} style={{ fontWeight: '700' }}>Try again</T>
                   </Pressable>
                 ) : null}
               </Card>
@@ -203,8 +203,8 @@ export default function StationPage() {
         ) : (
           <>
             {q.isError ? (
-              <View style={[styles.banner, { backgroundColor: c.actBg }]}>
-                <T kind="small" color={c.actFg}>
+              <View style={[styles.banner, { backgroundColor: c.noteBg }]}>
+                <T kind="small" color={c.noteFg}>
                   {isNotFound(q.error) ? 'Today’s station history isn’t available yet.' : 'Couldn’t refresh.'} Showing saved prices from {nice(d.asof)}.
                 </T>
               </View>
@@ -442,7 +442,7 @@ function ListFallback({
         </T>
         {!notFound ? (
           <Pressable onPress={onRetry} accessibilityRole="button" style={styles.retry} hitSlop={8}>
-            <T color={c.tgp} style={{ fontWeight: '700' }}>Try again</T>
+            <T color={c.link} style={{ fontWeight: '700' }}>Try again</T>
           </Pressable>
         ) : null}
       </Card>
@@ -507,11 +507,11 @@ function ActionButton({ label, onPress, icon, primary, selected }: { label: stri
       accessibilityState={selected != null ? { selected } : undefined}
       style={({ pressed }) => [
         styles.action,
-        primary ? { flex: 1, backgroundColor: c.fg, borderColor: c.fg } : { backgroundColor: selected ? c.actBg : c.surface, borderColor: selected ? c.actStrong : c.line },
+        primary ? { flex: 1, backgroundColor: c.brand, borderColor: c.brand } : { backgroundColor: selected ? c.selBg : c.surface, borderColor: selected ? c.selLine : c.line },
         pressed && { opacity: 0.7 },
       ]}>
       {icon}
-      <Text style={{ color: primary ? c.bg : selected ? c.actFg : c.fg, fontWeight: '700', fontSize: 15 }}>{label}</Text>
+      <Text style={{ color: primary ? c.onBrand : selected ? c.selFg : c.fg, fontWeight: '700', fontSize: 15 }}>{label}</Text>
     </Pressable>
   );
 }

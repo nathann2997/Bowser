@@ -72,3 +72,18 @@ The owner asked for a simpler Today ("show the trend for the fuel and the statio
 **Station page:** one pin control (the Pin / Pinned button). The duplicate top-bar pin is gone; Share stays in the top bar.
 
 **Not changed:** the web dashboard (`template.html`) keeps its own layout.
+
+# Brand pass — 2026-11-24
+
+User feedback: "the app looks AI made" and "the colours don't match the logo". The logo is an amber drop (#FFB22E) on ink (#141618), but the interface led with blue (links, the Wait card, focus rings), white primary buttons and grey-green neutrals. Reviewed with the Impeccable design skill (craft floor, colorize, layout).
+
+**Colour roles (app `constants/theme.ts`, web `template.html` :root, share page and SEO pages share them):**
+- **Brand amber** `#ffb22e` with ink text: the one primary action (Map, Use my location, the Map/List toggle), the selected fuel, the logo. Never decoration.
+- **Ink** `#141618`: text in light mode, the dark-mode canvas (the icon's own background), selected filter chips in light mode.
+- **Links** are deep amber `#8a5a00` in light (5.4:1 on the canvas) and amber in dark. No blue anywhere except the "you are here" dot, which keeps the colour every maps app uses.
+- **Neutrals** lean warm toward the amber: canvas `#f7f5f0`, lines `#e3dfd6`; dark `#141618` / `#1d2023`.
+- **Decision tones:** act = an amber card with ink text; wait = an ink card with an amber forecast line (a bowser display); calm = a neutral card. In dark mode act is a deep amber tint, to avoid a glaring block at night.
+- **Price meaning** stays green (cheaper) and red-orange (dearer), darkened to pass 4.5:1 on the warm canvas.
+- Warning banners use their own soft amber (`noteBg`), so they don't read as the act card.
+
+**Hierarchy:** the small uppercase tracked labels ("UNLEADED 91 · TUE 24 NOV", "1 DAY", "LOW") are now sentence-case 13 px labels. Tracked small caps were the strongest template tell. Map tags keep their tiny caps, which are there for legibility.

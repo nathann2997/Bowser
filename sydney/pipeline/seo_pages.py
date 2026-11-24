@@ -211,11 +211,11 @@ def usable(s):
 
 
 # ---- the look: the dashboard's tokens (template.html), one style block shared by every page
-CSS = """:root{--bg:#f6f6f3;--surface:#fff;--sunk:#eeefeb;--line:#e2e3df;--fg:#141618;--fg2:#45494d;--muted:#6f7479;--link:#1d62b5;--chip:#ffb22e;--cheap:#14865c;--dear:#c4511f;--retail:#eb6834;--median:#8a9096;--band:rgba(235,104,52,.14);--act-bg:#fff3d6;--act-fg:#7a4a00;--wait-bg:#e4eefa;--wait-fg:#1b5799;--calm-bg:#eceeea;--calm-fg:#3d4246;color-scheme:light dark}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1113;--surface:#181b1e;--sunk:#131618;--line:#2a2e33;--fg:#eef0f2;--fg2:#c2c7cc;--muted:#8b9197;--link:#6aa9f0;--cheap:#3cc28f;--dear:#f08a5d;--retail:#e5703f;--median:#8b9197;--band:rgba(229,112,63,.2);--act-bg:#2e2410;--act-fg:#ffcf7a;--wait-bg:#122238;--wait-fg:#9cc6f7;--calm-bg:#1d2124;--calm-fg:#c2c7cc}}
+CSS = """:root{--bg:#f7f5f0;--surface:#fff;--sunk:#efece5;--line:#e3dfd6;--fg:#141618;--fg2:#44474b;--muted:#686b6f;--link:#8a5a00;--focus:#141618;--chip:#ffb22e;--cheap:#0f7a52;--dear:#b4461a;--retail:#b87800;--median:#868a8e;--band:rgba(255,178,46,.22);--act-bg:#ffb22e;--act-fg:#141618;--wait-bg:#141618;--wait-fg:#f4f1ea;--calm-bg:#efece5;--calm-fg:#33373a;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#141618;--surface:#1d2023;--sunk:#191b1e;--line:#2e3236;--fg:#f4f1ea;--fg2:#c9c4ba;--muted:#9a958c;--link:#ffb22e;--focus:#ffb22e;--cheap:#3cc28f;--dear:#f08a5d;--retail:#ffb22e;--median:#9a958c;--band:rgba(255,178,46,.16);--act-bg:#2a2112;--act-fg:#ffcf7a;--wait-bg:#23272b;--wait-fg:#f4f1ea;--calm-bg:#1d2023;--calm-fg:#c9c4ba}}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--fg2);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
-a{color:var(--link)}a:hover{text-decoration-thickness:2px}:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+a{color:var(--link)}a:hover{text-decoration-thickness:2px}:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 h1,h2,h3{color:var(--fg);margin:0;text-wrap:balance}h1{font-size:30px;line-height:1.15;letter-spacing:-.5px}h2{font-size:21px;letter-spacing:-.2px;margin-top:8px}h3{font-size:16px}
 p{margin:0;max-width:72ch}ul{margin:0;padding-left:20px;max-width:72ch}li{margin:4px 0}
 .wrap{max-width:960px;margin:0 auto;padding:16px 16px 56px;display:flex;flex-direction:column;gap:20px}main{display:flex;flex-direction:column;gap:16px;min-width:0}.wrap>*,main>*{min-width:0;max-width:100%}body{overflow-wrap:break-word}
@@ -369,7 +369,7 @@ def cycle_stage(stats, fc_asof, live):
 # changes and never 404s: export_api.py writes it after the pages, apart from them, and writes BADGE_FALLBACK if it fails.
 BADGE_PATH = "badge/sydney.svg"
 BADGE_W, BADGE_H = 360, 104
-BADGE_TONE = {"act": ("#fff3d6", "#7a4a00", "#e89a00"), "wait": ("#e4eefa", "#1b5799", "#1d62b5"), "calm": ("#eceeea", "#3d4246", "#8a9096")}
+BADGE_TONE = {"act": ("#ffb22e", "#141618", "#141618"), "wait": ("#141618", "#f4f1ea", "#ffb22e"), "calm": ("#efece5", "#33373a", "#7d8185")}   # brand tones (2026-11-24)
 BADGE_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
 
