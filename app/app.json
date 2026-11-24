@@ -2,7 +2,7 @@
   "expo": {
     "name": "Bowser",
     "slug": "fuel-forecast",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "fuelforecast",
@@ -97,8 +97,8 @@
         "expo-build-properties",
         {
           "android": {
-            "extraProguardRules": "# react-native-android-widget runs widget updates through WorkManager. R8 full mode (AGP 9) strips the\n# no-arg constructors WorkManager/Room create by reflection, which crashes release builds on launch\n# (github.com/sAleksovski/react-native-android-widget/issues/159). Keep them.\n-keep class androidx.work.impl.WorkDatabase_Impl { <init>(); }\n-keep class * extends androidx.room.RoomDatabase { <init>(); }\n-keep class * extends androidx.work.InputMerger { <init>(); }\n-keep class * extends androidx.work.ListenableWorker { <init>(android.content.Context, androidx.work.WorkerParameters); }\n-keep class com.reactnativeandroidwidget.** { *; }",
-            "enableMinifyInReleaseBuilds": false
+            "extraProguardRules": "# R8 is on from 1.1.1 (Play: \"DEX code optimization below threshold\"). It was off from 0.3.0 because\n# react-native-android-widget crashed release builds on launch under R8 full mode (AGP 9): R8 stripped the no-arg\n# constructors WorkManager/Room create by reflection (github.com/sAleksovski/react-native-android-widget/issues/159).\n# Upstream closed it in widget 0.26.0 by moving to work-runtime 2.12.0; we stay on 0.23.0 (patched) and keep these\n# rules instead. Gradle is expected to resolve work-runtime to 2.10.5 here (expo-background-task asks for it, the widget\n# for 2.8.1), and expo-updates' consumer rules already keep RoomDatabase subclasses' <init>(); these are belt and braces.\n# expo-background-task and expo-task-manager run on the same WorkManager (Android, since 1.1.0), so the background\n# refresh depends on these rules as much as the widget does: WorkManager persists worker and input merger class names\n# and creates them by reflection. Don't trim them.\n-keep class androidx.work.impl.WorkDatabase_Impl { <init>(); }\n-keep class * extends androidx.room.RoomDatabase { <init>(); }\n-keep class * extends androidx.work.InputMerger { <init>(); }\n-keep class * extends androidx.work.ListenableWorker { <init>(android.content.Context, androidx.work.WorkerParameters); }\n-keep class com.reactnativeandroidwidget.** { *; }",
+            "enableMinifyInReleaseBuilds": true
           }
         }
       ],
@@ -126,7 +126,8 @@
       ],
       "expo-background-task",
       "expo-status-bar",
-      "./plugins/with-optional-features"
+      "./plugins/with-optional-features",
+      "./plugins/with-any-orientation"
     ],
     "experiments": {
       "typedRoutes": true,

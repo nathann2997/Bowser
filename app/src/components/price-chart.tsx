@@ -118,7 +118,7 @@ export function PriceChart({ d, label }: { d: ChartData; label: string }) {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
         <Key color={c.retail} text={`${label} median`} />
         <Key color={c.band} text="Middle 80% of stations" block />
-        <Key color={c.tgp} text="Wholesale price" />
+        <Key color={c.link} text="Wholesale price" />
         <Key color={c.fan} text="Forecast, likely range" block />
       </View>
     </View>

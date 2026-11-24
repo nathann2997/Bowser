@@ -7,18 +7,19 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
-import { FillSheet } from '@/components/fill-sheet';
+import { FillNote, FillSheet, type FillNoteData } from '@/components/fill-sheet';
 import { MapPinIcon, PumpIcon, ShareIcon } from '@/components/icons';
 import { SourceLine } from '@/components/source-line';
 import { ADVICE_TONE } from '@/components/station-row';
 import { TickerChart } from '@/components/ticker-chart';
-import { Badge, Card, Section, StaleBanner, T } from '@/components/ui';
+import { Badge, Card, CONTENT_MAX, Section, StaleBanner, T } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { track, useReady } from '@/lib/analytics';
 import { isNotFound, isStationId, useForecast, useHistory, useStationDetail, useStations } from '@/lib/api';
 import { offFor, offText, yourPrice } from '@/lib/discounts';
-import { brandSuburb, fmt, fuelName, nice, stationName, sydneyToday, updatedText } from '@/lib/format';
+import { isHeld, isStale } from '@/lib/filters';
+import { brandSuburb, fmt, fuelName, nice, stationName, sydneyToday, unchangedText, updatedText } from '@/lib/format';
 import { km } from '@/lib/geo';
 import { dayLabel, toneOf } from '@/lib/outlook';
 import { isPinned, MAX_PINS, togglePin, usePins } from '@/lib/pins';
@@ -29,6 +30,7 @@ import {
   tankText, ticker, tickerData, type Change, type RangeKey,
 } from '@/lib/station';
 import type { Fuel, Station } from '@/lib/types';
+import { gapWords, marketFor, type Market } from '@/lib/market';
 
 const SHORT: Record<Fuel, string> = { U91: 'U91', E10: 'E10', P95: 'P95', P98: 'P98', DL: 'Diesel' };
 
@@ -55,18 +57,18 @@ export default function StationPage() {
   const fuel = fuelSel && sold.includes(fuelSel) ? fuelSel : pickFuel(sold, s.fuel);
   const [range, setRange] = useState<RangeKey>('3M');
   const [scrubbing, setScrubbing] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
+  const [note, setNote] = useState<FillNoteData | null>(null);
   const [filling, setFilling] = useState(false);
   useEffect(() => {
     if (!note) return;
-    const t = setTimeout(() => setNote(null), note.length > 40 ? 5000 : 2500);   // a fill's "Logged…" line needs longer
+    const t = setTimeout(() => setNote(null), note.fill ? 7000 : note.text.length > 40 ? 5000 : 2500);   // time to read a fill's line and Undo
     return () => clearTimeout(t);
   }, [note]);
 
   const pinned = !!id && pins.includes(id);
   const onPin = () => {
     if (!id) return;
-    if (!togglePin(id)) setNote(`You can pin up to ${MAX_PINS} stations`);
+    if (!togglePin(id)) setNote({ text: `You can pin up to ${MAX_PINS} stations` });
   };
 
   // Header facts: from the station file, or from today's stations.json while it loads (or if it fails)
@@ -79,10 +81,16 @@ export default function StationPage() {
   // The lists read stations.json; this page reads the station's own file. If that file is an older saved copy, the
   // price comes from the newer stations.json, so the page never disagrees with the list the user tapped
   const listPrice = fuel && d && sq.data && sq.data.asof > d.asof ? row?.p[fuel]?.[0] ?? null : null;
-  const tk = d && fuel ? ticker(d, fuel, live?.now ?? null, listPrice) : null;
+  const out = d?.out ?? row?.out;   // outside Sydney: a price is old from day 21, not day 8 (filters.ts isStale)
+  // Outside Sydney there is no gap to the Sydney median anywhere on the page: not in the ticker, the chart's median line
+  // and "Avg gap" tile, or the shared message (PM/UX decision 2026-11-24; the site's station pages already do this)
+  // The gap is to the station's own market (lib/market.ts): Sydney's median in Sydney, its region's (Canberra, Newcastle…)
+  // outside it, or none. The chart's median line and "Avg gap" stay Sydney-only: there is no regional median history.
+  const mkt = marketFor(out == null && !row ? null : { out, rg: row?.rg }, fuel, live?.now ?? null, sq.data?.regions);   // `rg` is on the list's row, not the station file
+  const tk = d && fuel ? ticker(d, fuel, mkt?.med ?? null, listPrice) : null;
   const hasHist = !!(d && fuel && d.hist[fuel]?.some((v) => v != null));
   // The React Compiler memoizes this (and the paths in TickerChart key off its identity)
-  const chart = d && fuel ? tickerData(d, hq.data, fuel, hasHist ? range : '1W') : null;
+  const chart = d && fuel ? tickerData(d, out ? null : hq.data, fuel, hasHist ? range : '1W') : null;
   const stats = chart ? rangeStats(chart) : null;
   const fc = d && fuel ? d.fc[fuel] : undefined;
   const tone = live ? toneOf(live.verdict.cls) : undefined;   // Sydney verdict tone, for the rise wording
@@ -94,27 +102,33 @@ export default function StationPage() {
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <View style={[styles.topBar, { paddingTop: insets.top + 4, backgroundColor: c.bg, borderBottomColor: c.line }]}>
-        <IconButton label="Back" onPress={goBack}>
-          <Svg width={22} height={22} viewBox="0 0 24 24">
-            <Path d="M15 5l-7 7 7 7" stroke={c.fg} strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-        </IconButton>
-        <T numberOfLines={1} style={{ flex: 1, fontWeight: '700', fontSize: 16 }} color={c.fg}>{head ? name : ''}</T>
-        {head && id && fuel && tk?.price != null && canShare() ? (
-          <IconButton
-            label="Share this price"
-            onPress={() => shareText(dealMessage({
-              id, n: head.n, s: head.s, fuel, pump: tk.price!, median: live?.now ?? null, advice: fc?.adv[1] ?? row?.p[fuel]?.[3] ?? null,
-            }), 'deal')}>
-            <ShareIcon color={c.fg} size={22} />
+        {/* In the same column as the content on wide windows (CONTENT_MAX) */}
+        <View style={styles.topBarRow}>
+          <IconButton label="Back" onPress={goBack}>
+            <Svg width={22} height={22} viewBox="0 0 24 24">
+              <Path d="M15 5l-7 7 7 7" stroke={c.fg} strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
           </IconButton>
-        ) : null}
+          <T numberOfLines={1} style={{ flex: 1, fontWeight: '700', fontSize: 16 }} color={c.fg}>{head ? name : ''}</T>
+          {head && id && fuel && tk?.price != null && canShare() ? (
+            <IconButton
+              label="Share this price"
+              onPress={() => shareText(dealMessage({
+                id, n: head.n, s: head.s, fuel, pump: tk.price!, median: mkt?.med ?? null, market: mkt?.name, advice: fc?.adv[1] ?? row?.p[fuel]?.[3] ?? null,
+              }), 'deal')}>
+              <ShareIcon color={c.fg} size={22} />
+            </IconButton>
+          ) : null}
+        </View>
       </View>
 
       <ScrollView
         style={{ flex: 1 }}
         scrollEnabled={!scrubbing}
-        contentContainerStyle={{ padding: Spacing.four, paddingBottom: Spacing.six + insets.bottom, gap: Spacing.five }}
+        contentContainerStyle={{
+          padding: Spacing.four, paddingBottom: Spacing.six + insets.bottom, gap: Spacing.five,
+          width: '100%', maxWidth: CONTENT_MAX + 2 * Spacing.four, alignSelf: 'center',   // a column on wide windows (ui.tsx)
+        }}
         refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={refresh} tintColor={c.muted} />}>
 
         {/* Header */}
@@ -140,7 +154,7 @@ export default function StationPage() {
               />
               <ActionButton
                 label={pinned ? 'Pinned' : 'Pin'} onPress={onPin} selected={pinned}
-                icon={<PinIcon on={pinned} color={pinned ? c.actStrong : c.fg} size={18} />}
+                icon={<PinIcon on={pinned} color={pinned ? c.selFg : c.fg} size={18} />}
               />
               {fuel && tk?.price != null ? (
                 <ActionButton label="Filled up" onPress={() => setFilling(true)} icon={<PumpIcon color={c.fg} size={18} />} />
@@ -153,24 +167,22 @@ export default function StationPage() {
               fuel={fuel}
               price={yourPrice(tk.price, off)}
               pump={tk.price}
-              median={live && fq.data?.asof === sydneyToday() ? live.now : null}   // yesterday's median isn't today's
+              median={!out && live && fq.data?.asof === sydneyToday() ? live.now : null}   // yesterday's median isn't today's; none outside Sydney
               tankL={s.tankL}
               onClose={() => setFilling(false)}
               onSaved={setNote}
             />
           ) : null}
           {note ? (
-            <View style={[styles.note, { backgroundColor: c.fg }]} accessibilityLiveRegion="polite">
-              <T kind="small" color={c.bg} style={{ fontWeight: '600' }}>{note}</T>
-            </View>
+            <FillNote key={note.fill?.id ?? note.text} note={note} onDone={() => setNote(null)} />
           ) : null}
         </View>
 
         {!d ? (
           q.error || badId ? (
             row ? (
-              <ListFallback row={row} preferred={s.fuel} off={off} medianOf={(f) => fq.data?.live.find((r) => r.fuel === f)?.now}
-                notFound={badId || isNotFound(q.error)} onRetry={() => q.refetch()} />
+              <ListFallback row={row} preferred={s.fuel} off={off} medianOf={(f) => marketFor(row, f, fq.data?.live.find((r) => r.fuel === f)?.now, sq.data?.regions)}
+                notFound={badId || isNotFound(q.error)} onRetry={() => q.refetch()} asof={sq.data?.asof} />
             ) : sq.isPending && !badId ? (
               <LoadingSkeleton />
             ) : (
@@ -179,7 +191,7 @@ export default function StationPage() {
                 <T>{badId || isNotFound(q.error) ? 'This station isn’t in today’s data.' : 'Check your connection and try again.'}</T>
                 {!badId && (!isNotFound(q.error) || sq.isError) ? (
                   <Pressable onPress={refresh} accessibilityRole="button" style={styles.retry} hitSlop={8}>
-                    <T color={c.tgp} style={{ fontWeight: '700' }}>Try again</T>
+                    <T color={c.link} style={{ fontWeight: '700' }}>Try again</T>
                   </Pressable>
                 ) : null}
               </Card>
@@ -192,8 +204,8 @@ export default function StationPage() {
         ) : (
           <>
             {q.isError ? (
-              <View style={[styles.banner, { backgroundColor: c.actBg }]}>
-                <T kind="small" color={c.actFg}>
+              <View style={[styles.banner, { backgroundColor: c.noteBg }]}>
+                <T kind="small" color={c.noteFg}>
                   {isNotFound(q.error) ? 'Today’s station history isn’t available yet.' : 'Couldn’t refresh.'} Showing saved prices from {nice(d.asof)}.
                 </T>
               </View>
@@ -211,7 +223,7 @@ export default function StationPage() {
             ) : null}
 
             {/* Ticker block */}
-            <View style={{ gap: 6 }} accessible accessibilityLabel={tickerA11y(fuel, tk)}>
+            <View style={{ gap: 6 }} accessible accessibilityLabel={tickerA11y(fuel, tk, mkt?.name)}>
               <T kind="eyebrow">{fuelName(fuel)} · {dayLabel(d.asof)}</T>
               <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
                 <T kind="hero" style={{ fontSize: 44, lineHeight: 50, letterSpacing: -1.2 }}>
@@ -223,12 +235,10 @@ export default function StationPage() {
                 <Move ch={tk.d1} label="since yesterday" />
                 <Move ch={tk.d7} label="over 7 days" />
               </View>
-              {tk.gap != null && live ? (
+              {tk.gap != null && mkt ? (
                 <T kind="small" color={c.fg2}>
-                  <Text style={{ color: tk.gap < -0.05 ? c.cheap : tk.gap > 0.05 ? c.dear : c.fg2, fontWeight: '700' }}>
-                    {Math.abs(tk.gap) < 0.05 ? 'At the Sydney median' : `${Math.abs(tk.gap).toFixed(1)}c ${tk.gap < 0 ? 'cheaper' : 'dearer'}`}
-                  </Text>
-                  {Math.abs(tk.gap) < 0.05 ? ` (${live.now.toFixed(1)}c)` : ` than the Sydney median (${live.now.toFixed(1)}c)`}
+                  <Text style={{ color: tk.gap < -0.05 ? c.cheap : tk.gap > 0.05 ? c.dear : c.fg2, fontWeight: '700' }}>{gapWords(tk.gap, mkt).lead}</Text>
+                  {gapWords(tk.gap, mkt).rest}
                 </T>
               ) : null}
               {off && tk.price != null ? (
@@ -237,9 +247,9 @@ export default function StationPage() {
                   {` with your ${offText(off)} off at ${head!.b}`}
                 </T>
               ) : null}
-              <T kind="small" color={age != null && age > 7 ? c.up : c.muted}>
+              <T kind="small" color={isStale(age, out) ? c.up : c.muted}>
                 {age != null
-                  ? `${updatedText(age)}${age > 7 ? '. Check the price before you drive there.' : ''}`
+                  ? isHeld(age, out) ? unchangedText(age, sq.data?.asof) : `${updatedText(age)}${isStale(age, out) ? '. Check the price before you drive there.' : ''}`
                   : tk.unchangedDays != null && tk.unchangedDays > 0
                     ? `Price unchanged for ${tk.unchangedDays} day${tk.unchangedDays === 1 ? '' : 's'}`
                     : `Prices as of ${nice(d.asof)}`}
@@ -268,12 +278,14 @@ export default function StationPage() {
                   <View style={[styles.stats, { borderColor: c.line }]}>
                     <Stat label="Low" value={stats.low ? stats.low.v.toFixed(1) : '–'} sub={stats.low ? nice(stats.low.date, false) : ''} />
                     <Stat label="High" value={stats.high ? stats.high.v.toFixed(1) : '–'} sub={stats.high ? nice(stats.high.date, false) : ''} />
-                    <Stat
-                      label="Avg gap"
-                      value={stats.avgGap != null ? `${fmt(stats.avgGap)}c` : '–'}
-                      sub="vs median"
-                      color={stats.avgGap == null ? undefined : stats.avgGap < -0.05 ? c.cheap : stats.avgGap > 0.05 ? c.dear : undefined}
-                    />
+                    {out ? null : (
+                      <Stat
+                        label="Avg gap"
+                        value={stats.avgGap != null ? `${fmt(stats.avgGap)}c` : '–'}
+                        sub="vs median"
+                        color={stats.avgGap == null ? undefined : stats.avgGap < -0.05 ? c.cheap : stats.avgGap > 0.05 ? c.dear : undefined}
+                      />
+                    )}
                     <Stat label="Jumps" value={String(stats.jumps)} sub="5c or more" last />
                   </View>
                 ) : null}
@@ -307,7 +319,7 @@ export default function StationPage() {
               <Card>
                 <T>
                   {(d.out ?? row?.out)
-                    ? 'Bowser’s forecast covers Sydney only, so this station shows its prices without one.'
+                    ? 'The fill-or-wait forecast covers Sydney only. Elsewhere in NSW and the ACT you get today’s prices.'
                     : `No forecast for ${fuelName(fuel)} at this station today.`}
                 </T>
               </Card>
@@ -348,13 +360,13 @@ function lineColor(t: { px: (number | null)[]; today: number }, c: ReturnType<ty
   return ch < -0.05 ? c.cheap : ch > 0.05 ? c.dear : c.fg2;
 }
 
-function tickerA11y(fuel: Fuel, tk: ReturnType<typeof ticker>) {
+function tickerA11y(fuel: Fuel, tk: ReturnType<typeof ticker>, market = 'Sydney') {
   const parts = [`${fuelName(fuel)} ${tk.price != null ? `${tk.price.toFixed(1)} cents a litre` : 'no price'}`];
   const say = (ch: Change, when: string) =>
     ch && parts.push(Math.abs(ch.c) < 0.05 ? `unchanged ${when}` : `${ch.c < 0 ? 'down' : 'up'} ${Math.abs(ch.c).toFixed(1)} cents ${when}`);
   say(tk.d1, 'since yesterday');
   say(tk.d7, 'over 7 days');
-  if (tk.gap != null) parts.push(`${Math.abs(tk.gap).toFixed(1)} cents ${tk.gap < 0 ? 'below' : 'above'} the Sydney median`);
+  if (tk.gap != null) parts.push(`${Math.abs(tk.gap).toFixed(1)} cents ${tk.gap < 0 ? 'below' : 'above'} the ${market} median`);
   return parts.join(', ');
 }
 
@@ -377,16 +389,16 @@ function Move({ ch, label }: { ch: Change; label: string }) {
 /** Today's price, gap and advice from stations.json, for when the station file is missing (404 on a day the
  *  per-station export failed soft) or can't load, and nothing is cached */
 function ListFallback({
-  row, preferred, off, medianOf, notFound, onRetry,
-}: { row: Station; preferred: Fuel; off: number; medianOf: (f: Fuel) => number | undefined; notFound: boolean; onRetry: () => void }) {
+  row, preferred, off, medianOf, notFound, onRetry, asof,
+}: { row: Station; preferred: Fuel; off: number; medianOf: (f: Fuel) => Market | null; notFound: boolean; onRetry: () => void; asof?: string }) {
   const c = useTheme();
   const sold = (Object.keys(row.p) as Fuel[]).filter((f) => row.p[f]?.[0] != null);
   const order = (['U91', 'E10', 'P95', 'P98', 'DL'] as Fuel[]).filter((f) => sold.includes(f));
   const [pick, setPick] = useState<Fuel | null>(null);
   const fuel = pick && order.includes(pick) ? pick : pickFuel(order, preferred);
   const p = fuel ? row.p[fuel] : undefined;
-  const med = fuel ? medianOf(fuel) : undefined;
-  const gap = p && med != null ? p[0] - med : null;
+  const med = fuel ? medianOf(fuel) : null;
+  const gap = p && med ? p[0] - med.med : null;
   return (
     <>
       {order.length > 1 && fuel ? (
@@ -402,9 +414,9 @@ function ListFallback({
           {gap != null ? (
             <T kind="small" color={c.fg2}>
               <Text style={{ color: gap < -0.05 ? c.cheap : gap > 0.05 ? c.dear : c.fg2, fontWeight: '700' }}>
-                {Math.abs(gap) < 0.05 ? 'At the Sydney median' : `${Math.abs(gap).toFixed(1)}c ${gap < 0 ? 'cheaper' : 'dearer'}`}
+                {gapWords(gap, med!).lead}
               </Text>
-              {Math.abs(gap) < 0.05 ? ` (${med!.toFixed(1)}c)` : ` than the Sydney median (${med!.toFixed(1)}c)`}
+              {gapWords(gap, med!).rest}
             </T>
           ) : null}
           {off ? (
@@ -413,7 +425,7 @@ function ListFallback({
               {` with your ${offText(off)} off at ${row.b}`}
             </T>
           ) : null}
-          <T kind="small" color={p[1] != null && p[1] > 7 ? c.up : c.muted}>{updatedText(p[1])}</T>
+          <T kind="small" color={isStale(p[1], row.out) ? c.up : c.muted}>{isHeld(p[1], row.out) ? unchangedText(p[1]!, asof) : updatedText(p[1])}</T>
           <View style={{ gap: 6, marginTop: Spacing.two }}>
             <Badge tone={ADVICE_TONE[p[2]] ?? 'calm'}>{p[3]}</Badge>
             {p[4] ? <T color={c.fg2}>{p[4].replace(/\.$/, '')}.</T> : null}
@@ -429,7 +441,7 @@ function ListFallback({
         </T>
         {!notFound ? (
           <Pressable onPress={onRetry} accessibilityRole="button" style={styles.retry} hitSlop={8}>
-            <T color={c.tgp} style={{ fontWeight: '700' }}>Try again</T>
+            <T color={c.link} style={{ fontWeight: '700' }}>Try again</T>
           </Pressable>
         ) : null}
       </Card>
@@ -494,11 +506,11 @@ function ActionButton({ label, onPress, icon, primary, selected }: { label: stri
       accessibilityState={selected != null ? { selected } : undefined}
       style={({ pressed }) => [
         styles.action,
-        primary ? { flex: 1, backgroundColor: c.fg, borderColor: c.fg } : { backgroundColor: selected ? c.actBg : c.surface, borderColor: selected ? c.actStrong : c.line },
+        primary ? { flex: 1, backgroundColor: c.brand, borderColor: c.brand } : { backgroundColor: selected ? c.selBg : c.surface, borderColor: selected ? c.selLine : c.line },
         pressed && { opacity: 0.7 },
       ]}>
       {icon}
-      <Text style={{ color: primary ? c.bg : selected ? c.actFg : c.fg, fontWeight: '700', fontSize: 15 }}>{label}</Text>
+      <Text style={{ color: primary ? c.onBrand : selected ? c.selFg : c.fg, fontWeight: '700', fontSize: 15 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -537,7 +549,8 @@ function LoadingSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  topBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingHorizontal: Spacing.two, paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth },
+  topBar: { paddingHorizontal: Spacing.two, paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth },
+  topBarRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, width: '100%', maxWidth: CONTENT_MAX + 2 * Spacing.four, alignSelf: 'center' },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   // 14 dp sides: Map, Pinned and Filled up fit one row at 360 dp
   action: { minHeight: 46, borderWidth: 1, borderRadius: Radius.input, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },

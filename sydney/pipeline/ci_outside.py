@@ -16,6 +16,9 @@ CASES = [
     ("5 Argent St BROKEN HILL", {"latitude": -31.9560, "longitude": 141.4650}, 0),                # no postcode
     ("6 Macquarie St, DUBBO NSW 2830", {"latitude": -32.2450, "longitude": 148.6010}, 30),         # an old price
     ("7 Kendal St, COWRA NSW 2794", None, 0),                                                      # no position: not listed
+    ("8 Sheppard St, Hume ACT 2620", {"latitude": -35.3870, "longitude": 149.1660}, 0),            # ACT, in a postcode NSW shares
+    ("9 Metford Road, Metford NEW SOUTH WALES 2323", {"latitude": -32.7650, "longitude": 151.6090}, 0),   # the state spelt out
+    ("10 Hill Street, Uralla, NSW  2358, AU", {"latitude": -30.6420, "longitude": 151.5010}, 10),  # ", AU"; a price 10+ days old
 ]
 LISTED = [str(BASE_CODE + i) for i, c in enumerate(CASES) if c[1]]
 
@@ -68,6 +71,15 @@ def check(site):
     if old and any(p[2] != "chk" for p in old.values()): errs.append(f"old price isn't Check price: {old}")
     if by.get(str(BASE_CODE + 4), {}).get("pc") != 0: errs.append("no-postcode station: pc should be 0")
     if by.get(str(BASE_CODE + 3), {}).get("pc") != 2601: errs.append("ACT station: pc should be 2601")
+    if by.get(str(BASE_CODE + 3), {}).get("st") != "ACT": errs.append("ACT station: st should be ACT")
+    hume = by.get(str(BASE_CODE + 7), {})
+    if (hume.get("pc"), hume.get("st")) != (2620, "ACT"): errs.append(f"Hume ACT 2620: pc/st {hume.get('pc')}/{hume.get('st')}")
+    met = by.get(str(BASE_CODE + 8), {})
+    if (met.get("pc"), met.get("s"), met.get("st")) != (2323, "Metford", None): errs.append(f"Metford NEW SOUTH WALES 2323: {met.get('pc')}/{met.get('s')}/{met.get('st')}")
+    ura = by.get(str(BASE_CODE + 9), {})
+    if (ura.get("pc"), ura.get("s")) != (2358, "Uralla"): errs.append(f"Uralla, NSW 2358, AU: {ura.get('pc')}/{ura.get('s')}")
+    # outside Sydney a price is "Check price" only from day 21 (build.py OUT_STALE): 10 days old (plus the donor's own age) is still "Price only"
+    if any(p[2] != "na" for p in ura.get("p", {}).values() if p[1] is not None and p[1] <= 20): errs.append(f"price outside Sydney under 21 days isn't Price only: {ura.get('p')}")
     subs = {(x["s"], x["pc"]) for x in st["suburbs"]}
     if ("Wollongong", 2500) not in subs: errs.append("Wollongong 2500 isn't a suburb to search for")
     if any(not pc for _, pc in subs): errs.append("a suburb with no postcode")

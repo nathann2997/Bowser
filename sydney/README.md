@@ -42,6 +42,7 @@ Keys exist only as GitHub Actions secrets (`NSW_API_KEY`, `NSW_API_SECRET`, opti
 | `store/station_feats.csv`, `store/shadow.csv` | station-level features per day and fuel, and the shadow forecast logged beside the live one (trial only) |
 | `store/backtest*` | walk-forward backtest results |
 | `store/forecast.json`, `store/stations_today.json` | today's forecast and station prices |
+| `store/weekly/<Monday>.json` | each week's saved outlook (`pipeline/weekly.py`): the first non-stale run of the Sydney week writes it, never rewritten; scored and published as `/fuel-price-forecast/<Monday>/` |
 | `archive/` | daily station-level snapshots (gzipped JSON): all of NSW from 2026-11-13, Sydney only before |
 | `out/` | build output (`build.py`'s dashboard, `export_api.py`'s site); never committed |
 

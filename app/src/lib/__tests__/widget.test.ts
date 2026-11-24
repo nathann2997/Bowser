@@ -444,3 +444,27 @@ describe('widget layout budgets (from the styles widgets.tsx uses)', () => {
     expect(smallHeight(false)).toBeLessThanOrEqual(150);
   });
 });
+
+describe('stations outside Sydney (old from day 21)', () => {
+  const out = (id: string, age: number) => st(id, `Out ${id}`, 219.9, age, { out: 1 });
+  const withOut = (...s: Station[]) => snap({ stations: compactStations({ ...STATIONS, stations: [...STATIONS.stations, ...s] }) });
+  it('keeps `out` in the compact snapshot', () => {
+    expect(withOut(out('o', 1)).stations!.stations.find((s) => s.id === 'o')!.out).toBe(1);
+    expect(snap().stations!.stations[0].out).toBeUndefined();
+  });
+  it('says when a 12-day-old price outside Sydney last changed, and calls it old at 21 days only', () => {
+    expect(chooseRows(withOut(out('o', 12)), prefs(), ['o']).rows[0]).toMatchObject({ note: 'same since 9 Oct', stale: false });
+    expect(chooseRows(withOut(out('o', 20)), prefs(), ['o']).rows[0]).toMatchObject({ stale: false });
+    expect(chooseRows(withOut(out('o', 21)), prefs(), ['o']).rows[0]).toMatchObject({ note: '21 days old', stale: true });
+  });
+  it('shows no gap to the Sydney median for a station outside Sydney, and keeps it for Sydney stations', () => {
+    const r = chooseRows(withOut(out('o', 1)), prefs(), ['o', '4']).rows;
+    expect(r[0]).toMatchObject({ id: 'o', note: '', noteTone: 'flat' });
+    expect(r[0].a11y).not.toMatch(/median|[+−]\d/);
+    expect(r[1]).toMatchObject({ id: '4', note: '+8.0c', noteTone: 'dear' });
+  });
+  it('lists a 20-day-old price outside Sydney nearby, but not a 21-day-old one', () => {
+    expect(chooseRows(withOut(out('o', 20)), prefs(), [], 10).rows.map((x) => x.id)).toContain('o');
+    expect(chooseRows(withOut(out('o', 21)), prefs(), [], 10).rows.map((x) => x.id)).not.toContain('o');
+  });
+});

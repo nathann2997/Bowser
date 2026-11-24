@@ -4,7 +4,7 @@ usage: python export_api.py BASE [OUT] [--allow-stale]   (OUT defaults to BASE/o
 Runs build.py unchanged (so the dashboard HTML is rebuilt too) and reuses the `data` it assembles, then writes
   OUT/api/v1/meta.json       schema version, generation time, freshness of each source, file sizes
   OUT/api/v1/forecast.json   per-fuel forecast + verdict, model context, consumer stats, brands, backtest
-  OUT/api/v1/stations.json   today's NSW stations with per-fuel price, suburb centroids, and for the Sydney ones "when
+  OUT/api/v1/stations.json   today's NSW and ACT stations with per-fuel price, suburb centroids, and for the Sydney ones "when
                              to fill" advice (a station outside Sydney has `out: 1` and prices only)
   OUT/api/v1/history.json    daily Sydney median / p10 / p90 per fuel and wholesale TGP since 2019
   OUT/api/v1/track.json      the track record: recent live calls and how they turned out, plus the replayed backtest
@@ -110,12 +110,25 @@ for f in FUELS:
 if quarantined:
     qset = {(i, f) for i, f, *_ in quarantined}
     app_stations = [dict(st, p={f: pr for f, pr in st["p"].items() if (st["id"], f) not in qset}) for st in app_stations]
+# ---- the local median a station outside Sydney is compared with (local_median.py): `rg` on the station, the figures in
+# `regions`. Fails soft: without it the app and site show no gap outside Sydney, as before.
+try:
+    import local_median
+    regions = local_median.add(app_stations, FUELS)
+except Exception as e:
+    regions = {}
+    for st in app_stations: st.pop("rg", None)
+    print(f"::warning::local medians unavailable: {type(e).__name__}: {e}")
 stations = {"schema": SCHEMA, "asof": data["snap_asof"], **STAMP,
             "fields": {"id": "NSW station code (station/{id}.json)", "n": "name", "b": "brand", "s": "suburb", "pc": "postcode (0 = unknown)", "la": "lat", "lo": "lon", "m": "members only (0/1)",
-                       "out": "1 = outside Sydney: prices only, no forecast (advice code na, or chk for an old price; no 7-day price). Absent for a Sydney station",
+                       "st": "state from the address when it isn't NSW (ACT). Absent for NSW (added 2026-11-24)",
+                       "out": "1 = outside Sydney: prices only, no forecast (advice code na, or chk for a price 21+ days old; no 7-day price). Absent for a Sydney station",
+                       "rg": "outside Sydney: the region whose median (regions[rg]) the station is compared with. Absent with no region figure (added 2026-11-24)",
                        "p": "fuel -> [price c/L, days since update, advice code, advice label, advice reason, "
                             "7-day forecast price c/L (= station/{id}.json fc.now + fc.d7; absent if station files failed, and outside Sydney)]"},
-            "stations": app_stations, "suburbs": suburbs, "suburb_stats": data["suburbs"]}
+            "stations": app_stations, "suburbs": suburbs, "suburb_stats": data["suburbs"],
+            "regions": regions,   # {region: {"name": short name, "f": {fuel: [median c/L, current prices]}}}, 8+ prices (local_median.py)
+            }
 history = {"schema": SCHEMA, **STAMP, "start": data["start"], "hist": data["hist"], "tgp": data["tgp"]}
 
 # ---- sanity checks: fail rather than publish something broken or stale
@@ -238,9 +251,21 @@ except Exception as e:
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path: sys.path.insert(0, HERE)
 seo_pages, seo_n = None, 0
+# The weekly outlook archive (weekly.py): saved snapshots plus this week's if none is saved yet (saved at the very end,
+# with today's calls, so a run that fails later saves neither; never on --allow-stale runs). Fails soft: no weekly pages.
+week_new, weeks = None, None
+try:
+    import weekly
+    week_new = None if ALLOW_STALE else weekly.pending(BASE, ctx["asof"], forecast["live"], GENERATED_AT)
+except Exception as e:
+    print(f"export_api: WARNING this week's outlook not snapshotted: {type(e).__name__}: {e}")
+try:   # scoring apart: a scoring bug costs the pages, never the snapshot (scores can be redone, snapshots can't)
+    weeks = weekly.score(BASE, weekly.load(BASE) + ([week_new] if week_new else []))
+except Exception as e:
+    print(f"export_api: WARNING weekly outlook pages unavailable: {type(e).__name__}: {e}")
 try:
     import seo_pages
-    seo = seo_pages.build(OUT, stations, forecast, history, details, track if track_txt is not None else None, static=f"{HERE}/static")
+    seo = seo_pages.build(OUT, stations, forecast, history, details, track if track_txt is not None else None, static=f"{HERE}/static", weekly=weeks)
     seo_n = seo["pages"]
     print(f"export_api: search pages {seo}")
 except Exception as e:
@@ -249,6 +274,18 @@ except Exception as e:
     except Exception: pass
     warnings.append(re.sub(r"(?<![\w.:/-])(?:/[\w.-]+)+/", "", f"search pages not published: {type(e).__name__}: {e}")[:500])
     print(f"::warning::{warnings[-1]}")
+# The embeddable badge (badge/sydney.svg): other sites show it, so it is written after the pages (seo_pages.clear()
+# removes badge/) and apart from them, and is always written: today's (dated, so a stale one shows its age), or a plain one with no stage.
+try:
+    import seo_pages
+    if not seo_pages.write_badge(OUT, forecast): print("::warning::badge: today's stage unavailable, the plain badge was published")
+except Exception as e:
+    os.makedirs(f"{OUT}/badge", exist_ok=True)
+    open(f"{OUT}/badge/sydney.svg", "w", encoding="utf-8").write(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="104" viewBox="0 0 360 104" role="img" aria-label="Sydney petrol price cycle, from Bowser">'
+        '<title>Sydney petrol price cycle, from Bowser</title><rect x=".5" y=".5" width="359" height="103" rx="10" fill="#fff" stroke="#e2e3df"/>'
+        '<text x="20" y="58" font-family="sans-serif" font-size="16" fill="#141618">Sydney petrol price cycle · checkbowser.app</text></svg>')
+    print(f"::warning::badge: plain fallback written: {type(e).__name__}: {e}")
 meta = {"schema": SCHEMA, "generated_at": GENERATED_AT, "license": LICENSE,
         "asof": ctx["asof"], "stations_asof": data["snap_asof"], "tgp_last": ctx.get("tgp_last"), "fred_last": ctx.get("fred_last"),
         "history_last": ctx.get("history_last"), "live_model": ctx.get("live_model"), "snapshot_days": ctx.get("snapshot_days"),
@@ -260,7 +297,17 @@ html = open(f"{BASE}/out/dashboard.html", encoding="utf-8").read()
 try:
     if not seo_n: raise RuntimeError("the search pages weren't built")
     if html.count("<title>Bowser</title>") != 1 or html.count("<!--SEO_LINKS-->") != 1: raise RuntimeError("no <title>Bowser</title> or links marker in the template")
-    html = html.replace("<title>Bowser</title>", seo_pages.home_head(stations, forecast), 1).replace("<!--SEO_LINKS-->", seo_pages.home_links(stations, forecast), 1)
+    # today's link-preview image (og_image.py), behind a date query so apps that cache by address fetch the new one;
+    # without Pillow or a call, the static og.png
+    og = "og.png"
+    try:
+        import og_image
+        d0 = dt.date.fromisoformat(stations["asof"])
+        rel = og_image.write(OUT, forecast, f"{d0.strftime('%a')} {d0.day} {d0.strftime('%b')}")
+        if rel: og = f"{rel}?d={stations['asof']}"
+    except Exception as e:
+        print(f"::warning::today's preview image not drawn, og.png instead: {type(e).__name__}: {e}")
+    html = html.replace("<title>Bowser</title>", seo_pages.home_head(stations, forecast, og=og), 1).replace("<!--SEO_LINKS-->", seo_pages.home_links(stations, forecast), 1)
 except Exception as e:
     print(f"::warning::dashboard head for search not added: {type(e).__name__}: {e}")
 # Content-Security-Policy, added here rather than in the template so it can pin the page's own inline script by hash:
@@ -318,6 +365,10 @@ try:
     if new_calls: track_api.append(BASE, new_calls)   # everything is written: today's calls are now on record
 except Exception as e:
     print(f"export_api: WARNING couldn't save today's calls: {type(e).__name__}: {e}")
+try:
+    if week_new and weekly.save(BASE, week_new): print(f"export_api: weekly outlook saved for the week of {week_new['week']}")
+except Exception as e:
+    print(f"export_api: WARNING couldn't save this week's outlook: {type(e).__name__}: {e}")
 print(f"export_api: {ctx['asof']}, {len(data['stations'])} stations ({n_syd} in Sydney), " + ", ".join(f"{k} {v // 1024}KB" for k, v in files.items() if k != "station/count")
       + (f"; station files {len(sizes)}, p50 {sizes[len(sizes) // 2] // 1024}KB, max {sizes[-1] // 1024}KB" if sizes else "; NO station files")
       + (f"; WARNINGS: {warnings}" if warnings else ""))

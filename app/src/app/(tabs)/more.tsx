@@ -72,7 +72,7 @@ export default function More() {
               <View style={styles.between}>
                 <T color={c.fg} style={{ flex: 1 }}>{s.home ? (s.home.gps ? 'Your location' : s.home.label) : 'Not set'}</T>
                 <Pressable onPress={() => setEditArea(true)} accessibilityRole="button" hitSlop={8}>
-                  <T color={c.tgp} style={{ fontWeight: '700' }}>{s.home ? 'Change' : 'Set'}</T>
+                  <T color={c.link} style={{ fontWeight: '700' }}>{s.home ? 'Change' : 'Set'}</T>
                 </Pressable>
                 {s.home ? (
                   <Pressable onPress={() => setSettings({ home: null })} accessibilityRole="button" accessibilityLabel="Clear area" hitSlop={8}>
@@ -186,7 +186,7 @@ export default function More() {
           Contains NSW Government FuelCheck data © State of New South Wales (NSW Fair Trading), licensed under CC BY-SA 3.0 AU; prices adapted and forecasts added by Bowser. Wholesale prices © Australian Institute of Petroleum. Brent crude: U.S. Energy Information Administration (Refinitiv). AUD/USD: Reserve Bank of Australia (WM/Reuters). Not endorsed by any of them. Cents per litre including GST. Sydney is postcodes 2000–2234, 2555–2574 and 2740–2786.
         </T>
         <Pressable onPress={() => Linking.openURL(CC_BY_SA).catch(() => {})} accessibilityRole="link" hitSlop={8}>
-          <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>Licence: CC BY-SA 3.0 AU</T>
+          <T kind="small" color={c.link} style={{ fontWeight: '700' }}>Licence: CC BY-SA 3.0 AU</T>
         </Pressable>
       </Disclosure>
 
@@ -202,10 +202,10 @@ export default function More() {
         {/* Shown, not folded away: Google Play asks for the source and this disclaimer to be easy to see (lib/sources.ts) */}
         <T kind="small">{NOT_GOVERNMENT} Fuel prices come from NSW Government FuelCheck, run by NSW Fair Trading.</T>
         <Pressable onPress={() => Linking.openURL(FUELCHECK_URL).catch(() => {})} accessibilityRole="link" hitSlop={8}>
-          <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>NSW FuelCheck: fuelcheck.nsw.gov.au</T>
+          <T kind="small" color={c.link} style={{ fontWeight: '700' }}>NSW FuelCheck: fuelcheck.nsw.gov.au</T>
         </Pressable>
         <Pressable onPress={() => Linking.openURL(FUELCHECK_DATA_URL).catch(() => {})} accessibilityRole="link" hitSlop={8}>
-          <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>FuelCheck data: data.nsw.gov.au</T>
+          <T kind="small" color={c.link} style={{ fontWeight: '700' }}>FuelCheck data: data.nsw.gov.au</T>
         </Pressable>
         <View style={styles.between}>
           <T color={c.fg} style={{ flex: 1 }}>Share anonymous usage</T>
@@ -217,7 +217,7 @@ export default function More() {
           {s.analytics ? '' : ' Usage sharing has stopped. Crash reports stop once Bowser has been fully closed and opened again.'}
         </T>
         <Pressable onPress={() => Linking.openURL(PRIVACY).catch(() => {})} accessibilityRole="link" hitSlop={8}>
-          <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>Privacy policy</T>
+          <T kind="small" color={c.link} style={{ fontWeight: '700' }}>Privacy policy</T>
         </Pressable>
       </Section>
     </Screen>

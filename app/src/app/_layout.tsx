@@ -17,8 +17,10 @@ import { UpdateNotice } from '@/components/update-notice';
 import { useWidgetSync } from '@/widget/sync';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { AppState, useColorScheme } from 'react-native';
+import { AppState, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/hooks/use-theme';
 
 // Render errors show expo-router's error screen with a retry instead of a blank app, and are reported to EAS Observe
 export function ErrorBoundary(props: ErrorBoundaryProps) {
@@ -64,6 +66,11 @@ onlineManager.setEventListener((setOnline) => {
 
 function RootLayout() {
   const scheme = useColorScheme();
+  const c = useTheme();
+  // Android follows rotation from 1.1.1, and SDK 58 is edge-to-edge: on a phone on its side the camera cutout or the
+  // 3-button navigation bar sits left or right of the app. Screens pad only for top and bottom, so keep every screen,
+  // the map and the tab bar clear of the sides here (both are 0 in portrait, so nothing moves there).
+  const insets = useSafeAreaInsets();
   useWidgetSync(queryClient);   // keeps the home-screen widget in step (no-op on web)
 
   useEffect(() => {
@@ -93,6 +100,7 @@ function RootLayout() {
       onSuccess={hideSplash}>
       <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
         <StatusBar style="auto" />
+        <View style={{ flex: 1, paddingLeft: insets.left, paddingRight: insets.right, backgroundColor: c.bg }}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="station/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
@@ -101,6 +109,7 @@ function RootLayout() {
           <Stack.Screen name="track" options={{ headerShown: false, animation: 'slide_from_right' }} />
           <Stack.Screen name="welcome" options={{ headerShown: false, animation: 'fade', gestureEnabled: false }} />
         </Stack>
+        </View>
         <AnalyticsTracker />
         <AlertTaps />
         <UpdateNotice releaseUrl={API_BASES.map((b) => `${b}/app.json`)} onAction={(action, latest) => track('update.notice', { action, latest })} />

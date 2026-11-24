@@ -83,14 +83,14 @@ export function priceTiers(prices: number[]): (price: number) => Tier {
 
 /**
  * The station to mark "Cheapest" among `rows` (the ones in view): the lowest price you pay, the nearest on a tie, then
- * the first. Prices over `staleDays` old don't count (they may be wrong, as with the tag colours). Null when fewer than
+ * the first. Prices over `staleDays` old (`outStaleDays` outside Sydney) don't count (they may be wrong, as with the tag colours). Null when fewer than
  * two fresh prices are in view, or they're all the same: there's nothing to compare.
  */
-export function cheapestOf(rows: StationRow[], staleDays = 7): StationRow | null {
+export function cheapestOf(rows: StationRow[], staleDays = 7, outStaleDays = 20): StationRow | null {
   let best: StationRow | null = null;
   let max = -Infinity;
   for (const r of rows) {
-    if (r.age != null && r.age > staleDays) continue;
+    if (r.age != null && r.age > (r.out ? outStaleDays : staleDays)) continue;
     if (r.price > max) max = r.price;
     if (!best || r.price < best.price || (r.price === best.price && (r.d ?? Infinity) < (best.d ?? Infinity))) best = r;
   }

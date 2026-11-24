@@ -107,8 +107,8 @@ export function UpdateNotice({ releaseUrl, onAction }: {
 
   if (!rel) return null;
   const c = dark
-    ? { card: '#181b1e', fg: '#eef0f2', fg2: '#c2c7cc', line: '#2a2e33' }
-    : { card: '#ffffff', fg: '#141618', fg2: '#45494d', line: '#e2e3df' };
+    ? { card: '#1d2023', fg: '#f4f1ea', fg2: '#c9c4ba', line: '#2e3236' }
+    : { card: '#ffffff', fg: '#141618', fg2: '#44474b', line: '#e3dfd6' };
   const close = (a: UpdateAction) => {
     onAction?.(a, rel.version);
     setRel(null);
@@ -120,8 +120,8 @@ export function UpdateNotice({ releaseUrl, onAction }: {
           <Text style={[styles.title, { color: c.fg }]} accessibilityRole="header" maxFontSizeMultiplier={1.6}>
             A new version of Bowser is ready
           </Text>
-          {/* Scrolls at large text sizes so the buttons stay on screen */}
-          <ScrollView style={{ maxHeight: 220 }}>
+          {/* Scrolls at large text sizes, and on a phone on its side (about 360 dp tall), so the buttons stay on screen */}
+          <ScrollView style={{ maxHeight: 220, flexShrink: 1 }}>
             <Text style={[styles.body, { color: c.fg2 }]} maxFontSizeMultiplier={1.6}>
               {rel.notes ? `${rel.notes}\n\n` : ''}{rel.url === PLAY_URL
                 ? 'Bowser is now on Google Play. Tap Update, then Update or Install in Google Play. From then on, Google Play keeps Bowser up to date. Your settings, pinned stations and fills stay as they are.'
@@ -151,7 +151,8 @@ export function UpdateNotice({ releaseUrl, onAction }: {
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
-  card: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 20, gap: 12 },
+  // Capped and centred: on a tablet or a phone on its side it stays a dialog, clear of a side navigation bar
+  card: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 20, gap: 12, width: '100%', maxWidth: 480, maxHeight: '100%', alignSelf: 'center' },
   title: { fontSize: 19, fontWeight: '800' },
   body: { fontSize: 15, lineHeight: 21 },
   version: { fontSize: 13, marginTop: 8 },

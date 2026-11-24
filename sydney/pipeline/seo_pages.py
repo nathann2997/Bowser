@@ -26,27 +26,33 @@ tests (test_seo_pages.py) run it on small made-up dicts. docs/SEO.md has the key
 Links between pages are relative (../), so the site also works under a sub-path; canonical, Open Graph and sitemap
 addresses use SITE. Each page carries a hash Content-Security-Policy for its one style block and one script (the
 anonymous visit counter, the same rule as share.html). Wholesale (AIP) figures are left out on purpose: see DATA-LICENSE.md.
-A station outside Sydney (`out: 1`, once the all-NSW station list is live) gets its prices but no forecast wording.
+A station outside Sydney (`out: 1`: the rest of NSW and the ACT) gets its prices but no forecast wording, and its price counts
+as current for longer (OUT_STALE: prices there change less often).
 """
 import base64, datetime as dt, hashlib, html, json, math, os, re, shutil, statistics
 
 SITE = "https://checkbowser.app"
 FUELS = ["U91", "E10", "P95", "P98", "DL"]          # fuels.py order; the pages' own copy so this file has no imports
 NAME = {"U91": "Unleaded 91", "E10": "E10", "P95": "Premium 95", "P98": "Premium 98", "DL": "Diesel"}
+WCALL = {"up": "fill now", "down": "wait", "flat": "no rush"}   # the call types, as the accuracy page says them
 SHORT = {"U91": "U91", "E10": "E10", "P95": "95", "P98": "98", "DL": "Diesel"}
 FSLUG = {"U91": "unleaded-91", "E10": "e10", "P95": "premium-95", "P98": "premium-98", "DL": "diesel"}
 TONE = {"now": "act", "by": "act", "wait": "wait", "hi": "wait", "up": "act", "down": "wait"}   # anything else: calm
 OWN = ["fuel-prices", "station", "brands", "fuel-price-forecast", "petrol-price-cycle", "best-day-to-buy-petrol", "petrol-prices-christmas",
-       "petrol-deals-sydney", "7-eleven-fuel-price-lock", "woolworths-fuel-discount", "coles-fuel-docket", "nsw-fuelcheck", "about", "privacy"]
+       "petrol-deals-sydney", "7-eleven-fuel-price-lock", "woolworths-fuel-discount", "coles-fuel-docket", "nsw-fuelcheck", "about", "privacy", "badge"]
 DOW = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 STATIC = ["favicon.svg", "apple-touch-icon.png", "og.png"]
 TANK = 50                                           # litres, for "a fill costs"
 NEAR_KM, STALE = 5.0, 7                             # "nearby" radius; a price older than this many days is flagged
+# Outside Sydney (`out`) prices change less often (no weekly cycle; Canberra's can sit for weeks), so a price there is
+# flagged, and left out of top lists, only from day 21. The same rule as build.py, template.html and the app (2026-11-24).
+OUT_STALE = 20
 BRAND_MIN = 3
 DEAD = 30                                           # every price older than this: the page stays, but out of search (noindex)
 PUBLISHED = "2026-11-17"                            # when the guides first went up (Article datePublished)
 # IndexNow (Bing, Yandex, Seznam, Naver; Bing feeds ChatGPT search and Copilot): the key is public by design, served at
 # /{key}.txt to prove the site is ours. indexnow.py submits the pages whose sitemap date changed after each deploy.
+JUMP_LIKELY = 0.35                                  # U91 p_jump7 from which the cycle stage is "A jump looks likely soon"
 INDEXNOW_KEY = "e102a05131cbd86e3a6af62c8547639e"
 LOCAL_KM = 25                                       # "nearby" for a station outside Sydney and its regions: its local median
 # On the day of a cycle jump (8c+), the share of Sydney stations that had raised their price by each time of day, 2025-26.
@@ -102,10 +108,28 @@ REGIONS = [("Newcastle", -32.93, 151.75, 32), ("Central Coast", -33.36, 151.38, 
            ("Dubbo", -32.25, 148.60, 20), ("Orange", -33.28, 149.10, 20), ("Bathurst", -33.42, 149.58, 20), ("Nowra and Shoalhaven", -34.88, 150.60, 22),
            ("Goulburn", -34.75, 149.72, 15), ("Griffith", -34.29, 146.05, 15), ("Broken Hill", -31.95, 141.45, 15)]
 REGION_MIN = 5
+# The one page that owns "canberra petrol prices" (docs/MARKETING_NSW_ACT.md A2): the Canberra and Queanbeyan region,
+# kept at its address since 17 Nov. Its title leads with the name people search ("Canberra"); its H1 keeps the full name.
+CANBERRA = "Canberra and Queanbeyan"
+REGION_TITLE = {CANBERRA: "Canberra"}
+# Canberra districts by postcode, for the Canberra page's district sections (ACT stations only; the NSW side of the
+# region is "Queanbeyan and surrounds"). Hume ACT shares 2620 with Queanbeyan and sits with Fyshwick in the
+# Jerrabomberra district, so it joins Fyshwick. Not regions: a station keeps its Canberra region and median.
+DISTRICTS = [("Belconnen", (2614, 2615, 2616, 2617, 2618)), ("Gungahlin", (2911, 2912, 2913, 2914)), ("Inner North", (2601, 2602, 2612)),
+             ("Inner South", (2600, 2603, 2604)), ("Fyshwick, Hume and the airport", (2609, 2620)), ("Woden", (2605, 2606, 2607)),
+             ("Weston Creek and Molonglo", (2611,)), ("Tuggeranong", (2900, 2901, 2902, 2903, 2904, 2905, 2906))]
+NSW_SIDE, ACT_OTHER = "Queanbeyan and surrounds (NSW)", "Elsewhere in the ACT"
+NO_CBR_FORECAST = ("No. Bowser’s forecast is built on Sydney prices and covers Sydney only. For Canberra, Bowser shows today’s prices "
+                   "so you can compare stations.")
+STATES = [{"@type": "State", "name": "New South Wales"}, {"@type": "State", "name": "Australian Capital Territory"}]   # schema.org areaServed
 # Crawlers named so their owners' own "is this site open to us" checks pass; the rules are the same for everyone.
 AI_BOTS = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-SearchBot", "Claude-User", "PerplexityBot", "Perplexity-User",
            "Google-Extended", "Applebot-Extended", "Amazonbot", "meta-externalagent", "CCBot", "Bingbot", "DuckAssistBot"]
-state_of = lambda pc: "ACT" if isinstance(pc, int) and (2600 <= pc <= 2618 or 2900 <= pc <= 2920) else "NSW"
+def state_of(pc, st=None):
+    """The state for a postcode: the address's own state (stations.json `st`, given when it isn't NSW) when known, else
+    by postcode range. 2620 is NSW by range (Queanbeyan shares it with Hume ACT), so Hume needs `st`."""
+    if st in ("ACT", "NSW", "VIC", "QLD", "SA"): return st
+    return "ACT" if isinstance(pc, int) and (2600 <= pc <= 2618 or 2900 <= pc <= 2920) else "NSW"
 # The privacy and support address shown on /privacy/ and /about/ (Google Play requires a contact in the privacy policy).
 # The owner's choice (2026-11-18). No page links to the code repository: the owner wants the source kept private.
 CONTACT_EMAIL = "checkbowser@gmail.com"
@@ -163,7 +187,7 @@ def clean_suburbs(stations):
     """{station id: (suburb, postcode) or None}. FuelCheck's suburb field sometimes holds part of the address
     ("1190 Miami Street Glenwood"): such a name becomes the known suburb it ends with. A station with no usable
     suburb ("Postcode 2143") gets None: it has its own page but no suburb page."""
-    odd = lambda s: bool(re.search(r"\d", s)) or s.strip().lower() in ("", "nsw")
+    odd = lambda s: bool(re.search(r"\d", s)) or s.strip().lower() in ("", "nsw", "act")
     known = sorted({re.sub(r"\s+", " ", s["s"]).strip() for s in stations if isinstance(s.get("s"), str) and not odd(s["s"])},
                    key=len, reverse=True)
     out = {}
@@ -187,11 +211,11 @@ def usable(s):
 
 
 # ---- the look: the dashboard's tokens (template.html), one style block shared by every page
-CSS = """:root{--bg:#f6f6f3;--surface:#fff;--sunk:#eeefeb;--line:#e2e3df;--fg:#141618;--fg2:#45494d;--muted:#6f7479;--link:#1d62b5;--chip:#ffb22e;--cheap:#14865c;--dear:#c4511f;--retail:#eb6834;--median:#8a9096;--band:rgba(235,104,52,.14);--act-bg:#fff3d6;--act-fg:#7a4a00;--wait-bg:#e4eefa;--wait-fg:#1b5799;--calm-bg:#eceeea;--calm-fg:#3d4246;color-scheme:light dark}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1113;--surface:#181b1e;--sunk:#131618;--line:#2a2e33;--fg:#eef0f2;--fg2:#c2c7cc;--muted:#8b9197;--link:#6aa9f0;--cheap:#3cc28f;--dear:#f08a5d;--retail:#e5703f;--median:#8b9197;--band:rgba(229,112,63,.2);--act-bg:#2e2410;--act-fg:#ffcf7a;--wait-bg:#122238;--wait-fg:#9cc6f7;--calm-bg:#1d2124;--calm-fg:#c2c7cc}}
+CSS = """:root{--bg:#f7f5f0;--surface:#fff;--sunk:#efece5;--line:#e3dfd6;--fg:#141618;--fg2:#44474b;--muted:#686b6f;--link:#8a5a00;--focus:#141618;--chip:#ffb22e;--cheap:#0f7a52;--dear:#b4461a;--retail:#b87800;--median:#868a8e;--band:rgba(255,178,46,.22);--act-bg:#ffb22e;--act-fg:#141618;--wait-bg:#141618;--wait-fg:#f4f1ea;--calm-bg:#efece5;--calm-fg:#33373a;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#141618;--surface:#1d2023;--sunk:#191b1e;--line:#2e3236;--fg:#f4f1ea;--fg2:#c9c4ba;--muted:#9a958c;--link:#ffb22e;--focus:#ffb22e;--cheap:#3cc28f;--dear:#f08a5d;--retail:#ffb22e;--median:#9a958c;--band:rgba(255,178,46,.16);--act-bg:#2a2112;--act-fg:#ffcf7a;--wait-bg:#23272b;--wait-fg:#f4f1ea;--calm-bg:#1d2023;--calm-fg:#c9c4ba}}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--fg2);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
-a{color:var(--link)}a:hover{text-decoration-thickness:2px}:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+a{color:var(--link)}a:hover{text-decoration-thickness:2px}:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 h1,h2,h3{color:var(--fg);margin:0;text-wrap:balance}h1{font-size:30px;line-height:1.15;letter-spacing:-.5px}h2{font-size:21px;letter-spacing:-.2px;margin-top:8px}h3{font-size:16px}
 p{margin:0;max-width:72ch}ul{margin:0;padding-left:20px;max-width:72ch}li{margin:4px 0}
 .wrap{max-width:960px;margin:0 auto;padding:16px 16px 56px;display:flex;flex-direction:column;gap:20px}main{display:flex;flex-direction:column;gap:16px;min-width:0}.wrap>*,main>*{min-width:0;max-width:100%}body{overflow-wrap:break-word}
@@ -199,7 +223,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;fl
 .logo{display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;color:var(--fg);text-decoration:none;letter-spacing:-.3px}.logo svg{width:24px;height:24px}
 nav{display:flex;gap:4px 16px;flex-wrap:wrap;font-size:14px;font-weight:600}nav a{text-decoration:none}nav a:hover{text-decoration:underline}
 .crumbs{font-size:13px;color:var(--muted)}.crumbs a{color:var(--muted)}
-.lead{font-size:18px;color:var(--fg)}.small{font-size:13px;line-height:1.45;color:var(--muted)}
+.lead{font-size:18px;color:var(--fg)}.badge img{max-width:100%;height:auto}pre{white-space:pre-wrap;word-break:break-all;background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:13px;line-height:1.5}code{font-size:13px;word-break:break-all}.small{font-size:13px;line-height:1.45;color:var(--muted)}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 .eyebrow{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
@@ -317,9 +341,101 @@ def chart(series, lo, hi, labels, alt, band=None):
     return "".join(out)
 
 
+def cycle_stage(stats, fc_asof, live):
+    """Where Sydney is in its price cycle: (days since the last jump, the usual gap, a short label, its tone, a sentence), or
+    None. The cycle page, the forecast page, the badge (badge_svg) and the news-pitch trigger (docs/OUTREACH.md) all use it."""
+    S = stats or {}; last, gap = S.get("last_restore"), S.get("cycle_gap_calm")
+    if not isinstance(last, str) or not num(gap) or gap <= 0: return None
+    try: since = (dt.date.fromisoformat(fc_asof) - dt.date.fromisoformat(last)).days
+    except (TypeError, ValueError): return None
+    if since < 0: return None
+    pj = ((live or {}).get("U91") or {}).get("p_jump7")
+    quiet = num(pj) and pj < 0.2
+    if num(pj) and pj >= JUMP_LIKELY:
+        head, tone, txt = "A jump looks likely soon", "act", f"the forecast puts the chance of a 5c-plus jump within a week at about {pj:.0%}, so fill up before it comes"
+    elif since <= 7:
+        head, tone, txt = "Near the top", "act", "a jump has just happened, so prices are near the top of the cycle; buy as little as you can and wait for them to ease"
+    elif since < 0.75 * gap:
+        head, tone, txt = "Falling", "wait", "prices are in the slow slide that follows a jump, which usually rewards waiting"
+    elif since <= 1.25 * gap:
+        head, tone, txt = "Late in the cycle", "calm", "a jump is due by the usual timing" + (", but the forecast sees little sign of one this week" if quiet else "")
+    else:
+        head, tone, txt = "Running long", "calm", ("this cycle has lasted longer than usual" +
+                                                   (", and the forecast still sees little sign of a jump this week" if quiet else ", so a jump could come at any time"))
+    return since, gap, head, tone, txt
+
+
+# ---- The embeddable badge (docs/OUTREACH.md): an image other sites show, linking to the cycle page. Its address never
+# changes and never 404s: export_api.py writes it after the pages, apart from them, and writes BADGE_FALLBACK if it fails.
+BADGE_PATH = "badge/sydney.svg"
+BADGE_W, BADGE_H = 360, 104
+BADGE_TONE = {"act": ("#ffb22e", "#141618", "#141618"), "wait": ("#141618", "#f4f1ea", "#ffb22e"), "calm": ("#efece5", "#33373a", "#7d8185")}   # brand tones (2026-11-24)
+BADGE_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+
+
+def _badge(head, line, tone, title):
+    """The badge's SVG: fixed colours (it sits on other sites' pages, light or dark), system fonts, every text escaped,
+    no script, no links, nothing fetched. A long head is narrowed to fit rather than run off the edge."""
+    bg, fg, bar = BADGE_TONE.get(tone, BADGE_TONE["calm"])
+    head, line, title = (re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(v)) for v in (head, line, title))   # not allowed in XML
+    x, room = 66, BADGE_W - 66 - 12
+    fs = 21
+    while fs > 14 and len(head) * fs * 0.58 > room: fs -= 1
+    fit = f' textLength="{room}" lengthAdjust="spacingAndGlyphs"' if len(head) * fs * 0.58 > room else ""
+    mark = MARK.replace('viewBox="9 9 82 82" aria-hidden="true"', 'x="14" y="26" width="40" height="40" viewBox="9 9 82 82"')
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{BADGE_W}" height="{BADGE_H}" viewBox="0 0 {BADGE_W} {BADGE_H}" role="img" aria-label="{esc(title)}">'
+            f"<title>{esc(title)}</title>"
+            f'<rect x=".5" y=".5" width="{BADGE_W - 1}" height="{BADGE_H - 1}" rx="10" fill="#ffffff" stroke="#e2e3df"/>'
+            f'<rect x="1" y="1" width="6" height="{BADGE_H - 2}" rx="3" fill="{bar}"/>'
+            f'<rect x="10" y="22" width="48" height="48" rx="10" fill="{bg}"/>{mark}'
+            f'<g font-family="{BADGE_FONT}">'
+            f'<text x="{x}" y="24" font-size="11" font-weight="600" letter-spacing=".6" fill="#6f7479">SYDNEY PETROL PRICE CYCLE</text>'
+            f'<text x="{x}" y="50" font-size="{fs}" font-weight="700" fill="{fg}"{fit}>{esc(head)}</text>'
+            f'<text x="{x}" y="70" font-size="12.5" fill="#45494d">{esc(line)}</text>'
+            f'<text x="{x}" y="92" font-size="10.5" fill="#6f7479"><tspan font-weight="700" fill="#141618">Bowser</tspan> · checkbowser.app · Data: NSW FuelCheck</text>'
+            "</g></svg>")
+
+
+BADGE_FALLBACK = _badge("See today’s cycle stage", "Updated several times a day", "calm", "Sydney petrol price cycle, from Bowser")
+
+
+def badge_svg(forecast):
+    """Today's badge from forecast.json: the cycle stage (cycle_stage, as on the cycle page) and the day it is for, so a
+    stalled feed shows its own age. Without a stage, Bowser's U91 call; without either, BADGE_FALLBACK."""
+    live = {r["fuel"]: r for r in forecast.get("live") or [] if isinstance(r, dict) and r.get("fuel")}
+    fa = forecast.get("asof")
+    day = short_date(fa) if isinstance(fa, str) and fa else None
+    st = cycle_stage(forecast.get("stats") if isinstance(forecast.get("stats"), dict) else {}, fa, live)
+    if st and day:
+        since, gap, head, tone, _ = st
+        when = "A jump began today" if since == 0 else f"Day {since} since the last jump"
+        return _badge(head, f"{when} · {day}", tone, f"Sydney petrol price cycle, {day}: {head}. {when}. From Bowser.")
+    v = (live.get("U91") or {}).get("verdict") or {}
+    if day and isinstance(v.get("head"), str) and v["head"].strip():
+        head = v["head"].strip()
+        if len(head) > 40: head = head[:39].rsplit(" ", 1)[0] + "…"
+        return _badge(head, f"Bowser’s call for Unleaded 91 · {day}", TONE.get(v.get("cls"), "calm"), f"Bowser’s call for Sydney Unleaded 91, {day}: {head}.")
+    return BADGE_FALLBACK
+
+
+def write_badge(out, forecast):
+    """Write OUT/badge/sydney.svg: today's badge, or BADGE_FALLBACK if anything about today's goes wrong. Never raises
+    for bad data; returns True for today's, False for the fallback."""
+    try: svg, ok = badge_svg(forecast), True
+    except Exception as e:
+        print(f"seo_pages: WARNING badge fallback: {type(e).__name__}: {e}")
+        svg, ok = BADGE_FALLBACK, False
+    dest = os.path.join(out, BADGE_PATH)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest, "w", encoding="utf-8") as fh: fh.write(svg)
+    return ok and svg != BADGE_FALLBACK
+
+
 class Site:
-    def __init__(self, out, stations, forecast, history=None, details=None, track=None, site=SITE):
+    def __init__(self, out, stations, forecast, history=None, details=None, track=None, site=SITE, weekly=None):
         self.out, self.site = out, site.rstrip("/")
+        # weekly.py's scored snapshots, oldest first (none: no weekly pages)
+        self.weeks = [w for w in (weekly or []) if isinstance(w, dict) and isodate(w.get("week")) and isodate(w.get("asof")) and isinstance(w.get("score"), dict) and w.get("live")]
         self.asof = stations["asof"]; self.day, self.sday = long_date(self.asof), short_date(self.asof)
         self.live = {r["fuel"]: r for r in forecast["live"]}
         self.stats, self.fc_asof = forecast.get("stats") or {}, forecast.get("asof") or self.asof
@@ -347,7 +463,7 @@ class Site:
             k = sub.get(s["id"])
             if k: k = (sub_name.setdefault((slug(k[0]), k[1]), station_name(k[0])), k[1]) if slug(k[0]) else None
             b = brand_name(s.get("b")); b = brand_of.setdefault(slug(b) or "independent", b if slug(b) else "Independent")
-            self.st.append(dict(s, id=str(s["id"]), name=name, brand=b, sub=k, p=p, s=str(s.get("s") or "NSW"),
+            self.st.append(dict(s, id=str(s["id"]), name=name, brand=b, sub=k, p=p, s=str(s.get("s") or s.get("st") or "NSW"),
                                 url=f"station/{slug(name) or 'station'}-{s['id']}/", main=next(f for f in FUELS if f in p)))
         # A name two stations share ("7-Eleven Blacktown") gets its street in titles, so no two pages have the same title
         seen = {}
@@ -369,7 +485,7 @@ class Site:
         for k in self.subs: names[k[0]] = names.get(k[0], 0) + 1
         # A suburb gets its postcode in its title and heading when another suburb has its name (South Hurstville has two
         # postcodes) or a region page does (Bathurst 2795 beside the Bathurst region): no two pages share a title
-        regs = {n.lower() for n, *_ in REGIONS}
+        regs = {n.lower() for n, *_ in REGIONS} | {t.lower() for t in REGION_TITLE.values()}   # a "Canberra" suburb gets its postcode
         self.sub_label = {k: k[0] if names[k[0]] == 1 and k[0].lower() not in regs else f"{k[0]} {k[1]}" for k in self.subs}
         self.sub_at = {k: (sum(s["la"] for s in v) / len(v), sum(s["lo"] for s in v) / len(v)) for k, v in self.subs.items()}
         self.brands = {}
@@ -398,11 +514,23 @@ class Site:
             if s.get("region") not in self.regions: s["region"] = None
         self.region_url = {n: f"fuel-prices/{slug(n)}/" for n in self.regions}
         self.any_out = any(s.get("out") for s in self.st)
+        self.act = [s for s in self.st if s.get("out") and state_of(s.get("pc"), s.get("st")) == "ACT"]
         self.n_syd = sum(not s.get("out") for s in self.st)
 
     # ---- small helpers
     _cell = staticmethod(lambda la, lo: (int(math.floor(la / 0.06)), int(math.floor(lo / 0.06))))   # cells of about 6 km
-    fresh = staticmethod(lambda s, f: f in s["p"] and not (num(s["p"][f][1]) and s["p"][f][1] > STALE))
+    fresh = staticmethod(lambda s, f: f in s["p"] and not (num(s["p"][f][1]) and s["p"][f][1] > (OUT_STALE if s.get("out") else STALE)))
+
+    def since(self, age):
+        """'12 Nov': the day a price `age` days old was reported (the site's short date), or '' if unknown."""
+        if not num(age) or age < 0: return ""
+        return short_date((dt.date.fromisoformat(self.asof) - dt.timedelta(days=int(age))).isoformat())
+
+    def held(self, s, f):
+        """True for a price outside Sydney that is over a week old but still current there (8 to 20 days): it is shown as
+        'unchanged since 12 Nov', not as old."""
+        p = s["p"].get(f)
+        return bool(p and s.get("out") and num(p[1]) and STALE < p[1] <= OUT_STALE)
     dead = staticmethod(lambda s: all(num(p[1]) and p[1] > DEAD for p in s["p"].values()))   # nothing reported for a month
 
     def changed(self, pool):
@@ -519,24 +647,7 @@ class Site:
 
     def stage(self):
         """Where Sydney is in its price cycle: (days since the last jump, the usual gap, a short label, its tone, a sentence), or None."""
-        S = self.stats; last, gap = S.get("last_restore"), S.get("cycle_gap_calm")
-        if not isinstance(last, str) or not num(gap) or gap <= 0: return None
-        try: since = (dt.date.fromisoformat(self.fc_asof) - dt.date.fromisoformat(last)).days
-        except ValueError: return None
-        pj = (self.live.get("U91") or {}).get("p_jump7")
-        quiet = num(pj) and pj < 0.2
-        if num(pj) and pj >= 0.35:
-            head, tone, txt = "A jump looks likely soon", "act", f"the forecast puts the chance of a 5c-plus jump within a week at about {pj:.0%}, so fill up before it comes"
-        elif since <= 7:
-            head, tone, txt = "Near the top", "act", "a jump has just happened, so prices are near the top of the cycle; buy as little as you can and wait for them to ease"
-        elif since < 0.75 * gap:
-            head, tone, txt = "Falling", "wait", "prices are in the slow slide that follows a jump, which usually rewards waiting"
-        elif since <= 1.25 * gap:
-            head, tone, txt = "Late in the cycle", "calm", "a jump is due by the usual timing" + (", but the forecast sees little sign of one this week" if quiet else "")
-        else:
-            head, tone, txt = "Running long", "calm", ("this cycle has lasted longer than usual" +
-                                                       (", and the forecast still sees little sign of a jump this week" if quiet else ", so a jump could come at any time"))
-        return since, gap, head, tone, txt
+        return cycle_stage(self.stats, self.fc_asof, self.live)
 
     def stage_card(self):
         st = self.stage()
@@ -658,8 +769,12 @@ class Site:
 <meta property="og:description" content="{esc(desc)}">
 <meta property="og:url" content="{esc(url)}">
 <meta property="og:image" content="{self.site}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Bowser: fill up now, or wait? Fuel prices for NSW and the ACT at checkbowser.app">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#ffb22e">
+<meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141618" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="{up}favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="{up}apple-touch-icon.png">
 {"".join(jsonld(b) for b in blocks)}
@@ -675,7 +790,7 @@ class Site:
 <footer>
 <nav aria-label="Fuels">{fuels}</nav>
 <nav aria-label="Guides">{guides}</nav>
-<nav aria-label="More"><a href="{up}fuel-prices/">Sydney fuel prices</a><a href="{up}station/">All stations</a><a href="{up}nsw-fuelcheck/">About NSW FuelCheck</a><a href="{up}about/">About Bowser</a><a href="{up}privacy/">Privacy</a></nav>
+<nav aria-label="More"><a href="{up}fuel-prices/">{"NSW and ACT" if self.any_out else "Sydney"} fuel prices</a><a href="{up}station/">All stations</a><a href="{up}nsw-fuelcheck/">About NSW FuelCheck</a><a href="{up}badge/">Free badge for your site</a><a href="{up}about/">About Bowser</a><a href="{up}privacy/">Privacy</a></nav>
 <div>{SOURCES}</div>
 <div>Prices as reported to FuelCheck for {esc(self.day)}; a station can change its price at any time, so check the board before you fill. Forecasts are estimates for planning, not financial advice.</div>
 <div>Visits are counted anonymously: no cookies, and never your location, your area or your IP address.</div>
@@ -708,7 +823,9 @@ class Site:
                 if f not in s["p"]: tds.append('<td class="n">–</td>'); continue
                 p = s["p"][f]; old = not self.fresh(s, f)
                 cls = "n old" if old else "n best" if p[0] == best[f] else "n"
-                tds.append(f'<td class="{cls}">{c1(p[0])}{f"<br><span class=small>{p[1]} days old</span>" if old else ""}</td>')
+                note = f"<br><span class=small>{p[1]} days old</span>" if old else \
+                       f"<br><span class=small>unchanged since {self.since(p[1])}</span>" if self.held(s, f) else ""
+                tds.append(f'<td class="{cls}">{c1(p[0])}{note}</td>')
             f0 = sort if sort in s["p"] else s["main"]
             tds.append(f"<td>{self.advice(s, f0)}</td>")
             out.append(f'<tr><td><a href="{up}{esc(s["url"])}">{esc(s["name"])}</a>{sub}</td>{"".join(tds)}</tr>')
@@ -734,6 +851,7 @@ class Site:
     def suburb(self, key):
         name, pc = key; pool = self.subs[key]; path = self.sub_url[key]; up = "../../"
         out_syd = all(s.get("out") for s in pool)
+        state = state_of(pc, next((s.get("st") for s in pool if s.get("st")), None))
         f0 = next((f for f in FUELS if self.cheapest(pool, f, 1)), None) or next(f for f in FUELS if any(f in s["p"] for s in pool))
         top = (self.cheapest(pool, f0, 1) or self.cheapest(pool, f0, 1, members=True) or [min((s for s in pool if f0 in s["p"]), key=lambda s: s["p"][f0][0])])[0]
         n = len(pool); stations_n = f"{n} station{'s' if n != 1 else ''}"; label = self.sub_label[key]
@@ -741,8 +859,10 @@ class Site:
         title = f"{label} fuel prices today: {SHORT[f0] if f0 != 'DL' else 'diesel'} from {c1(top['p'][f0][0])}c | Bowser"
         if len(title) > 62 or old: title = f"{label} fuel prices today | Bowser"
         others = [f"{NAME[f]} {c1(t[0]['p'][f][0])}c" for f in FUELS if f != f0 and (t := self.cheapest(pool, f, 1))]
-        desc = clip(f"Petrol prices in {name} {state_of(pc)} {pc} for {self.sday}: {NAME[f0]} {'last listed at' if old else 'from'} {c1(top['p'][f0][0])}c/L at {top['name']}"
-                    + (f", {', '.join(others[:2])}" if others else "") + f". Compare {stations_n}" + ("." if out_syd else " and see whether to fill up or wait."))
+        body_ = (f" {state} {pc} for {self.sday}: {NAME[f0]} {'last listed at' if old else 'from'} {c1(top['p'][f0][0])}c/L at {top['name']}"
+                 + (f", {', '.join(others[:2])}" if others else "") + f". Compare {stations_n}" + ("." if out_syd else " and see whether to fill up or wait."))
+        cbr_desc = re.sub(r"\s+", " ", f"Petrol prices in {name}, Canberra{body_}").strip()   # "Canberra" for an ACT suburb, only when it fits whole
+        desc = cbr_desc if state == "ACT" and name.lower() != "canberra" and len(cbr_desc) <= 155 else clip(f"Petrol prices in {name}{body_}")
         link = f'<a href="{up}{esc(top["url"])}">{esc(top["name"])}</a>'
         vm = self.vs_median(top, f0)
         if old:
@@ -750,6 +870,7 @@ class Site:
                     f"{top['p'][f0][1]} days ago, so check it before you drive there.")
         else:
             lead = f"The cheapest {NAME[f0]} in {esc(name)} today is <b>{c1(top['p'][f0][0])}c/L</b> at {link}" + (" (members only)" if top.get("m") else "") + (f", {vm}." if vm else ".")
+            if self.held(top, f0): lead = lead[:-1] + f" (unchanged since {esc(self.since(top['p'][f0][1]))})."
         lead += f" {esc(name)} has {stations_n} reporting prices to NSW FuelCheck." if n > 1 else ""
         body = [f"<h1>{esc(label)} fuel prices today</h1>", f'<p class="lead">{lead}</p>', self.fuel_cards(pool, up, True)]
         if not out_syd: body.append(self.verdict_card(f0 if f0 in self.live else "U91", up))
@@ -769,19 +890,28 @@ class Site:
         body.append(f"<h2>Should you fill up in {esc(name)} today?</h2>")
         if out_syd:
             reg = next((s["region"] for s in pool if s.get("region") in self.regions), None)
+            # an ACT suburb on the Canberra page links to its district's section there, when that section was built
+            dist = next((self.district(s) for s in pool if s.get("region") == CANBERRA and self.is_act(s)), None) if reg == CANBERRA else None
+            more = (f' See <a href="{up}{esc(self.region_url[reg])}#{slug(dist)}">{esc(dist)} on the Canberra page</a>, or <a href="{up}{esc(self.region_url[reg])}">all {esc(reg)} fuel prices</a>.'
+                    if dist and dist in self.cbr_districts()[1] else
+                    f' See <a href="{up}{esc(self.region_url[reg])}">all {esc(reg)} fuel prices</a>.' if reg else "")
             body.append(f"<p>Bowser’s forecast is fitted on Sydney prices, so for {esc(name)} this page shows today’s prices only. "
-                        "Without a forecast, the saving is in comparing stations rather than picking the day."
-                        + (f' See <a href="{up}{esc(self.region_url[reg])}">all {esc(reg)} fuel prices</a>.' if reg else "") + "</p>")
+                        "Without a forecast, the saving is in comparing stations rather than picking the day." + more + "</p>")
         else:
             r = self.live[f0 if f0 in self.live else "U91"]; v = (r.get("verdict") or {}).get("head", "")
             body.append(f"<p>{esc(self.outlook(f0 if f0 in self.live else 'U91'))} Bowser’s call today is <b>{esc(v.lower())}</b>. "
                         f"Each station also gets its own call in the table above, based on how it usually prices against the rest of Sydney. "
                         f'See the <a href="{up}fuel-price-forecast/">Sydney fuel price forecast</a> for the 14-day outlook, '
                         f'or <a href="{up}" data-cta="suburb-map">open the live map</a> to compare stations around you.</p>')
-        body += [f"<h3>Where do these {esc(name)} prices come from?</h3>",
-                 f'<p>From <a href="{up}nsw-fuelcheck/">NSW FuelCheck</a>: every NSW service station must report its prices to the NSW Government when they change. '
-                 "Bowser reads those prices several times a day and adds a forecast.</p>", self.sources_p()]
-        ld = [{"@context": "https://schema.org", "@type": "ItemList", "name": f"Service stations in {name} {state_of(pc)} {pc}", "numberOfItems": n,
+        if state == "ACT":
+            src = (f'<p>From <a href="{up}nsw-fuelcheck/">NSW FuelCheck</a>, which also lists prices for ACT service stations that report to it. '
+                   "Bowser reads those prices several times a day. Canberra prices change less often than Sydney’s, so a price several days old is often still current.</p>")
+        else:
+            src = (f'<p>From <a href="{up}nsw-fuelcheck/">NSW FuelCheck</a>: every NSW service station must report its prices to the NSW Government when they change. '
+                   + ("Bowser reads those prices several times a day and adds a forecast.</p>" if not out_syd else
+                      "Bowser reads those prices several times a day. Its fill-or-wait forecast covers Sydney only, so here you get today’s prices.</p>"))
+        body += [f"<h3>Where do these {esc(name)} prices come from?</h3>", src, self.sources_p()]
+        ld = [{"@context": "https://schema.org", "@type": "ItemList", "name": f"Service stations in {name} {state} {pc}", "numberOfItems": n,
                "itemListElement": [{"@type": "ListItem", "position": i + 1, "name": s["name"], "url": f"{self.site}/{s['url']}"}
                                    for i, s in enumerate(sorted(pool, key=lambda s: s["name"]))]}]
         self.page(path, "suburb", "/fuel-prices/:suburb/", title, desc, "\n".join(b for b in body if b),
@@ -861,6 +991,7 @@ class Site:
         vm = self.vs_median(s, f0)
         lead = f"{esc(NAME[f0])} is <b>{c1(p0[0])}c/L</b> at {esc(s['name'])} today" + (f", {vm}." if vm else ".")
         if not self.fresh(s, f0): lead += f" This price was last updated {p0[1]} days ago, so check it before you drive there."
+        elif self.held(s, f0): lead += f" It has been unchanged since {esc(self.since(p0[1]))}: prices outside Sydney change less often."
         body = [f"<h1>{esc(s['name'])}</h1>",
                 f'<p class="small">{brand_link} · {esc(addr) if addr else sub_link}{" · Members only" if s.get("m") else ""}</p>',
                 f'<p class="lead">{lead}</p>']
@@ -869,7 +1000,8 @@ class Site:
             if f not in s["p"]: continue
             p = s["p"][f]; g = self.vs_median(s, f)
             wk = f'<span class="small">In 7 days: about {c1(p[5])}c</span>' if len(p) > 5 and num(p[5]) and not s.get("out") else ""
-            old = f'<span class="small">Updated {p[1]} days ago</span>' if not self.fresh(s, f) else ""
+            old = f'<span class="small">Updated {p[1]} days ago</span>' if not self.fresh(s, f) else \
+                  f'<span class="small">Unchanged since {esc(self.since(p[1]))}</span>' if self.held(s, f) else ""
             cards.append(f'<div class="card"><span class="eyebrow">{esc(NAME[f])}</span><span class="big">{c1(p[0])}<small>c/L</small></span>'
                          f'{self.advice(s, f)}{f"<span class=small>{g}</span>" if g else ""}{wk}{old}</div>')
         body.append('<div class="grid">' + "".join(cards) + "</div>")
@@ -885,7 +1017,8 @@ class Site:
             txt = "This station is outside Sydney, where Bowser has no forecast, so this page shows its prices only."
             if self.fresh(s, f0):
                 ago = p0[1] if num(p0[1]) else None
-                if ago is not None: txt += f" It last reported its {esc(NAME[f0])} price to NSW FuelCheck " + ("today." if ago < 1 else "yesterday." if ago < 2 else f"{ago:.0f} days ago.")
+                if ago is not None and not self.held(s, f0):
+                    txt += f" It last reported its {esc(NAME[f0])} price to NSW FuelCheck " + ("today." if ago < 1 else "yesterday." if ago < 2 else f"{ago:.0f} days ago.")
                 if rm is not None or lm is not None:
                     g = p0[0] - (rm if rm is not None else lm)
                     than = (f"the {esc(reg)} median of {c1(rm)}c" if rm is not None else
@@ -935,17 +1068,26 @@ class Site:
         more = []
         if s["sub"]: more.append(f'<li><a href="{up}{esc(self.sub_url[s["sub"]])}">All fuel prices in {esc(self.sub_label[s["sub"]])}</a></li>')
         if s["brand"] in self.brand_url: more.append(f'<li><a href="{up}{esc(self.brand_url[s["brand"]])}">{esc(s["brand"])} fuel prices</a></li>')
-        if s.get("region") in self.regions: more.append(f'<li><a href="{up}{esc(self.region_url[s["region"]])}">{esc(s["region"])} fuel prices</a></li>')
-        if f0 in self.live: more.append(f'<li><a href="{up}fuel-prices/{FSLUG[f0]}/">Cheapest {esc(NAME[f0])} in Sydney today</a></li>')
+        # An ACT or Queanbeyan station's "cheapest" link is Canberra's page, not Sydney's (an ACT station beyond the region's
+        # radius too); with no Canberra page built, an ACT station gets no "cheapest" link rather than Sydney's
+        cbr = s.get("region") == CANBERRA or (s.get("out") and state_of(s.get("pc"), s.get("st")) == "ACT")
+        if cbr and CANBERRA in self.regions:
+            more.append(f'<li><a href="{up}{esc(self.region_url[CANBERRA])}">Cheapest {esc(NAME[f0])} in Canberra today</a></li>')
+        elif s.get("region") in self.regions: more.append(f'<li><a href="{up}{esc(self.region_url[s["region"]])}">{esc(s["region"])} fuel prices</a></li>')
+        if f0 in self.live and not cbr: more.append(f'<li><a href="{up}fuel-prices/{FSLUG[f0]}/">Cheapest {esc(NAME[f0])} in Sydney today</a></li>')
         if not s.get("out"): more.append(f'<li><a href="{up}fuel-price-forecast/">Sydney fuel price forecast: will prices go up or down?</a></li>')
         body += ["<h2>More prices</h2>", "<ul>" + "".join(more) + "</ul>", self.sources_p()]
-        m = re.match(r"^(.*?),\s*(.+?)\s+NSW\s+(\d{4})$", addr or "")
+        # the address as the feed has it, tidied as update.py does ("NEW SOUTH WALES", a trailing ", AU", a comma before the state)
+        tidy = re.sub(r"\s+", " ", re.sub(r",\s*([A-Za-z]{2,3})\s+(\d{4})\s*$", r" \1 \2", re.sub(r"\bNEW SOUTH WALES\b", "NSW",
+                      re.sub(r",?\s*\bAU\s*$", "", addr or ""), flags=re.I))).strip()
+        m = re.match(r"^(.*?),\s*(.+?)\s+(NSW|ACT)\s+(\d{4})$", tidy)
         ld = {"@context": "https://schema.org", "@type": "GasStation", "name": s["name"], "url": f"{self.site}/{s['url']}",
               "brand": {"@type": "Brand", "name": s["brand"]},
               "geo": {"@type": "GeoCoordinates", "latitude": s["la"], "longitude": s["lo"]},
               "address": {"@type": "PostalAddress", **({"streetAddress": m.group(1)} if m else {}), "addressLocality": where,
-                          "addressRegion": state_of(s.get("pc")), **({"postalCode": str(s["pc"])} if s.get("pc") else {}), "addressCountry": "AU"}}
-        crumbs = [("Fuel prices", "fuel-prices/")] + ([(self.sub_label[s["sub"]], self.sub_url[s["sub"]])] if s["sub"] else [("Stations", "station/")]) + [(s["name"], s["url"])]
+                          "addressRegion": state_of(s.get("pc"), s.get("st") or (m.group(3) if m else None)), **({"postalCode": str(s["pc"])} if s.get("pc") else {}), "addressCountry": "AU"}}
+        crumbs = [("Fuel prices", "fuel-prices/")] + ([(REGION_TITLE[CANBERRA], self.region_url[CANBERRA])] if cbr and CANBERRA in self.regions else []) \
+                 + ([(self.sub_label[s["sub"]], self.sub_url[s["sub"]])] if s["sub"] else [("Stations", "station/")]) + [(s["name"], s["url"])]
         self.page(s["url"], "station", "/station/:station/", title, desc, "\n".join(b for b in body if b), crumbs=crumbs, ld=[ld], priority=0.5,
                   index=not self.dead(s), lastmod=self.changed([s]) if s.get("out") else None)
 
@@ -1002,7 +1144,7 @@ class Site:
                 f'<li><a href="{up}{esc(self.sub_url[k])}">{esc(self.sub_label[k])}</a> from {c1(p)}c</li>' for p, k in subs[:30]) + "</ul>"]
         rows = sorted((m, n) for n, pool in self.regions.items() if (m := self.median(pool, f)) is not None)
         if rows:
-            body += [f"<h2>{esc(nm)} prices outside Sydney</h2>",
+            body += [f"<h2>{esc(nm)} prices outside Sydney{' (NSW and ACT)' if self.act else ''}</h2>",
                      f"<p>The middle {esc(nm)} price today in each region outside Sydney that Bowser tracks. Bowser’s forecast covers Sydney only.</p>",
                      '<div class="scroll"><table><thead><tr><th>Region</th><th class="n">Median</th><th class="n">Cheapest</th><th class="n">vs Sydney</th></tr></thead><tbody>'
                      + "".join(f'<tr><td><a href="{up}{esc(self.region_url[n])}">{esc(n)}</a></td><td class="n">{c1(m)}</td><td class="n">{c1(self.cheapest(self.regions[n], f, 1)[0]["p"][f][0])}</td>'
@@ -1018,15 +1160,17 @@ class Site:
         up = "../"; syd = [s for s in self.st if not s.get("out")]
         r = self.live.get("U91") or next(iter(self.live.values()))
         f0 = r["fuel"]; v = (r.get("verdict") or {}).get("head", ""); nsw = self.any_out
-        place = "NSW" if nsw else "Sydney"
+        place = "NSW and ACT" if nsw else "Sydney"
         # "Check" leads: people search "nsw fuel price check" (Search Console, Nov 2026), and the brand is Check Bowser.
         # Never "FuelCheck" first: that is the government's service (docs/SEO.md)
-        title = f"Check {place} fuel prices today: cheapest petrol by suburb | Bowser"
-        desc = clip(f"{'NSW and Sydney' if nsw else 'Sydney'} petrol prices for {self.sday}: Sydney {NAME[f0]} median {c1(r['now'])}c/L. Bowser’s call: {v.lower()}. "
-                    f"Cheapest fuel in {len(self.subs):,} suburbs, from NSW FuelCheck data.", 165)
+        # "today" gives way to "and ACT" so the title stays at 65 (docs/MARKETING_NSW_ACT.md A1); the median and call stay Sydney's
+        title = f"Check NSW and ACT fuel prices: cheapest petrol by suburb | Bowser" if nsw else "Check Sydney fuel prices today: cheapest petrol by suburb | Bowser"
+        desc = (f"{place} petrol prices for {self.sday}: Sydney {NAME[f0]} median {c1(r['now'])}c/L, Bowser’s Sydney call: {(v or 'no call today').lower()}. "
+                f"Cheapest fuel in {len(self.subs):,} suburbs.")
+        desc = desc + " From NSW FuelCheck." if len(desc) <= 135 else clip(desc, 155)
         body = [f"<h1>{place} fuel prices today</h1>",
                 f'<p class="lead">On {esc(self.day)} the median price of {esc(NAME[f0])} in Sydney is <b>{c1(r["now"])}c/L</b>. '
-                f"Bowser tracks {len(self.st):,} service stations in {len(self.subs):,} suburbs{' across NSW' if nsw else ''} using NSW FuelCheck prices, "
+                f"Bowser tracks {len(self.st):,} service stations in {len(self.subs):,} suburbs{' across NSW and the ACT' if nsw else ''} using NSW FuelCheck prices, "
                 "and for Sydney tells you whether to fill up now or wait.</p>",
                 self.verdict_card(f0, up)]
         cards = []
@@ -1048,7 +1192,8 @@ class Site:
                 pool = self.regions[n]; m = self.median(pool, f0); c = self.cheapest(pool, f0, 1)
                 rows.append(f'<tr><td><a href="{up}{esc(self.region_url[n])}">{esc(n)}</a></td><td class="n">{len(pool)}</td><td class="n">{c1(m) if m is not None else "–"}</td>'
                             f'<td class="n">{c1(c[0]["p"][f0][0]) if c else "–"}</td></tr>')
-            body += ["<h2>Fuel prices by region</h2>",
+            body += self.canberra_block(f0, up)
+            body += ["<h2>Fuel prices outside Sydney (NSW and ACT)</h2>" if self.act else "<h2>Fuel prices by region</h2>",
                      f"<p>Today’s {esc(NAME[f0])} price in the main centres outside Sydney. Bowser’s forecast is built from Sydney prices and covers Sydney only, so these are today’s prices without a call.</p>",
                      '<div class="scroll"><table><thead><tr><th>Region</th><th class="n">Stations</th><th class="n">Median U91</th><th class="n">Cheapest U91</th></tr></thead><tbody>'
                      + "".join(rows) + "</tbody></table></div>"]
@@ -1059,9 +1204,12 @@ class Site:
                        f"On {self.day} the cheapest {NAME[f0]} in Sydney is {c1(top[0]['p'][f0][0])} cents a litre at {top[0]['name']} in {where}, "
                        f"{cents(r['now'] - top[0]['p'][f0][0])} under the Sydney median of {c1(r['now'])} cents. Members-only sites and prices over a week old are not counted."))
         qa.append(("Will petrol prices in Sydney go up or down this week?", f"{self.outlook(f0)} Bowser’s call today is: {(v or 'no call').lower()}."))
+        if CANBERRA in self.regions:
+            qa.append(("Does Bowser forecast Canberra prices?", NO_CBR_FORECAST))
         qa.append(("Where do these fuel prices come from?",
-                   "From NSW FuelCheck, the NSW Government service that every service station in the state must report its prices to. "
-                   "Bowser reads those prices several times a day and adds a forecast. Bowser is independent and not part of the NSW Government."))
+                   "From NSW FuelCheck, the NSW Government’s fuel price service. Every NSW service station must report its prices to it, and it also lists "
+                   "ACT service stations that report to it. Bowser reads those prices several times a day and adds a forecast for Sydney. "
+                   "Bowser is independent and not part of the NSW Government."))
         fq, fq_ld = self.faq(qa); body.append(fq)
         letters = {}
         for k in sorted(self.subs): letters.setdefault(k[0][0].upper() if k[0][0].isascii() and k[0][0].isalpha() else "#", []).append(k)
@@ -1073,10 +1221,50 @@ class Site:
         ld = [{"@context": "https://schema.org", "@type": "Dataset", "name": f"{place} service station fuel prices and Sydney price forecast",
                "description": f"Daily fuel prices for {place} service stations from NSW FuelCheck, with Bowser’s 14-day forecast of the Sydney median price for five fuels.",
                "url": f"{self.site}/fuel-prices/", "license": "https://creativecommons.org/licenses/by-sa/3.0/au/", "isAccessibleForFree": True,
-               "dateModified": self.asof, "spatialCoverage": "New South Wales, Australia" if nsw else "Sydney, New South Wales, Australia",
-               "creator": {"@type": "Organization", "name": "Bowser", "url": self.site + "/"},
+               "dateModified": self.asof, "spatialCoverage": "New South Wales and the Australian Capital Territory, Australia" if nsw else "Sydney, New South Wales, Australia",
+               "creator": {"@type": "Organization", "name": "Bowser", "url": self.site + "/", **({"areaServed": STATES} if self.act else {})},
                "distribution": [{"@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": f"{self.site}/api/v1/stations.json"}]}, fq_ld]
         self.page("fuel-prices/", "hub", "/fuel-prices/", title, desc, "\n".join(body), crumbs=[("Fuel prices", "fuel-prices/")], ld=ld, priority=1.0)
+
+    def is_act(self, s):
+        return state_of(s.get("pc"), s.get("st")) == "ACT"
+
+    def district(self, s):
+        """The Canberra page's section for a station of the Canberra region: its ACT district by postcode, or the NSW side."""
+        if not self.is_act(s): return NSW_SIDE
+        return next((n for n, pcs in DISTRICTS if s.get("pc") in pcs), ACT_OTHER)
+
+    def cbr_districts(self):
+        """(the Canberra page's lead fuel, {district: (its 5 cheapest, its station count)}) for the sections that page builds."""
+        if not hasattr(self, "_cbr"):
+            pool = self.regions.get(CANBERRA) or []
+            f0 = next((f for f in FUELS if self.cheapest(pool, f, 1)), None); groups = {}
+            for s in pool: groups.setdefault(self.district(s), []).append(s)
+            secs = {}
+            for d in [n for n, _ in DISTRICTS] + [ACT_OTHER, NSW_SIDE]:
+                five = self.cheapest(groups.get(d, []), f0, 5) if f0 else []
+                if five: secs[d] = (five, len(groups[d]))
+            self._cbr = (f0, secs)
+        return self._cbr
+
+    def canberra_block(self, f0, up):
+        """The hub's Canberra section (id="canberra", for "act fuel prices"): median, cheapest, the gap to Sydney, the link."""
+        pool = self.regions.get(CANBERRA)
+        if not pool: return []
+        top = self.cheapest(pool, f0, 1); m = self.median(pool, f0); r = self.live.get(f0)
+        if not top: return []
+        t = top[0]; where = t["sub"][0] if t["sub"] else t["s"]
+        txt = (f"The cheapest {esc(NAME[f0])} in Canberra and Queanbeyan today is <b>{c1(t['p'][f0][0])}c/L</b> at "
+               f'<a href="{up}{esc(t["url"])}">{esc(t["name"])}</a> in {esc(where)}.')
+        if m is not None:
+            txt += f" The median there is {c1(m)}c"
+            if r and num(r.get("now")):
+                g = m - r["now"]
+                txt += ", about the same as Sydney" if abs(g) < 0.5 else f", {cents(g)} {'under' if g < 0 else 'over'} Sydney’s {c1(r['now'])}c"
+            txt += "."
+        txt += (" These are ACT stations that report to NSW FuelCheck, plus Queanbeyan. Bowser’s forecast covers Sydney only, so for Canberra you get today’s prices. "
+                f'<a href="{up}{esc(self.region_url[CANBERRA])}">See every Canberra and Queanbeyan station by district</a>.')
+        return ['<h2 id="canberra">Canberra and ACT fuel prices</h2>', f"<p>{txt}</p>"]
 
     def region(self, name):
         """A regional centre outside Sydney: its median, its cheapest stations and its suburbs. Prices only, no forecast."""
@@ -1084,12 +1272,24 @@ class Site:
         f0 = next((f for f in FUELS if self.cheapest(pool, f, 1)), None)
         if not f0: return
         top = self.cheapest(pool, f0, 20); m = self.median(pool, f0); syd = self.live.get(f0)
-        title = f"{name} fuel prices today: {SHORT[f0] if f0 != 'DL' else 'diesel'} from {c1(top[0]['p'][f0][0])}c | Bowser"
-        if len(title) > 65: title = f"{name} fuel prices today | Bowser"
-        desc = clip(f"Petrol prices in {name} for {self.sday}: {NAME[f0]} from {c1(top[0]['p'][f0][0])}c/L at {top[0]['name']}"
-                    + (f", median {c1(m)}c" if m is not None else "") + f". Compare {len(pool)} stations, from NSW FuelCheck data.")
+        cbr = name == CANBERRA; tn = REGION_TITLE.get(name, name)
+        title = f"{tn} fuel prices today: {SHORT[f0] if f0 != 'DL' else 'diesel'} from {c1(top[0]['p'][f0][0])}c | Bowser"
+        if len(title) > 65: title = f"{tn} fuel prices today | Bowser"
+        if cbr:   # leads with "Canberra", says how it sits against Sydney, and what is compared (ACT stations that report, and Queanbeyan)
+            vs = ""
+            if m is not None and syd and num(syd.get("now")):
+                g = m - syd["now"]; vs = " (about Sydney’s)" if abs(g) < 0.5 else f" ({cents(g)} {'under' if g < 0 else 'over'} Sydney)"
+            tail = (f", median {c1(m)}c{vs}" if m is not None else "") + f". {len(pool)} ACT and Queanbeyan stations compared."
+            lead = lambda fuel: f"Canberra petrol prices for {self.sday}: {fuel} from {c1(top[0]['p'][f0][0])}c"
+            # the full fuel name, then the short one ("U91"), then without the station; the end is cut only as a last resort
+            desc = next((d for d in (f"{lead(NAME[f0])} at {top[0]['name']}{tail}", f"{lead(SHORT[f0])} at {top[0]['name']}{tail}") if len(d) <= 155),
+                        clip(lead(NAME[f0]) + tail, 155))
+        else:
+            desc = clip(f"Petrol prices in {name} for {self.sday}: {NAME[f0]} from {c1(top[0]['p'][f0][0])}c/L at {top[0]['name']}"
+                        + (f", median {c1(m)}c" if m is not None else "") + f". Compare {len(pool)} stations, from NSW FuelCheck data.")
         lead = (f"The cheapest {esc(NAME[f0])} in {esc(name)} today is <b>{c1(top[0]['p'][f0][0])}c/L</b> at "
-                f'<a href="{up}{esc(top[0]["url"])}">{esc(top[0]["name"])}</a>.')
+                f'<a href="{up}{esc(top[0]["url"])}">{esc(top[0]["name"])}</a>'
+                + (f" (unchanged since {esc(self.since(top[0]['p'][f0][1]))})." if self.held(top[0], f0) else "."))
         if m is not None:
             priced = sum(self.fresh(s, f0) and not s.get("m") for s in pool)
             lead += f" The median across {priced} stations with a current price is {c1(m)}c"
@@ -1099,9 +1299,37 @@ class Site:
             lead += "."
         body = [f"<h1>{esc(name)} fuel prices today</h1>", f'<p class="lead">{lead}</p>', self.fuel_cards(pool, up, False),
                 f"<h2>The {len(top)} cheapest {esc(NAME[f0])} stations in {esc(name)}</h2>", self.price_table(top, sort=f0, up=up),
-                '<p class="small">Members-only sites and prices not updated for over a week are left out of this list.</p>']
+                '<p class="small">Members-only sites and prices not updated for three weeks or more are left out of this list. Prices outside Sydney change less often, '
+                "so a price a week or two old is often still current.</p>"]
         if m is not None and len(top) > 1:
             body.append(f"<p>On a {TANK} L tank, filling at the cheapest station instead of a typical one saves about ${TANK * (m - top[0]['p'][f0][0]) / 100:.2f} today.</p>")
+        ld, qa = [], []
+        if cbr:
+            act = [s for s in pool if self.is_act(s)]; nsw = [s for s in pool if not self.is_act(s)]
+            ma, mn = self.median(act, f0), self.median(nsw, f0)
+            if ma is not None and mn is not None:
+                g = mn - ma
+                body.append(f"<p>ACT stations’ median {esc(NAME[f0])} today is {c1(ma)}c; across the border in Queanbeyan and surrounds (NSW) it is {c1(mn)}c, "
+                            + ("about the same." if abs(g) < 0.5 else f"{cents(g)} {'less' if g < 0 else 'more'} (${TANK * abs(g) / 100:.2f} on a {TANK} L tank).") + "</p>")
+            secs = []
+            for d, (five, n) in self.cbr_districts()[1].items():
+                secs += [f'<h3 id="{slug(d)}">{esc(d)}</h3>',
+                         f'<p class="small">The {len(five)} cheapest {esc(NAME[f0])} prices of {n} station{"s" if n != 1 else ""}.</p>',
+                         self.price_table(five, sort=f0, up=up)]
+            if secs:
+                body += [f"<h2>Cheapest {esc(NAME[f0])} by Canberra district</h2>"] + secs
+            where = top[0]["sub"][0] if top[0]["sub"] else top[0]["s"]
+            qa = [("What is the cheapest petrol in Canberra today?",
+                   f"On {self.day} the cheapest {NAME[f0]} in Canberra and Queanbeyan is {c1(top[0]['p'][f0][0])} cents a litre at {top[0]['name']} in {where}"
+                   + (f", {cents(m - top[0]['p'][f0][0])} under the median of {c1(m)} cents" if m is not None and m - top[0]['p'][f0][0] >= 0.05 else "")
+                   + ". Members-only sites and prices not updated for three weeks or more are not counted."),
+                  ("Does Bowser forecast Canberra prices?", NO_CBR_FORECAST),
+                  ("Where do Canberra fuel prices come from?",
+                   "From NSW FuelCheck, the NSW Government’s fuel price service. It lists the ACT service stations that report to it, so a Canberra station that "
+                   "doesn’t report isn’t shown. Bowser reads those prices several times a day.")]
+            ld.append({"@context": "https://schema.org", "@type": "ItemList", "name": "Service stations in Canberra and Queanbeyan", "numberOfItems": len(pool),
+                       "itemListElement": [{"@type": "ListItem", "position": i + 1, "name": s["name"], "url": f"{self.site}/{s['url']}"}
+                                           for i, s in enumerate(sorted(pool, key=lambda s: s["name"]))]})
         subs = sorted({s["sub"] for s in pool if s["sub"]})
         if subs:
             body += [f"<h2>Fuel prices by suburb in {esc(name)}</h2>", '<ul class="cols">' + "".join(
@@ -1109,15 +1337,18 @@ class Site:
         body += [f"<h2>Should you fill up in {esc(name)} today?</h2>",
                  f"<p>Bowser’s fill-or-wait forecast is fitted on Sydney prices and doesn’t cover {esc(name)}, so this page shows today’s prices without a call. "
                  "Without a forecast, the saving is in comparing stations rather than picking the day. "
-                 f'For Sydney, see the <a href="{up}fuel-price-forecast/">fuel price forecast</a>.</p>', self.sources_p()]
+                 f'For Sydney, see the <a href="{up}fuel-price-forecast/">fuel price forecast</a>.</p>']
+        if qa:
+            fq, fq_ld = self.faq(qa); body.append(fq); ld.append(fq_ld)
+        body.append(self.sources_p())
         self.page(path, "region", "/fuel-prices/:region/", title, desc, "\n".join(x for x in body if x),
-                  crumbs=[("Fuel prices", "fuel-prices/"), (name, path)], priority=0.8)
+                  crumbs=[("Fuel prices", "fuel-prices/"), (name, path)], ld=ld, priority=0.9 if cbr else 0.8)
 
     def station_index(self):
         up = "../"
         groups = {}
         for s in self.st: groups.setdefault(s["sub"][0] if s["sub"] else "Other", []).append(s)
-        place = "NSW" if self.any_out else "Sydney"
+        place = "NSW and ACT" if self.any_out else "Sydney"
         body = [f"<h1>{place} service stations</h1>",
                 f'<p class="lead">Every one of the {len(self.st):,} service stations Bowser tracks, by suburb. Each has today’s prices, and Sydney stations have their price history and a forecast.</p>']
         for g in sorted(groups, key=lambda g: (g == "Other", g)):
@@ -1166,7 +1397,14 @@ class Site:
             body = [f"<h1>{esc(b)} fuel prices today</h1>", f'<p class="lead">{lead}.</p>', self.fuel_cards(pool, up, False)]
             if all(s.get("m") for s in pool): body.append(f"<p>{esc(b)} fuel is for members only: you need a membership card to fill up.</p>")
             extra_ld = []
-            if slug(b) == "costco": body.append(self.costco_note(pool, f0, up)); extra_ld = self.costco_faq(pool, f0)
+            if slug(b) == "costco":
+                body.append(self.costco_note(pool, f0, up)); extra_ld = self.costco_faq(pool, f0)
+                # an ACT Costco with a current U91 price (Canberra Airport, the only Costco selling U91): one line and the Canberra page
+                act_u91 = self.cheapest([s for s in pool if s.get("out") and self.is_act(s)], "U91", 1, members=True)
+                if act_u91 and CANBERRA in self.regions:
+                    t = act_u91[0]
+                    body.append(f'<p><a href="{up}{esc(t["url"])}">{esc(t["name"])}</a> in the ACT also sells Unleaded 91: {c1(t["p"]["U91"][0])}c/L today. '
+                                f'Compare it with <a href="{up}{esc(self.region_url[CANBERRA])}">Canberra fuel prices</a>.</p>')
             if x and len(sp_) >= 3: body.append(self.verdict_card(f0, up))
             body += [f"<h2>All {esc(b)} stations, cheapest first</h2>", self.price_table(pool, sort=f0, up=up),
                      f'<p>Compare with <a href="../">other brands</a> or see the <a href="{up}fuel-prices/{FSLUG[f0]}/">cheapest {esc(NAME[f0])} in Sydney</a>.</p>',
@@ -1246,6 +1484,10 @@ class Site:
                  + f'. Check <a href="{up}fuel-prices/">today’s cheapest stations by suburb</a>.</p>']
         if self.xmas and today.month in (11, 12, 1):
             body.append(f'<p>Planning a holiday drive? See <a href="{up}petrol-prices-christmas/">what Sydney petrol prices did over each Christmas since {self.xmas[0]["year"]}</a>.</p>')
+        try:
+            body += self.last_week(up)
+        except Exception as e:   # the forecast page goes out without the block rather than not at all
+            print(f"seo_pages: WARNING last week's outlook block skipped: {type(e).__name__}: {e}")
         # Questions people ask a search engine, answered with today's numbers (shown on the page and as FAQPage data)
         qa = [("Will petrol prices go up or down this week in Sydney?", f"{self.outlook(f0)} Bowser’s call today: {(v or 'no call').lower()}.")]
         if all(num(r.get(k)) for k in ("d1", "lo1", "hi1")):
@@ -1344,7 +1586,8 @@ class Site:
                         f"(on {esc(short_date(S['high_date']))} {S['high_date'][:4]}).</p>")
         body += ["<h2>Do other fuels follow the cycle?</h2>",
                  "<p>E10, Premium 95 and Premium 98 move with Unleaded 91, a fixed step above or below it at most stations. Diesel does not cycle: it has no sudden jumps and slow slides. It follows the wholesale price, "
-                 f'which can still carry it a long way over a few weeks when oil moves. See the <a href="{up}fuel-prices/diesel/">Sydney diesel price</a> and today’s call for it.</p>', self.sources_p()]
+                 f'which can still carry it a long way over a few weeks when oil moves. See the <a href="{up}fuel-prices/diesel/">Sydney diesel price</a> and today’s call for it.</p>',
+                 f'<p class="small">Run a local news or community site? <a href="{up}badge/">Show where Sydney is in the cycle on it</a>, free, with a small image that updates itself.</p>', self.sources_p()]
         t = "Sydney petrol price cycle today: where are we now? | Bowser"
         d = (f"Where Sydney is in its petrol price cycle on {self.sday}"
              + (f": the last jump began {short_date(last)}, and jumps come about every {gap:.0f} days" if last and num(gap) else "")
@@ -1355,6 +1598,7 @@ class Site:
         # ---- NSW FuelCheck
         body = ["<h1>Bowser and NSW FuelCheck: what each one does</h1>",
                 '<p class="lead">FuelCheck is the NSW Government’s fuel price service. Every service station in NSW must report its prices to it, so it is the source of truth for what fuel costs right now. '
+                "It also lists ACT service stations that report to it. "
                 "Bowser is an independent site built on that data: it shows the same prices and adds a forecast of where they are heading.</p>",
                 "<h2>What is NSW FuelCheck?</h2>",
                 "<p>FuelCheck is run by NSW Fair Trading. Under NSW law, service stations must report the price of every fuel they sell to FuelCheck whenever it changes, so the prices are the station’s own, not estimates or reports from other drivers. "
@@ -1371,7 +1615,8 @@ class Site:
                 f'<div class="row"><a class="btn" href="{up}" data-cta="fuelcheck-map">Open Bowser’s live map</a><a href="{up}fuel-prices/">Fuel prices by suburb</a></div>',
                 "<h2>How fresh are the prices on Bowser?</h2>",
                 f"<p>Bowser reads FuelCheck several times a day, so a price here can be a few hours behind FuelCheck itself. Prices on this site are for {esc(self.day)}. "
-                "Where a station hasn’t updated its price for more than a week, Bowser says so. For the price this minute, check FuelCheck or the board at the station.</p>",
+                "Where a Sydney station hasn’t updated its price for more than a week, Bowser says so. Elsewhere in NSW and the ACT prices change less often, "
+                "so Bowser shows the day a price last changed and flags it after three weeks. For the price this minute, check FuelCheck or the board at the station.</p>",
                 "<h2>Is Bowser part of FuelCheck or the NSW Government?</h2>",
                 "<p>No. Bowser is an independent project and isn’t affiliated with or endorsed by the NSW Government, NSW Fair Trading or FuelCheck. It uses FuelCheck data under its open licence "
                 "(Creative Commons Attribution-ShareAlike 3.0 Australia), © State of New South Wales (NSW Fair Trading).</p>", self.sources_p()]
@@ -1383,9 +1628,10 @@ class Site:
 
         # ---- about, privacy
         body = ["<h1>About Bowser</h1>",
-                '<p class="lead">Bowser tells Sydney drivers when to fill up and where it’s cheapest. It is an independent project, free to use.</p>',
-                "<p>A bowser is what Australians call a petrol pump. The site and app take the prices every NSW service station reports to the NSW Government’s FuelCheck service, "
-                "add a forecast of where Sydney prices are heading, and turn it into one plain call: fill up now, or wait.</p>",
+                '<p class="lead">Bowser tells Sydney drivers when to fill up, and shows where fuel is cheapest across NSW and the ACT. It is an independent project, free to use.</p>',
+                "<p>A bowser is what Australians call a petrol pump. The site and app take the prices NSW and ACT service stations report to the NSW Government’s FuelCheck service, "
+                "add a forecast of where Sydney prices are heading, and turn it into one plain call: fill up now, or wait. "
+                "The fill-or-wait forecast covers Sydney only. Elsewhere in NSW and the ACT you get today’s prices.</p>",
                 "<h2>What’s here</h2>",
                 f'<ul><li><a href="{up}" data-cta="about-map">The live dashboard</a>: today’s call, the cheapest stations near you on a map, and the forecast.</li>'
                 f'<li><a href="{up}fuel-prices/">Fuel prices by suburb</a> and <a href="{up}station/">for every station</a>.</li>'
@@ -1474,6 +1720,122 @@ class Site:
         self.page("404.html", "404", "/404", "Page not found | Bowser", "This page isn’t on Bowser.", "\n".join(body), index=False, root="/")
 
     # ---- guides that answer one question each (docs/SEO.md keyword map)
+    # ---- weekly outlooks (weekly.py): one dated page per saved week, the archive, and last week's result on the forecast page
+    @staticmethod
+    def week_title(w):
+        d = dt.date.fromisoformat(w["week"])
+        return f"Sydney fuel price outlook, week of {d.day} {d:%b %Y}"
+
+    @staticmethod
+    def _main(w):
+        live = {r["fuel"]: r for r in w["live"]}
+        return live.get("U91") or w["live"][0]
+
+    def last_week(self, up):
+        """The forecast page's "last week, scored" block: the newest week whose 7 days are known."""
+        if not self.weeks: return []
+        done = [w for w in self.weeks if w.get("done") and "actual" in (w["score"][self._main(w)["fuel"]].get("h7") or {})]
+        if not done:
+            return [f'<p class="small">Each week’s outlook is saved and scored a week later: <a href="{up}fuel-price-forecast/weekly/">weekly outlooks</a>.</p>']
+        w = done[-1]; r = self._main(w); f = r["fuel"]; sc = w["score"][f]; h7, c = sc["h7"], sc["call"]
+        move = "held about steady" if abs(h7["change"]) < 1 else f"{'risen' if h7['change'] > 0 else 'fallen'} {cents(h7['change'])}"
+        exp = "little change" if abs(r["d7"]) < 1 else f"{'a rise' if r['d7'] > 0 else 'a fall'} of about {cents(r['d7'])}"
+        res = {"right": "right", "close": "close", "wrong": "wrong"}.get(c["status"])
+        return ["<h2>Last week’s outlook, scored</h2>",
+                f"<p>On {esc(long_date(w['asof']))}, Bowser expected {exp} in the Sydney {esc(NAME[f])} median over the week. By {esc(short_date(h7['day']))} it had {move}, to {c1(h7['actual'])}c: "
+                f"{'inside' if h7['inside'] else 'outside'} the likely range"
+                + (f", {abs(h7['err']):.1f}c from the forecast." if abs(h7['err']) >= 0.5 else ", within half a cent of the forecast.")
+                + (f" The call that morning, “{esc(c['head'] or WCALL.get(c['cls'], ''))}”, was <b>{res}</b>." if res else "")
+                + f' <a href="{up}fuel-price-forecast/{w["week"]}/">That week’s outlook</a> · <a href="{up}fuel-price-forecast/weekly/">every week so far</a></p>']
+
+    def week_page(self, w, prev, nxt):
+        path = f"fuel-price-forecast/{w['week']}/"; up = "../../"
+        r0 = self._main(w); f0 = r0["fuel"]; sc0 = w["score"][f0]; c0 = sc0["call"]; h70 = sc0.get("h7")
+        head = self.week_title(w)
+        exp = "stay about where it was" if abs(r0["d7"]) < 1 else f"{'rise' if r0['d7'] > 0 else 'fall'} by about {cents(r0['d7'])}"
+        lead = (f"On {esc(long_date(w['asof']))}, Bowser expected the Sydney median {esc(NAME[f0])} price of {c1(r0['now'])}c to <b>{exp}</b> over the following week. "
+                f"Its call that morning: <b>{esc((c0['head'] or WCALL.get(c0['cls'], '')).lower())}</b>.")
+        if h70 and h70.get("missing"):
+            lead += " There is no Sydney median on record for the day a week later."
+        elif h70:
+            lead += (f" A week later the median was {c1(h70['actual'])}c ({'+' if h70['change'] >= 0 else '−'}{abs(h70['change']):.1f}c), "
+                     f"{'inside' if h70['inside'] else 'outside'} the likely range.")
+        else:
+            lead += f" It is scored once {esc(short_date((dt.date.fromisoformat(w['asof']) + dt.timedelta(days=7)).isoformat()))} is over."
+        rng = lambda r, h: f"{r['now'] + r[f'lo{h}']:.0f}–{r['now'] + r[f'hi{h}']:.0f}"
+        fuels = [r for f in FUELS for r in w["live"] if r["fuel"] == f]
+        out_rows = "".join(
+            f'<tr><td>{esc(NAME[r["fuel"]])}</td><td class="n">{c1(r["now"])}</td><td class="n">{c1(r["now"] + r["d7"])}<br><span class="small">{rng(r, 7)}</span></td>'
+            f'<td class="n">{c1(r["now"] + r["d14"])}<br><span class="small">{rng(r, 14)}</span></td><td class="n">{"under 5%" if r["p_jump7"] < 0.05 else pct0(r["p_jump7"])}</td>'
+            f'<td>{esc((w["score"][r["fuel"]]["call"]["head"] or "").lower() or WCALL.get(w["score"][r["fuel"]]["call"]["cls"], ""))}</td></tr>' for r in fuels)
+        def landed(r, h):
+            x = w["score"][r["fuel"]].get(f"h{h}")
+            if x and x.get("missing"): return '<span class="small">no median that day</span>'
+            if not x: return f'<span class="small">due {esc(short_date((dt.date.fromisoformat(w["asof"]) + dt.timedelta(days=h)).isoformat()))}</span>'
+            return (f'{c1(x["actual"])} ({"+" if x["change"] >= 0 else "−"}{abs(x["change"]):.1f}c)<br><span class="small">'
+                    f'{"in range" if x["inside"] else "outside the range"}, {"+" if x["err"] >= 0 else "−"}{abs(x["err"]):.1f}c vs forecast</span>')
+        land_rows = "".join(f'<tr><td>{esc(NAME[r["fuel"]])}</td><td class="n">{landed(r, 7)}</td><td class="n">{landed(r, 14)}</td></tr>' for r in fuels)
+        def call_cell(r):
+            c = w["score"][r["fuel"]]["call"]
+            if c["status"] == "pending": return '<td class="n">–</td><td>Pending</td>'
+            return f'<td class="n">{"+" if c["move"] >= 0 else "−"}{abs(c["move"]):.1f}c</td><td>{esc(c["status"].capitalize())}</td>'
+        call_rows = "".join(f'<tr><td>{esc(NAME[r["fuel"]])}</td><td>{esc(WCALL.get(w["score"][r["fuel"]]["call"]["cls"], "").capitalize())}</td>{call_cell(r)}</tr>' for r in fuels)
+        links = [f'<a href="{up}fuel-price-forecast/{prev["week"]}/">‹ Week of {esc(short_date(prev["week"]))}</a>' if prev else "",
+                 f'<a href="{up}fuel-price-forecast/weekly/">All weeks</a>',
+                 f'<a href="{up}fuel-price-forecast/{nxt["week"]}/">Week of {esc(short_date(nxt["week"]))} ›</a>' if nxt else "",
+                 f'<a href="{up}fuel-price-forecast/">This week’s forecast</a>']
+        trk = f'<a href="{up}fuel-price-forecast/accuracy/">track record</a>' if self.has_acc else "track record"
+        body = [f"<h1>{esc(head)}</h1>", f'<p class="lead">{lead}</p>',
+                f'<p class="small">Saved {esc(long_date(w["asof"]))} and never revised. Sydney median prices in cents a litre; the range is where Bowser expected the price to land about 8 times in 10.</p>',
+                "<h2>The outlook that week</h2>",
+                '<div class="scroll"><table><thead><tr><th>Fuel</th><th class="n">Then</th><th class="n">In 7 days</th><th class="n">In 14 days</th><th class="n">Jump chance</th><th>Call</th></tr></thead><tbody>'
+                + out_rows + "</tbody></table></div>",
+                "<h2>Where the price landed</h2>",
+                "<p>The Sydney median at the end of the day 7 and 14 days later, against the price the outlook started from: inside or outside the likely range, and how far from the forecast.</p>",
+                '<div class="scroll"><table><thead><tr><th>Fuel</th><th class="n">7 days later</th><th class="n">14 days later</th></tr></thead><tbody>' + land_rows + "</tbody></table></div>",
+                "<h2>The call</h2>",
+                f'<p>Scored the way every call in the {trk} is: the average Sydney median over the 7 days after the call against the price it was made with. '
+                "<b>Fill now</b> is right if that rose 1c or more, <b>wait</b> if it fell 1c or more, <b>no rush</b> if it moved under 3c. "
+                "So a call can be right while the price ends outside the range, or the other way round: they measure different things.</p>",
+                '<div class="scroll"><table><thead><tr><th>Fuel</th><th>Call</th><th class="n">Week’s average vs then</th><th>Result</th></tr></thead><tbody>' + call_rows + "</tbody></table></div>",
+                '<p class="row">' + " ".join(x for x in links if x) + "</p>", self.sources_p()]
+        lastmod = w.get("scored") or w["asof"]
+        d = (f"Bowser’s Sydney fuel price outlook saved {short_date(w['asof'])} {w['asof'][:4]}: the call, the 7 and 14-day forecast with ranges"
+             + (", and how it turned out." if h70 else ". Scored a week later."))
+        art = {**self._art(path, head, d), "datePublished": w["asof"], "dateModified": lastmod}
+        dd = dt.date.fromisoformat(w["week"])
+        title = f"Sydney fuel outlook, week of {dd.day} {dd:%b %Y}" + (", scored" if h70 else "") + " | Bowser"   # under 70 characters
+        self.page(path, "week", "/fuel-price-forecast/:week/", title, d, "\n".join(body),
+                  crumbs=[("Forecast", "fuel-price-forecast/"), ("Weekly", "fuel-price-forecast/weekly/"), (short_date(w["week"]), path)],
+                  ld=[art], priority=0.4, index=bool(w.get("done")), lastmod=lastmod)
+
+    def weekly_pages(self):
+        if not self.weeks: return
+        ws = self.weeks
+        for i, w in enumerate(ws): self.week_page(w, ws[i - 1] if i else None, ws[i + 1] if i + 1 < len(ws) else None)
+        up = "../../"; path = "fuel-price-forecast/weekly/"
+        def row(w):
+            r = self._main(w); sc = w["score"][r["fuel"]]; h7, c = sc.get("h7"), sc["call"]
+            sg = lambda v: f"{'+' if v >= 0 else '−'}{abs(v):.1f}c"
+            actual = sg(h7["change"]) if h7 and "change" in h7 else "–"
+            return (f'<tr><td><a href="{up}fuel-price-forecast/{w["week"]}/">{esc(short_date(w["week"]))} {w["week"][:4]}</a></td><td class="n">{c1(r["now"])}</td>'
+                    f'<td class="n">{sg(r["d7"])}</td><td class="n">{actual}</td>'
+                    f'<td>{esc(WCALL.get(c["cls"], "").capitalize())}</td><td>{esc(c["status"].capitalize())}</td></tr>')
+        head = "Sydney fuel price outlooks, week by week"
+        body = [f"<h1>{head}</h1>",
+                '<p class="lead">Each week Bowser saves the forecast it published on its first run of the week (normally early Monday), and scores it once the week is over: where the price landed against the forecast, and whether the fill-or-wait call was right.</p>',
+                '<p class="small">Unleaded 91, Sydney median, cents a litre. Each week’s page has every fuel. Nothing is revised after it is saved.</p>',
+                '<div class="scroll"><table><thead><tr><th>Week of</th><th class="n">Price then</th><th class="n">Expected in 7 days</th><th class="n">Actual</th><th>Call</th><th>Result</th></tr></thead><tbody>'
+                + "".join(row(w) for w in reversed(ws)) + "</tbody></table></div>",
+                f'<p>See <a href="{up}fuel-price-forecast/">this week’s forecast</a>'
+                + (f' and <a href="{up}fuel-price-forecast/accuracy/">the full track record</a>, replayed back to 2021' if self.has_acc else "") + ".</p>", self.sources_p()]
+        d = "Every weekly Sydney fuel price outlook Bowser has saved, and how each turned out: the forecast against the price, and the fill-or-wait call."
+        done = [w for w in ws if w.get("done")]
+        lastmod = max((w.get("scored") or w["asof"]) for w in ws)
+        self.page(path, "weekly", "/fuel-price-forecast/weekly/", "Sydney fuel price outlooks, week by week | Bowser", d, "\n".join(body),
+                  crumbs=[("Forecast", "fuel-price-forecast/"), ("Weekly", path)], ld=[{**self._art(path, head, d), "datePublished": ws[0]["asof"], "dateModified": lastmod}],
+                  priority=0.5, index=bool(done), lastmod=lastmod)
+
     def _art(self, path, head, desc):
         return {"@context": "https://schema.org", "@type": "Article", "headline": head, "description": desc,
                 "datePublished": PUBLISHED, "dateModified": self.asof, "mainEntityOfPage": f"{self.site}/{path}", "image": f"{self.site}/og.png",
@@ -1930,6 +2292,44 @@ class Site:
         self.page(path, "docket", "/" + path, t, desc, "\n".join(x for x in body if x),
                   crumbs=[("Fuel discounts", "petrol-deals-sydney/"), (title_h, path)], ld=[self._art(path, h1, desc), fq_ld], priority=0.7)
 
+    def badge_page(self):
+        """/badge/: the embeddable cycle-stage badge, a preview and the code to copy. The image itself is written apart
+        (write_badge, from export_api.py), so a failed page build never takes it down on the sites that show it."""
+        img = f"{self.site}/{BADGE_PATH}"
+        alt = "Where Sydney is in the petrol price cycle today, from Bowser"
+        code = (f'<a href="{self.site}/petrol-price-cycle/" title="Sydney petrol price cycle today">'
+                f'<img src="{img}" width="{BADGE_W}" height="{BADGE_H}" alt="{alt}" loading="lazy"></a>')
+        st = self.stage()
+        now = f" Today it says <b>{esc(st[2])}</b>: day {st[0]} since the last price jump." if st else ""
+        body = ["<h1>A free Sydney petrol price badge for your website</h1>",
+                '<p class="lead">Show your readers where Sydney is in its petrol price cycle, today, with a small image that updates itself. '
+                "Free for news sites, community pages, car clubs and blogs.</p>",
+                f'<p class="badge"><img src="sydney.svg" width="{BADGE_W}" height="{BADGE_H}" alt="{esc(alt)}"></p>',
+                f"<p>{now.strip()}</p>" if now else "",
+                "<h2>Add it to your site</h2>",
+                "<p>Copy this into your page’s HTML, where you want the badge to appear:</p>",
+                f"<pre><code>{esc(code)}</code></pre>",
+                "<p>It is a plain image in a link: no script, no cookies, no tracking, and nothing that slows your page. "
+                f"It works anywhere you can add HTML or an image with a link (on a site that only takes an image address, use <code>{esc(img)}</code> "
+                f'and link it to <code>{esc(self.site)}/petrol-price-cycle/</code>).</p>',
+                "<h2>What it shows</h2>",
+                "<p>Sydney petrol prices move in a cycle: a sudden jump of 15c a litre or more, then weeks of slow falls. The badge says which part of it Sydney is in, "
+                "from the same figures as the <a href=\"../petrol-price-cycle/\">price cycle page</a>:</p>",
+                "<ul><li><b>A jump looks likely soon</b>: Bowser’s forecast puts the chance of a 5c-plus jump within a week at 35% or more.</li>"
+                "<li><b>Near the top</b>: a jump began within the last week.</li>"
+                "<li><b>Falling</b>: the slow slide after a jump, when waiting usually pays.</li>"
+                "<li><b>Late in the cycle</b>: a jump is due by the usual timing.</li>"
+                "<li><b>Running long</b>: this cycle has lasted longer than usual.</li></ul>",
+                "<p>It is rebuilt several times a day and shows the day it is for, so readers can see it is current. "
+                "If the cycle stage can’t be worked out, it shows Bowser’s call for Unleaded 91 instead.</p>",
+                "<h2>Terms</h2>",
+                "<p>Free to use, with no sign-up. Please keep the link and the credit on the image: prices come from NSW FuelCheck "
+                "(© State of New South Wales, NSW Fair Trading, CC BY-SA 3.0 AU) and the stage is Bowser’s own estimate, for planning, not financial advice. "
+                f"Questions, or want a different size? Email {CONTACT}.</p>", self.sources_p()]
+        self.page("badge/", "badge", "/badge/", "Free Sydney petrol price badge for your website | Bowser",
+                  "A free image for news and community sites that shows where Sydney is in its petrol price cycle today. No script, no tracking; updates itself.",
+                  "\n".join(b for b in body if b), crumbs=[("Badge", "badge/")], priority=0.3)
+
     def finish(self):
         """robots.txt, sitemap.xml (the dashboard's address first) and llms.txt (a plain summary for AI assistants)."""
         rules = "Allow: /\nDisallow: /api/v1/station/\n"   # the per-station JSON files are the app's, one per station page here
@@ -1944,8 +2344,10 @@ class Site:
         u = self.site; md = lambda s: re.sub(r"\S+://\S+|[\[\]\n\r<>()]", " ", str(s))[:80]   # feed text can't add a link or break one
         syd = [s for s in self.st if not s.get("out")]
         lines = ["# Bowser", "",
-                 f"> Bowser (checkbowser.app) is an independent, free site and app for fuel prices in New South Wales, Australia. It shows today's price at {len(self.st):,} "
-                 "service stations, taken from the NSW Government's FuelCheck service, and adds a forecast for Sydney that says whether to fill up now or wait. "
+                 f"> Bowser (checkbowser.app) is an independent, free site and app for fuel prices in "
+                 + ("New South Wales and the Australian Capital Territory" if self.any_out else "New South Wales") + f", Australia. It shows today's price at {len(self.st):,} "
+                 + "service stations" + (f" (including {len(self.act):,} ACT stations that report to NSW FuelCheck)" if self.act else "")
+                 + ", taken from the NSW Government's FuelCheck service, and adds a forecast for Sydney only that says whether to fill up now or wait. "
                  "Pages are rebuilt about five times a day. Bowser is not affiliated with the NSW Government or any fuel retailer.", "",
                  f"## Today ({self.day})", ""]
         for f in FUELS:
@@ -1961,8 +2363,10 @@ class Site:
                   f"- [The Sydney petrol price cycle]({u}/petrol-price-cycle/): how the cycle works, how long it is each year, and where it is now.",
                   f"- [Bowser and NSW FuelCheck]({u}/nsw-fuelcheck/): what FuelCheck is and what Bowser adds to it.",
                   *([f"- [How accurate the forecast is]({u}/fuel-price-forecast/accuracy/): the fill-or-wait call replayed on every day since 2021, live calls, and the error against assuming no change."] if self.has_acc else []),
+                  *([f"- [Weekly outlooks]({u}/fuel-price-forecast/weekly/): each week's saved forecast for every fuel (normally Monday's), and how it turned out a week and two weeks later."] if any(w.get("done") for w in self.weeks) else []),
                   *([f"- [Best day to buy petrol in Sydney]({u}/best-day-to-buy-petrol/): the price on each weekday since 2019 (cheapest and dearest {max(self.stats['dow']) - min(self.stats['dow']):.1f}c apart) and what matters instead."] if self.has_best else []),
                   *([f"- [Petrol prices at Christmas]({u}/petrol-prices-christmas/): what the Sydney price did over each Christmas since {self.xmas[0]['year']}, and this year's outlook."] if self.xmas else []),
+                  f"- [Free cycle-stage badge]({u}/badge/): an image for other websites showing where Sydney is in its petrol price cycle today, linking back here.",
                   f"- [Prices by brand]({u}/brands/): 7-Eleven, Ampol, BP, Shell, Costco and others compared.",
                   f"- [Fuel discounts in Sydney]({u}/petrol-deals-sydney/): supermarket dockets, 7-Eleven Fuel Price Lock and codes, NRMA, seniors and Costco, with today's price at the stations that take each.",
                   *([f"- [7-Eleven Fuel Price Lock]({u}/7-eleven-fuel-price-lock/): whether to lock today, from the Sydney forecast, and how the lock works."] if self.built("lock") else []),
@@ -1970,9 +2374,12 @@ class Site:
                   *([f"- [Coles fuel docket]({u}/coles-fuel-docket/): where it works and today's prices before and after."] if self.built("coles") else [])]
         lines += [f"- [{NAME[f]} prices in Sydney]({u}/fuel-prices/{FSLUG[f]}/)" for f in FUELS if f in self.live]
         if self.regions:
-            lines += ["", "## Regions outside Sydney (prices only, no forecast)", ""] + [f"- [{md(n)} fuel prices]({u}/{self.region_url[n]})" for n in sorted(self.regions)]
+            lines += ["", f"## Regions outside Sydney ({'NSW and ACT; ' if self.act else ''}prices only, no forecast)", ""] + [f"- [{md(n)} fuel prices]({u}/{self.region_url[n]})" for n in sorted(self.regions)]
+        # an ACT example: the ACT suburb with the most stations (the data's own, never a fixed address)
+        act_subs = sorted({s["sub"] for s in self.act if s["sub"]}, key=lambda k: (-len(self.subs[k]), k))
         lines += ["", "## Page patterns", "",
-                  f"- One page per suburb: {u}/fuel-prices/{{suburb}}-{{postcode}}/ (for example {u}/fuel-prices/parramatta-2150/).",
+                  f"- One page per suburb: {u}/fuel-prices/{{suburb}}-{{postcode}}/ (for example {u}/fuel-prices/parramatta-2150/"
+                  + (f", or in the ACT {u}/{self.sub_url[act_subs[0]]}" if act_subs else "") + ").",
                   f"- One page per station, listed at {u}/station/. Sydney stations also have a price history and their own fill-or-wait call.",
                   f"- {u}/sitemap.xml lists every page except stations that have reported no price for over a month.", "",
                   "## Data", "",
@@ -2004,28 +2411,36 @@ FUEL_NOTE = {
 }
 
 
-def home_head(stations, forecast, site=SITE):
-    """The dashboard's <title> and the tags after it: description, canonical, Open Graph, icons and JSON-LD."""
+def home_head(stations, forecast, site=SITE, og="og.png"):
+    """The dashboard's <title> and the tags after it: description, canonical, Open Graph, icons and JSON-LD. `og`: the
+    link-preview image under the site, today's call (og_image.py, "og/today.png?d=…") when export_api.py drew it."""
     site = site.rstrip("/"); live = {r["fuel"]: r for r in forecast["live"]}
     r = live.get("U91") or next(iter(live.values())); v = (r.get("verdict") or {}).get("head", "")
     n = sum(usable(s) is not None for s in stations["stations"]); day = short_date(stations["asof"])
     # "Should you fill up today?" is the question the dashboard answers and the phrase PetrolPulse builds its title on
     # (docs/SEO.md, competitors); the forecast page keeps "fuel price forecast … next week", so the two don't compete
     title = "Should you fill up today? Sydney fuel prices | Bowser"
-    desc = (f"Should you fill up today? Bowser’s call for Sydney: {(v or 'no call today').lower()}. {NAME[r['fuel']]} is {c1(r['now'])}c/L ({day}), "
-            f"with live prices at {n:,} NSW stations.")
-    org = {"@type": "Organization", "@id": site + "/#org", "name": "Bowser", "url": site + "/", "logo": site + "/apple-touch-icon.png"}
+    wide = any(s.get("out") for s in stations["stations"])   # the rest of NSW and the ACT stations that report to FuelCheck
+    lead = f"Should you fill up today? Bowser’s call for Sydney: {(v or 'no call today').lower()}. {NAME[r['fuel']]} is {c1(r['now'])}c/L ({day})"
+    desc = f"{lead}, with today’s prices at {n:,} {'NSW and ACT' if wide else 'Sydney'} stations."
+    if len(desc) > 155: desc = f"{lead}. Prices at {n:,} {'NSW and ACT' if wide else 'Sydney'} stations."   # the longest call with a 4-digit count
+    area = {"areaServed": STATES} if wide else {}
+    org = {"@type": "Organization", "@id": site + "/#org", "name": "Bowser", "url": site + "/", "logo": site + "/apple-touch-icon.png", **area}
     ld = {"@context": "https://schema.org", "@graph": [
         org, {"@type": "WebSite", "@id": site + "/#site", "name": "Bowser", "alternateName": ["Check Bowser", "checkbowser.app"], "url": site + "/",
-              "inLanguage": "en-AU", "publisher": {"@id": site + "/#org"}, "description": "Sydney fuel prices today, the cheapest stations near you and a forecast of when to fill up."},
-        {"@type": "WebApplication", "name": "Bowser", "url": site + "/", "applicationCategory": "UtilitiesApplication", "operatingSystem": "Any",
+              "inLanguage": "en-AU", "publisher": {"@id": site + "/#org"}, "description": "Fuel prices at every NSW and ACT station that reports to NSW FuelCheck, and a Sydney forecast of when to fill up." if wide
+              else "Sydney fuel prices today, the cheapest stations near you and a forecast of when to fill up."},
+        {"@type": "WebApplication", "name": "Bowser", "url": site + "/", "applicationCategory": "UtilitiesApplication", "operatingSystem": "Any", **area,
          "offers": {"@type": "Offer", "price": "0", "priceCurrency": "AUD"}, "publisher": {"@id": site + "/#org"}}]}
+    alt = f"Bowser: {v}. {NAME[r['fuel']]} in Sydney, {c1(r['now'])}c/L on {day}" if v else "Bowser: fill up now, or wait?"   # the image's words
     return "\n".join([
         f"<title>{esc(title)}</title>", f'<meta name="description" content="{esc(desc)}">', f'<link rel="canonical" href="{site}/">',
         '<meta property="og:type" content="website">', '<meta property="og:site_name" content="Bowser">', '<meta property="og:locale" content="en_AU">',
         f'<meta property="og:title" content="{esc(title)}">', f'<meta property="og:description" content="{esc(desc)}">',
-        f'<meta property="og:url" content="{site}/">', f'<meta property="og:image" content="{site}/og.png">',
-        '<meta name="twitter:card" content="summary_large_image">', '<meta name="theme-color" content="#ffb22e">',
+        f'<meta property="og:url" content="{site}/">', f'<meta property="og:image" content="{site}/{esc(og)}">',
+        '<meta property="og:image:width" content="1200">', '<meta property="og:image:height" content="630">',
+        f'<meta property="og:image:alt" content="{esc(alt)}">',
+        '<meta name="twitter:card" content="summary_large_image">', f'<meta name="twitter:image" content="{site}/{esc(og)}">',
         '<link rel="icon" href="favicon.svg" type="image/svg+xml">', '<link rel="apple-touch-icon" href="apple-touch-icon.png">', jsonld(ld)])
 
 
@@ -2059,11 +2474,11 @@ def clear(out):
         if os.path.exists(os.path.join(out, f)): os.remove(os.path.join(out, f))
 
 
-def build(out, stations, forecast, history=None, details=None, track=None, site=SITE, static=None):
+def build(out, stations, forecast, history=None, details=None, track=None, site=SITE, static=None, weekly=None):
     """Write every search page under `out`. Returns {"pages": n, "stations": n, "suburbs": n}. Raises on bad input:
     the caller (export_api.py) then clears the pages and publishes the rest of the site without them."""
     clear(out)
-    S = Site(out, stations, forecast, history, details, track, site)
+    S = Site(out, stations, forecast, history, details, track, site, weekly)
     if len(S.st) < 1 or "U91" not in S.live: raise ValueError(f"search pages: {len(S.st)} stations, fuels {sorted(S.live)}")
     S.hub()
     for f in FUELS:
@@ -2073,10 +2488,16 @@ def build(out, stations, forecast, history=None, details=None, track=None, site=
     S.station_index()
     for s in S.st: S.station(s)
     S.brand_pages(); S.guides()
+    try:
+        S.weekly_pages()
+    except Exception as e:   # a weekly page bug drops those pages only, never the rest of the site
+        print(f"seo_pages: WARNING weekly outlook pages skipped: {type(e).__name__}: {e}")
+        S.urls = [u for u in S.urls if not u[0].startswith("fuel-price-forecast/") or u[0].count("/") < 2 or u[0] == "fuel-price-forecast/accuracy/"]
     if S.has_acc: S.accuracy()
     if S.has_best: S.best_day()
     if S.xmas: S.christmas()
     S.deals()
+    S.badge_page()
     S.finish()
     if static:
         for f in STATIC:

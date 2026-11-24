@@ -7,7 +7,7 @@ import { OutlookChart } from '@/components/outlook-chart';
 import { SavingsStrip, TrackStrip } from '@/components/proof-strip';
 import { BowserWordmark } from '@/components/brand';
 import { SourceLine } from '@/components/source-line';
-import { MissingPinItem, rowKey, STALE_DAYS, StationItem } from '@/components/station-row';
+import { MissingPinItem, rowKey, StationItem } from '@/components/station-row';
 import { Card, Disclosure, Loading, Screen, Section, StaleBanner, T, toneColors } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useArea } from '@/hooks/use-area';
@@ -16,11 +16,12 @@ import { useReady } from '@/lib/analytics';
 import { useForecast, useHistory, useStations } from '@/lib/api';
 import { horizons, jumpRisk, signalWhy } from '@/lib/copy';
 import { fmt, nice, refreshedText, shortFuel } from '@/lib/format';
-import { pinnedRows } from '@/lib/filters';
+import { isStale, pinnedRows } from '@/lib/filters';
 import { rankStations } from '@/lib/geo';
 import { dayLabel, outlook, riseDay } from '@/lib/outlook';
 import { usePins } from '@/lib/pins';
 import { useSettings } from '@/lib/settings';
+import { marketFor } from '@/lib/market';
 
 export default function Today() {
   const c = useTheme();
@@ -39,9 +40,11 @@ export default function Today() {
   const best = useMemo(() => {
     if (!sq.data || !home) return [];
     return rankStations(sq.data.stations, s.fuel, { home, radiusKm: s.radiusKm, members: s.members, sort: 'price', discounts: s.discounts })
-      .filter((x) => x.age == null || x.age <= STALE_DAYS)
+      .filter((x) => !isStale(x.age, x.out))
       .slice(0, 3);
   }, [sq.data, home, s.fuel, s.radiusKm, s.members, s.discounts]);
+  // The area's own market when it is outside Sydney (lib/market.ts): from the nearest-cheapest rows, which share it
+  const local = best[0]?.out ? marketFor(best[0], s.fuel, null, sq.data?.regions) : null;
   const mine = useMemo(
     () => (sq.data ? pinnedRows(sq.data.stations, s.fuel, pins, home, s.discounts) : []),
     [sq.data, s.fuel, pins, home, s.discounts],
@@ -115,11 +118,20 @@ export default function Today() {
             ) : best.length === 0 ? (
               <Card><T>No recent prices within {s.radiusKm} km.</T></Card>
             ) : (
-              <Card style={{ padding: 0, overflow: 'hidden' }}>
-                {best.map((x, i) => (
-                  <StationItem key={rowKey(x)} r={x} median={r.now} sydney={o.tone} last={i === best.length - 1} />
-                ))}
-              </Card>
+              <>
+                <Card style={{ padding: 0, overflow: 'hidden' }}>
+                  {best.map((x, i) => (
+                    <StationItem key={rowKey(x)} r={x} median={r.now} sydney={o.tone} last={i === best.length - 1} />
+                  ))}
+                </Card>
+                {local ? (
+                  // Outside Sydney (e.g. Canberra) the rows' gaps are to the local median; say whose, and that the
+                  // fill-or-wait card above is Sydney's
+                  <T kind="small">
+                    {`Gaps are to the ${local.name} ${shortFuel(s.fuel)} median, ${local.med.toFixed(1)}c (${local.n} stations). The fill-or-wait call above is for Sydney.`}
+                  </T>
+                ) : null}
+              </>
             )}
           </Section>
 
@@ -136,7 +148,7 @@ export default function Today() {
           </Disclosure>
 
           <Pressable onPress={() => router.push('/trends')} accessibilityRole="link" hitSlop={8}>
-            <T color={c.tgp} style={{ fontWeight: '700' }}>Price trends and the cycle →</T>
+            <T color={c.link} style={{ fontWeight: '700' }}>Price trends and the cycle →</T>
           </Pressable>
 
           <TrackStrip />

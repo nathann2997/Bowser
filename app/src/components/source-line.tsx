@@ -17,7 +17,7 @@ export function SourceLine() {
       hitSlop={8}>
       <T kind="small">
         {'Prices: '}
-        <T kind="small" color={c.tgp} style={{ fontWeight: '700' }}>{SOURCE_NAME}</T>
+        <T kind="small" color={c.link} style={{ fontWeight: '700' }}>{SOURCE_NAME}</T>
         {`. ${NOT_GOVERNMENT_SHORT}`}
       </T>
     </Pressable>

@@ -18,9 +18,10 @@ export const shareUrl = (id: string, fuel: Fuel) => `${SHARE_BASE}?id=${encodeUR
 
 export function dealMessage(d: {
   id: string; n: string; s: string; fuel: Fuel; pump: number; median: number | null; advice: string | null;
+  market?: string;   // whose median: 'Sydney' (default) or a region such as 'Canberra'
 }): string {
   const gap = d.median != null ? d.pump - d.median : null;
-  const vs = gap == null || Math.abs(gap) < 0.05 ? '' : `, ${Math.abs(gap).toFixed(1)}c ${gap < 0 ? 'under' : 'over'} the Sydney median`;
+  const vs = gap == null || Math.abs(gap) < 0.05 ? '' : `, ${Math.abs(gap).toFixed(1)}c ${gap < 0 ? 'under' : 'over'} the ${d.market ?? 'Sydney'} median`;
   const adv = d.advice ? ` Bowser says: ${d.advice}.` : '';
   return `${stationName(d.n)} (${d.s}): ${fuelName(d.fuel)} ${d.pump.toFixed(1)}c/L today${vs}.${adv}\n${shareUrl(d.id, d.fuel)}`;
 }

@@ -263,6 +263,9 @@ class Pieces(unittest.TestCase):
         self.assertIn('<link rel="canonical" href="https://checkbowser.app/">', head)
         self.assertIn("Unleaded 91 is 213.6c/L (17 Nov)", head)
         self.assertIn("<title>Should you fill up today? Sydney fuel prices | Bowser</title>", head)
+        self.assertIn('<meta property="og:image" content="https://checkbowser.app/og.png">', head)   # the static image by default
+        self.assertIn('<meta property="og:image:width" content="1200">', head); self.assertNotIn("#ffb22e", head)   # theme-color is the page's
+        self.assertIn('content="https://checkbowser.app/og/today.png?d=2026-11-17"', sp.home_head(stations, forecast, og="og/today.png?d=2026-11-17"))
         self.assertIn("Should you fill up today? Bowser’s call for Sydney: wait if you can.", head)
         self.assertEqual(len(re.findall(r"<script\b", head, re.I)), 1); self.assertIn('<script type="application/ld+json">', head)
         links = sp.home_links(stations, forecast)
@@ -361,7 +364,7 @@ class Pieces(unittest.TestCase):
         with tempfile.TemporaryDirectory() as out:
             report = sp.build(out, *sample())
             rd = lambda p: open(os.path.join(out, p), encoding="utf-8").read()
-            self.assertIn("<title>Check NSW fuel prices today: cheapest petrol by suburb | Bowser</title>", rd("fuel-prices/index.html"))
+            self.assertIn("<title>Check NSW and ACT fuel prices: cheapest petrol by suburb | Bowser</title>", rd("fuel-prices/index.html"))
             self.assertEqual(rd(f"{sp.INDEXNOW_KEY}.txt"), sp.INDEXNOW_KEY)
             with open(os.path.join(out, "sitemap.xml"), "rb") as fh: sitemap = fh.read()
         import indexnow
@@ -373,6 +376,131 @@ class Pieces(unittest.TestCase):
         self.assertEqual((b["host"], b["keyLocation"]), ("checkbowser.app", f"https://checkbowser.app/{sp.INDEXNOW_KEY}.txt"))
         parsed = indexnow.parse(sitemap)
         self.assertEqual(parsed["https://checkbowser.app/"], ASOF); self.assertEqual(len(parsed), report["pages"] + 1)
+
+    def test_act_and_outside_sydney_wording_and_freshness(self):
+        stations, forecast, *_ = sample()
+        st = stations["stations"]
+        na = ["na", "Price only", "Outside Sydney: prices only, no forecast"]
+        # Hume ACT 2620: the postcode is NSW by range (Queanbeyan), so the state comes from `st`
+        for i, (age, sid) in enumerate([(0, 501), (12, 502)]):
+            s = station(sid, f"Servo Hume {i}", "Ampol", "Hume", 2620, -35.39 + i * 0.002, 149.166, {"U91": (201.0 - 2 * i, age)}, out=1, st="ACT")
+            s["p"]["U91"] = s["p"]["U91"][:2] + na; st.append(s)
+        old = station(503, "Servo Hume Old", "Ampol", "Hume", 2620, -35.394, 149.166, {"U91": (190.0, 21)}, out=1, st="ACT")
+        old["p"]["U91"] = old["p"]["U91"][:2] + ["chk", "Check price", "Not updated for 21 days"]; st.append(old)
+        details = {"502": {"start": ASOF, "addr": "94-96 Sheppard St, Hume ACT 2620", "hist": {}}}
+        with tempfile.TemporaryDirectory() as out:
+            sp.build(out, stations, forecast, details=details)
+            rd = lambda p: open(os.path.join(out, p), encoding="utf-8").read()
+            sub = rd("fuel-prices/hume-2620/index.html")
+            self.assertIn("Petrol prices in Hume, Canberra ACT 2620", sub); self.assertIn("Service stations in Hume ACT 2620", sub)
+            self.assertNotIn("must report", sub); self.assertNotIn("adds a forecast", sub); self.assertNotIn('class="verdict', sub)
+            self.assertIn("ACT service stations that report to it", sub)
+            # 12 days old outside Sydney: current, shown as unchanged since its day; 21 days: old, and out of the cheapest
+            self.assertIn("unchanged since 5 Nov", sub); self.assertIn("21 days old", sub)
+            self.assertRegex(sub, r"The cheapest Unleaded 91 in Hume today is <b>199.0c/L</b> at <a [^>]+>Servo Hume 1</a> \(unchanged since 5 Nov\)\.")
+            page = rd("station/servo-hume-1-502/index.html")
+            self.assertIn('"addressRegion":"ACT"', page); self.assertIn('"streetAddress":"94-96 Sheppard St"', page)
+            self.assertIn("Unchanged since 5 Nov", page); self.assertNotIn("check it before you drive", page)
+            self.assertIn("check it before you drive", rd("station/servo-hume-old-503/index.html"))
+            dubbo = rd("fuel-prices/dubbo-2830/index.html")
+            self.assertIn("Petrol prices in Dubbo NSW 2830", dubbo); self.assertNotIn("adds a forecast", dubbo)
+            self.assertIn("covers Sydney only", dubbo)
+            hub = rd("fuel-prices/index.html")
+            self.assertIn("across NSW and the ACT", hub); self.assertNotIn("every service station in the state", hub)
+            self.assertIn("All NSW and ACT service stations", rd("station/index.html"))
+        self.assertEqual((sp.state_of(2620), sp.state_of(2620, "ACT"), sp.state_of(2600), sp.state_of(2150, None)), ("NSW", "ACT", "ACT", "NSW"))
+        s20 = {"out": 1, "p": {"U91": [200.0, 20]}}; s21 = {"out": 1, "p": {"U91": [200.0, 21]}}; syd8 = {"p": {"U91": [200.0, 8]}}
+        self.assertEqual((sp.Site.fresh(s20, "U91"), sp.Site.fresh(s21, "U91"), sp.Site.fresh(syd8, "U91")), (True, False, False))
+
+    def test_canberra_page_hub_and_act_station_links(self):
+        stations, forecast, *_ = sample()
+        st = stations["stations"]
+        na = ["na", "Price only", "Outside Sydney: prices only, no forecast"]
+        # (id, name, suburb, postcode, U91, lat, lon, st): ACT stations in three districts, and Queanbeyan (NSW) over the border
+        rows = [(601, "Ampol Belconnen", "Belconnen", 2617, 221.9, -35.238, 149.066, "ACT"), (602, "Shell Belconnen", "Belconnen", 2617, 223.9, -35.239, 149.067, "ACT"),
+                (603, "BP Kambah", "Kambah", 2902, 219.9, -35.381, 149.058, "ACT"), (604, "7-Eleven Greenway", "Greenway", 2900, 218.9, -35.418, 149.066, "ACT"),
+                (605, "Costco Canberra Airport", "Majura", 2609, 205.9, -35.305, 149.192, "ACT"), (606, "Servo Hume", "Hume", 2620, 214.9, -35.390, 149.166, "ACT"),
+                (607, "Metro Queanbeyan", "Queanbeyan", 2620, 209.9, -35.353, 149.232, None), (608, "Ampol Queanbeyan", "Queanbeyan", 2620, 211.9, -35.354, 149.233, None),
+                (609, "BP Queanbeyan East", "Queanbeyan East", 2620, 212.9, -35.349, 149.240, None)]
+        for i, n, sub, pc, u, la, lo, state in rows:
+            s = station(i, n, "Costco" if i == 605 else "Ampol", sub, pc, la, lo, {"U91": (u, 0)}, out=1, **({"st": state} if state else {}))
+            s["p"]["U91"] = s["p"]["U91"][:2] + na; st.append(s)
+        st.append(station(610, "Costco Casula (Members only)", "Costco", "Casula", 2170, -33.95, 150.9, {"P98": (219.9, 0), "E10": (199.9, 0)})); st[-1]["m"] = 1
+        with tempfile.TemporaryDirectory() as out:
+            sp.build(out, stations, forecast)
+            rd = lambda p: open(os.path.join(out, p), encoding="utf-8").read()
+            cbr = rd("fuel-prices/canberra-and-queanbeyan/index.html")
+            title = re.search(r"<title>(.*?)</title>", cbr).group(1)
+            desc = html.unescape(re.search(r'<meta name="description" content="(.*?)">', cbr).group(1))
+            self.assertEqual(title, "Canberra fuel prices today: U91 from 205.9c | Bowser"); self.assertLessEqual(len(title), 65)
+            self.assertTrue(desc.startswith("Canberra petrol prices for 17 Nov: U91 from 205.9c at Costco Canberra Airport, median 214.9c (1.3c over Sydney)"), desc)   # the short fuel name makes room for the station
+            self.assertIn("over Sydney)", desc); self.assertIn("9 ACT and Queanbeyan stations compared", desc); self.assertLessEqual(len(desc), 155)
+            self.assertIn("<h1>Canberra and Queanbeyan fuel prices today</h1>", cbr)
+            # districts (Hume ACT 2620 joins Fyshwick; Queanbeyan is the NSW side), the ACT vs Queanbeyan medians, the honest FAQ
+            for d in ("belconnen", "tuggeranong", "fyshwick-hume-and-the-airport", "queanbeyan-and-surrounds-nsw"): self.assertIn(f'id="{d}"', cbr)
+            fy = cbr[cbr.index('id="fyshwick-hume-and-the-airport"'):cbr.index('id="queanbeyan-and-surrounds-nsw"')]
+            self.assertIn("Servo Hume", fy); self.assertNotIn("Queanbeyan</a>", fy)
+            self.assertIn("ACT stations’ median Unleaded 91 today is 219.4c; across the border in Queanbeyan and surrounds (NSW) it is 211.9c, 7.5c less", cbr)
+            self.assertIn("Does Bowser forecast Canberra prices?", cbr); self.assertIn("covers Sydney only", cbr)
+            self.assertIn('"@type":"FAQPage"', cbr); self.assertIn('"@type":"ItemList"', cbr)
+            self.assertNotIn('class="verdict', cbr); self.assertNotIn("Fill up today", cbr)
+            self.assertIn("<loc>https://checkbowser.app/fuel-prices/canberra-and-queanbeyan/</loc><lastmod>2026-11-17</lastmod><priority>0.9</priority>", rd("sitemap.xml"))
+            self.assertFalse(os.path.exists(os.path.join(out, "fuel-prices", "canberra"))); self.assertFalse(os.path.exists(os.path.join(out, "fuel-prices", "act")))
+            # hub: both states served, the Canberra block and its link, no Canberra forecast
+            hub = rd("fuel-prices/index.html")
+            ds = next(b for b in (json.loads(x) for x in re.findall(r'<script type="application/ld\+json">(.*?)</script>', hub)) if b.get("@type") == "Dataset")
+            self.assertEqual([a["name"] for a in ds["creator"]["areaServed"]], ["New South Wales", "Australian Capital Territory"])
+            self.assertIn("Australian Capital Territory", ds["spatialCoverage"])
+            self.assertIn('<h2 id="canberra">', hub); self.assertIn('href="../fuel-prices/canberra-and-queanbeyan/"', hub)
+            self.assertIn("<h2>Fuel prices outside Sydney (NSW and ACT)</h2>", hub); self.assertIn("Does Bowser forecast Canberra prices?", hub)
+            hub_desc = html.unescape(re.search(r'<meta name="description" content="(.*?)">', hub).group(1))
+            self.assertTrue(hub_desc.startswith("NSW and ACT petrol prices for 17 Nov: Sydney Unleaded 91 median 213.6c/L"), hub_desc); self.assertLessEqual(len(hub_desc), 155)
+            # ACT and Queanbeyan stations: "cheapest" goes to the Canberra page, never Sydney's; a Sydney station keeps Sydney's
+            for p in ("station/ampol-belconnen-601/index.html", "station/metro-queanbeyan-607/index.html"):
+                page = rd(p)
+                self.assertIn('<a href="../../fuel-prices/canberra-and-queanbeyan/">Cheapest Unleaded 91 in Canberra today</a>', page)
+                self.assertNotIn("in Sydney today</a>", page); self.assertIn('"name":"Canberra","item":"https://checkbowser.app/fuel-prices/canberra-and-queanbeyan/"', page)
+            self.assertIn("Cheapest Unleaded 91 in Sydney today</a>", rd("station/7-eleven-granville-3/index.html"))
+            self.assertIn('href="../../fuel-prices/unleaded-91/">Cheapest', rd("station/ampol-dubbo-7/index.html"))
+            # llms.txt and the footer: coverage wording, forecast for Sydney only, an ACT example from the data
+            llms = rd("llms.txt")
+            self.assertIn("New South Wales and the Australian Capital Territory, Australia", llms); self.assertIn("(including 6 ACT stations that report to NSW FuelCheck)", llms)
+            self.assertIn("a forecast for Sydney only", llms); self.assertIn("## Regions outside Sydney (NSW and ACT; prices only, no forecast)", llms)
+            self.assertIn("or in the ACT https://checkbowser.app/fuel-prices/belconnen-2617/", llms)
+            self.assertIn(">NSW and ACT fuel prices</a>", cbr)
+            # ACT suburb pages: "Canberra" in the description when it fits, and a link to their district's section
+            bel = rd("fuel-prices/belconnen-2617/index.html")
+            self.assertIn("Petrol prices in Belconnen, Canberra ACT 2617 for 17 Nov", bel)
+            self.assertIn('href="../../fuel-prices/canberra-and-queanbeyan/#belconnen">Belconnen on the Canberra page</a>', bel)
+            self.assertNotIn("#queanbeyan", rd("fuel-prices/queanbeyan-2620/index.html"))
+            # the Canberra Costco's U91, from the data, on the Costco brand page
+            self.assertIn('Costco Canberra Airport</a> in the ACT also sells Unleaded 91: 205.9c/L today', rd("brands/costco/index.html"))
+        head = sp.home_head(stations, forecast)
+        self.assertIn('"areaServed":[{"@type":"State","name":"New South Wales"},{"@type":"State","name":"Australian Capital Territory"}]', head)
+        hd = html.unescape(re.search(r'<meta name="description" content="(.*?)">', head).group(1))
+        self.assertIn("with today’s prices at 18 NSW and ACT stations.", hd); self.assertLessEqual(len(hd), 155)
+        self.assertIn("<title>Should you fill up today? Sydney fuel prices | Bowser</title>", head)
+        self.assertIn('<meta property="og:image" content="https://checkbowser.app/og.png">', head)   # the static image by default
+        self.assertIn('<meta property="og:image:width" content="1200">', head); self.assertNotIn("#ffb22e", head)   # theme-color is the page's
+        self.assertIn('content="https://checkbowser.app/og/today.png?d=2026-11-17"', sp.home_head(stations, forecast, og="og/today.png?d=2026-11-17"))
+        # every call the pipeline can make (export_api.py), with a 4-digit station count: the descriptions stay within 155
+        many = {"asof": ASOF, "stations": [dict(st[0], id=str(5000 + i)) for i in range(2381)] + [next(x for x in st if x.get("out"))]}
+        for v in ("Fill up today", "Fill up this week", "Wait if you can", "No rush either way"):
+            fc = json.loads(json.dumps(forecast)); fc["live"][0]["verdict"]["head"] = v
+            hd = html.unescape(re.search(r'<meta name="description" content="(.*?)">', sp.home_head(many, fc)).group(1))
+            self.assertLessEqual(len(hd), 155, hd); self.assertIn("2,382 NSW and ACT stations", hd)
+
+    def test_dashboard_rows_compare_with_their_own_market(self):
+        # template.html: the list row and the map card compare with the station's own market (marketFor): the Sydney
+        # median only for Sydney stations, the region's (local_median.py) outside Sydney, else nothing (2026-11-24)
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "template.html"), encoding="utf-8") as fh: t = fh.read()
+        mk = t[t.index("function marketFor("):t.index("function stationItem(")]
+        item = t[t.index("function stationItem("):t.index("function brandOptions(")]
+        pop = t[t.index("function openPop("):t.index("function openNoFuel(")]
+        self.assertIn('if (!s.out) return med != null ? {med, name: "Sydney"} : null;', mk)   # Sydney's median: Sydney stations only
+        self.assertIn("D.regions[s.rg]", mk)
+        self.assertIn("gap = mk ? s.price - mk.med : null", item); self.assertIn("gap = mk ? r.price - mk.med : null", pop)
+        for part in (item, pop): self.assertIn('${gap == null ? "" :', part)
 
     def test_regions_dead_pages_and_ai_files(self):
         stations, forecast, *_ = sample()
@@ -399,7 +527,7 @@ class Pieces(unittest.TestCase):
             self.assertIn("median across 7 stations with a current price is 223.0c", reg); self.assertNotIn('class="verdict', reg)
             self.assertIn('href="../../fuel-prices/hamilton-2303/"', reg)
             hub = rd("fuel-prices/index.html")
-            self.assertIn("<h1>NSW fuel prices today</h1>", hub); self.assertIn('href="../fuel-prices/newcastle/"', hub)
+            self.assertIn("<h1>NSW and ACT fuel prices today</h1>", hub); self.assertIn('href="../fuel-prices/newcastle/"', hub)
             self.assertIn('"@type":"FAQPage"', hub); self.assertIn("What is the cheapest petrol in Sydney today?", hub)
             self.assertIn("the Newcastle median of 223.0c", rd("station/servo-newcastle-0-100/index.html"))
             self.assertIn('href="../../fuel-prices/newcastle/"', rd("fuel-prices/unleaded-91/index.html"))
