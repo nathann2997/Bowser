@@ -2,7 +2,7 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
-## 2026-11-24 — User feedback round: brand, one-finger map, Canberra medians, previews, cleaner map, quicker fills
+## 2026-11-24 — User feedback round: brand, one-finger map, Canberra medians, previews, cleaner map, quicker fills (**live**: PR #60, `1adbbac`, `app-ci` run 45323838165, OTA at runtime 1.1.1: preview `c595f3d9`, production `3e2e1783`; site, `regions` and `og/today.png` from `daily-forecast` run 45324718520, a manual run)
 
 Six pieces of user feedback, each built and checked before the next (branch `ux/brand-map-act`, one commit each). Design and data calls made as the designer / data scientist (owner delegation).
 
@@ -13,7 +13,9 @@ Six pieces of user feedback, each built and checked before the next (branch `ux/
 5. **Cleaner map** (`c3d5a6f`), web and app. A group is one neutral pill (lowest price + count dot) instead of a circle and a floating "from" label; tags show only the price until street level (zoom 14; brands kept on pinned, selected and cheapest); only the cheapest third in view is green; wider grouping (web 36→64, app 60→72).
 6. **Fill logging in two taps** (`622245e`). The sheet opens ready to save (today's price, full tank); litres are chips (full, half, other); the price is typed only if different; saving shows Undo instead of confirming. "Filled up" added to the map's station card (replaces Details; the name opens the station).
 
-Checks: app typecheck and lint clean; jest 486 pass, 1 fail (`drops.test.ts`, fails the same on unmodified main locally; CI will show whether it is local); Python 128 pass (3 skip without Pillow locally; CI installs it). Verified in headless Chrome: web light/dark, map gestures with touch events, Belconnen list, previews at wide/square/4:5, app screens via the web build against a local `stations.json` with regions. **Not seen on a phone:** the app's map markers (react-native-maps doesn't render on the web build), the fill sheet's keyboard, the brand colours on Android.
+Also in the PR: CodeQL hardening of the dashboard list (the empty-list message is built as text; regional figures go into HTML as numbers, the region name escaped), and Impeccable setup (`docs/PRODUCT.md`, `.impeccable/config.json` with its design hook on, DESIGN.md paths from the repo root).
+
+Checks: app typecheck and lint clean; jest 486 pass locally, 1 fail (`drops.test.ts`, local only: it passes in CI); Python 128 pass (3 skip without Pillow locally; CI installs it). Verified in headless Chrome: web light/dark, map gestures with touch events, Belconnen list, previews at wide/square/4:5, app screens via the web build against a local `stations.json` with regions. **Not seen on a phone:** the app's map markers (react-native-maps doesn't render on the web build), the fill sheet's keyboard, the brand colours on Android.
 
 ## 2026-11-24 — Web and app: NSW and ACT coverage wording (**live** in the app: PR #58, `a58375c`, `app-ci` run 45312473157, OTA at runtime 1.1.1: preview `e912f426`, production `5ac6fb0a`; the site follows at the next `daily-forecast` run)
 
@@ -83,7 +85,7 @@ Google Play Console flagged three issues on release 1.0.1. Native, so 1.1.1 (`ap
 - **When it shows:** the first snapshot is written by the first daily run after the merge; its 7 days are scored from 1 Dec (today's 23 Nov week), so until then the forecast page only links to the archive and has no "last week" block. That is expected, not a bug.
 - Tests: 9 new (`test_weekly.py`: week key, no overwrite, bad files skipped, pending vs scored with the partial day, the call from `calls.csv` and at the 1c rounding edge, a missing day, in/out of range, pages from 0/1/2 weeks with noindex, titles under 70, links, sitemap and the forecast block). QA audit: two blockers (the call's rounding differed from the track record's; "it had fell") and the isolation, missing-day and title points are fixed. `pipeline-ci` runs `--allow-stale`, so it writes no snapshot: the first real one is checked on the `data` branch after the daily run.
 
-## 2026-11-23 — Fuel type in sight, and the map first (app and web)
+## 2026-11-23 — Fuel type in sight, and the map first (app and web) (**live**: PR #49, `dea616c`, app-ci run 45176682497, OTA group a9d38bd7 preview / f083c20e production on runtime 1.1.0; web at the next daily run)
 
 User feedback: changing fuel was hard to find. People look straight at the map and never see the fuel chip (app) or select (web) at the top. The owner also wants the map as the default view on both, with the list one tap away. Designed with a senior UX/UI review (spec: fuel control where the eye lands, fuel named at each point of attention, the map's area change without leaving the map).
 - **App, Stations tab (JS only, ships as an OTA at runtime 1.1.0):**
