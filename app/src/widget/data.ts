@@ -1,6 +1,7 @@
 // Where the widget's data comes from: the app's own query cache when the app is running, otherwise the static API,
 // with a compact copy kept on the phone so the widget can still render (with "as of") when the fetch fails.
 import { apiFetch, shapeOk, tooBig } from '@/lib/api';
+import { withPremiumDiesel } from '@/lib/diesel';
 import { sydneyToday } from '@/lib/format';
 import { readPinsFromStorage } from '@/lib/pins';
 import { getSettings, normalize } from '@/lib/settings';
@@ -103,7 +104,7 @@ export async function loadSnapshot(opts: { allowFetch: boolean }): Promise<Widge
     cache = app.snap;
   }
   if (!opts.allowFetch || isFresh(cache, today, now)) return cache;
-  const [f, st] = await Promise.allSettled([getJson<Forecast>('forecast'), getJson<Stations>('stations')]);
+  const [f, st] = await Promise.allSettled([getJson<Forecast>('forecast'), getJson<Stations>('stations').then(withPremiumDiesel)]);
   const next = {
     forecast: f.status === 'fulfilled' ? compactForecast(f.value) : null,
     stations: st.status === 'fulfilled' ? compactStations(st.value) : null,

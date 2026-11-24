@@ -207,7 +207,18 @@ def usable(s):
     for f, v in (s.get("p") or {}).items():
         if f in FUELS and isinstance(v, list) and len(v) >= 5 and num(v[0]):
             p[f] = [v[0], v[1] if num(v[1]) else None, str(v[2] or ""), str(v[3] or ""), str(v[4] or "")] + list(v[5:])
+    # Premium diesel (PDL, fuels.py): where a station lists no regular diesel, its premium diesel is its diesel (as in
+    # the app and on the dashboard). 7-Eleven, most BP, Metro and Ampol Foodary list only PDL. premium() names it.
+    v = (s.get("p") or {}).get("PDL")
+    if "DL" not in p and isinstance(v, list) and len(v) >= 5 and num(v[0]):
+        p["DL"] = [v[0], v[1] if num(v[1]) else None, str(v[2] or ""), str(v[3] or ""), str(v[4] or "")] + list(v[5:])
     return p or None
+
+
+def premium(s):
+    """Whether the station's diesel on the pages is premium diesel (usable() moved it there). From the raw row."""
+    raw = s.get("p") or {}
+    return "PDL" in raw and not (isinstance(raw.get("DL"), list) and raw["DL"] and num(raw["DL"][0]))
 
 
 # ---- the look: the dashboard's tokens (template.html), one style block shared by every page
@@ -439,7 +450,7 @@ class Site:
         self.asof = stations["asof"]; self.day, self.sday = long_date(self.asof), short_date(self.asof)
         self.live = {r["fuel"]: r for r in forecast["live"]}
         self.stats, self.fc_asof = forecast.get("stats") or {}, forecast.get("asof") or self.asof
-        self.history, self.details = history or {}, details or {}
+        self.history, self.details = history or {}, dict(details or {})   # a copy: premium diesel rewrites some entries below
         # track.json as track_api.py writes it; any other shape counts as no record rather than stopping the build
         self.track = {k: v for k, v in track.items() if isinstance(v, dict)} if isinstance(track, dict) else {}
         for part in ("replay", "live"):
@@ -463,8 +474,18 @@ class Site:
             k = sub.get(s["id"])
             if k: k = (sub_name.setdefault((slug(k[0]), k[1]), station_name(k[0])), k[1]) if slug(k[0]) else None
             b = brand_name(s.get("b")); b = brand_of.setdefault(slug(b) or "independent", b if slug(b) else "Independent")
-            self.st.append(dict(s, id=str(s["id"]), name=name, brand=b, sub=k, p=p, s=str(s.get("s") or s.get("st") or "NSW"),
+            self.st.append(dict(s, id=str(s["id"]), name=name, brand=b, sub=k, p=p, pd=premium(s), s=str(s.get("s") or s.get("st") or "NSW"),
                                 url=f"station/{slug(name) or 'station'}-{s['id']}/", main=next(f for f in FUELS if f in p)))
+        # A station whose diesel is premium diesel: its file's chart and forecast for it are under PDL (new dicts: the
+        # station files export_api.py writes are untouched)
+        for s in self.st:
+            d = self.details.get(s["id"])
+            if s["pd"] and isinstance(d, dict):
+                hist, fc = dict(d.get("hist") or {}), dict(d.get("fc") or {})
+                hist.pop("DL", None); fc.pop("DL", None)
+                if "PDL" in hist: hist["DL"] = hist["PDL"]
+                if "PDL" in fc: fc["DL"] = fc["PDL"]
+                self.details[s["id"]] = dict(d, hist=hist, fc=fc)
         # A name two stations share ("7-Eleven Blacktown") gets its street in titles, so no two pages have the same title
         seen = {}
         for s in self.st: seen[s["name"].lower()] = seen.get(s["name"].lower(), 0) + 1
@@ -540,9 +561,13 @@ class Site:
         if not ages: return self.asof
         return (dt.date.fromisoformat(self.asof) - dt.timedelta(days=int(min(ages)))).isoformat()
 
+    # Premium diesel shown as a station's diesel (usable(), `pd`) stays out of every average: medians and brand figures
+    # are of regular diesel, as the app's and dashboard's are. It is still listed and still counts for "cheapest".
+    reg = staticmethod(lambda s, f: not (f == "DL" and s.get("pd")))
+
     def median(self, pool, f):
-        """The middle fresh price for fuel f among `pool` (members-only sites left out), or None under 3 prices."""
-        ps = [s["p"][f][0] for s in pool if self.fresh(s, f) and not s.get("m")]
+        """The middle fresh price for fuel f among `pool` (members-only sites and premium diesel left out), or None under 3 prices."""
+        ps = [s["p"][f][0] for s in pool if self.fresh(s, f) and not s.get("m") and self.reg(s, f)]
         return statistics.median(ps) if len(ps) >= 3 else None
 
     @staticmethod
@@ -982,7 +1007,7 @@ class Site:
         if len(title) > 70:   # too long with the street: the station number keeps it unique where a cut street name wouldn't
             short = s["label"] if s["label"] == s["name"] else f"{s['name']} (no. {s['id']})"
             title = f"{short} fuel prices | Bowser" if len(short) <= 48 else f"{s['name'][:36].rstrip()}… no. {s['id']} fuel prices | Bowser"
-        listed = ", ".join(f"{SHORT[f] if f != 'DL' else 'diesel'} {c1(s['p'][f][0])}c" for f in FUELS if f in s["p"])
+        listed = ", ".join(f"{SHORT[f] if f != 'DL' else 'premium diesel' if s.get('pd') else 'diesel'} {c1(s['p'][f][0])}c" for f in FUELS if f in s["p"])
         call = "" if s.get("out") or not p0[3] else f" Bowser says: {p0[3].lower()}."
         desc = clip(f"{s['label']} fuel prices for {self.sday}: {listed}.{call}" + (" Today’s prices as reported to NSW FuelCheck." if s.get("out") else " With price history and a 7-day forecast."))
         addr = d.get("addr") if isinstance(d.get("addr"), str) else None
@@ -1002,7 +1027,7 @@ class Site:
             wk = f'<span class="small">In 7 days: about {c1(p[5])}c</span>' if len(p) > 5 and num(p[5]) and not s.get("out") else ""
             old = f'<span class="small">Updated {p[1]} days ago</span>' if not self.fresh(s, f) else \
                   f'<span class="small">Unchanged since {esc(self.since(p[1]))}</span>' if self.held(s, f) else ""
-            cards.append(f'<div class="card"><span class="eyebrow">{esc(NAME[f])}</span><span class="big">{c1(p[0])}<small>c/L</small></span>'
+            cards.append(f'<div class="card"><span class="eyebrow">{"Premium diesel" if f == "DL" and s.get("pd") else esc(NAME[f])}</span><span class="big">{c1(p[0])}<small>c/L</small></span>'
                          f'{self.advice(s, f)}{f"<span class=small>{g}</span>" if g else ""}{wk}{old}</div>')
         body.append('<div class="grid">' + "".join(cards) + "</div>")
         dirs = f"https://www.google.com/maps/dir/?api=1&destination={s['la']:.5f},{s['lo']:.5f}"
@@ -1125,7 +1150,7 @@ class Site:
                      f"<p>In the last 90 days the Sydney median for {esc(nm)} has been as low as {min(mv):.1f}c and as high as {max(mv):.1f}c a litre.</p>"]
         rows = []
         for b, pool in self.brands.items():
-            ps = [s["p"][f][0] for s in pool if not s.get("out") and self.fresh(s, f) and not s.get("m")]
+            ps = [s["p"][f][0] for s in pool if not s.get("out") and self.fresh(s, f) and not s.get("m") and self.reg(s, f)]
             if len(ps) >= 5: rows.append((sum(ps) / len(ps), b, len(ps)))
         if rows:
             rows.sort()
@@ -1381,9 +1406,9 @@ class Site:
             pool = self.brands[b]; f0 = self.brand_f0[b]; indep = b.lower() == "independent"
             at_b = "an independent station" if indep else b
             top = self.cheapest(pool, f0, 1, members=True)[0]
-            ps = [s["p"][f0][0] for s in pool if self.fresh(s, f0)]
+            ps = [s["p"][f0][0] for s in pool if self.fresh(s, f0) and self.reg(s, f0)] or [s["p"][f0][0] for s in pool if self.fresh(s, f0)]   # all premium: its own
             avg = sum(ps) / len(ps); x = self.live.get(f0)
-            sp_ = [s["p"][f0][0] for s in pool if self.fresh(s, f0) and not s.get("out")]   # the Sydney ones: only they compare with the Sydney median
+            sp_ = [s["p"][f0][0] for s in pool if self.fresh(s, f0) and not s.get("out") and self.reg(s, f0)]   # the Sydney ones: only they compare with the Sydney median
             title = f"{b} fuel prices today: {SHORT[f0] if f0 != 'DL' else 'diesel'} from {c1(top['p'][f0][0])}c | Bowser"
             if len(title) > 65: title = f"{b} fuel prices today | Bowser"
             desc = clip(f"{b} petrol prices for {self.sday} at {len(pool)} stations: {NAME[f0]} from {c1(top['p'][f0][0])}c/L at {top['name']}, "
@@ -2089,7 +2114,7 @@ class Site:
 
     def deal_avg(self, d, f=None):
         """(average price at the stations that take d, the Sydney median for that fuel or None) for fuel f; average None under 3 stations."""
-        f = f or d.get("fuel", "U91"); ps = [s["p"][f][0] for s in self.deal_pool(d, f)]
+        f = f or d.get("fuel", "U91"); ps = [s["p"][f][0] for s in self.deal_pool(d, f) if self.reg(s, f)]
         x = self.live.get(f)
         return (sum(ps) / len(ps) if len(ps) >= 3 else None), (x["now"] if x and num(x.get("now")) else None)
 
@@ -2251,7 +2276,7 @@ class Site:
         if not coles:
             rows = []; cut = d["cut"]
             for b in d["brands"]:
-                ps = [s["p"][f][0] for s in pool if s["brand"] == b]
+                ps = [s["p"][f][0] for s in pool if s["brand"] == b and self.reg(s, f)]
                 a = sum(ps) / len(ps) if len(ps) >= 3 else None
                 name = f'<a href="{up}{esc(self.brand_url[b])}">{esc(b)}</a>' if b in self.brand_url else esc(b)
                 rows.append(f'<tr><td>{name}</td><td class="n">{len(ps)}</td><td class="n">{f"{a:.1f}" if a is not None else "–"}</td>'

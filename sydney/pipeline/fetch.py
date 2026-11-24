@@ -26,7 +26,7 @@ os.makedirs(INBOX, exist_ok=True)
 SYD = ZoneInfo("Australia/Sydney")
 TODAY = dt.datetime.now(SYD).strftime("%Y%m%d")       # runners are UTC; the snapshot is filed under the Sydney date
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"}
-from fuels import FUELS
+from fuels import FUELS, STATION_FUELS
 is_syd = lambda pc: (2000 <= pc <= 2234) or (2555 <= pc <= 2574) or (2740 <= pc <= 2786)
 log, failed = [], []
 
@@ -261,11 +261,11 @@ def rows_of(url, content):
 
 
 def lacks_fuel(k):
-    """A stored monthly extract made before a fuel joined FUELS (P95 in 2026-10): pull that month again."""
+    """A stored monthly extract made before a fuel joined STATION_FUELS (P95 in 2026-10, PDL 2026-11): pull that month again."""
     fn = f"{BASE}/store/events/syd_events_{k // 12}{k % 12 + 1:02d}.csv"
     if not os.path.exists(fn): return False
     with open(fn) as fh: have = {line.split(",")[1] for line in fh if line.count(",") == 4}
-    return not set(FUELS) <= have
+    return not set(STATION_FUELS) <= have
 
 
 def pull_history():
@@ -298,7 +298,8 @@ def pull_history():
             f = str(x[iF] or "").strip()
             try: pc, pr = int(float(p)), float(x[iPr])
             except (TypeError, ValueError): continue
-            if f not in FUELS or not is_syd(pc) or not (50 < pr < 600): continue
+            # PDL (fuels.py) too, for the station charts; every other reader of these files filters to FUELS
+            if f not in STATION_FUELS or not is_syd(pc) or not (50 < pr < 600): continue
             d = pdate(x[iT])
             if d is None: continue
             key = re.sub(r"\s+", " ", str(a or x[iN]).upper()).replace(",", " ").strip()   # the address key of syd_stations.csv (comma-free, upper case)

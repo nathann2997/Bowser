@@ -456,6 +456,11 @@ const D = JSON.parse(document.getElementById("bowser-data").textContent);
 // Stations outside Sydney arrive with their price and age only when the advice is the usual "Price only" (build.py
 // leaves it out of the page, about a quarter of its data); put it back so every station reads the same
 D.stations.forEach(s => { if (s.out) for (const f in s.p) if (s.p[f].length === 2) s.p[f].push("na", "Price only", "Outside Sydney: prices only, no forecast"); });
+// Premium diesel (FuelCheck PDL, 2026-11-25; fuels.py): 7-Eleven, most BP, Metro and Ampol Foodary list their only diesel
+// as PDL. A station with no regular diesel shows its premium diesel under Diesel (s.pd); one that lists both keeps
+// regular diesel and the premium price aside (s.pdl). The same rule as the app (app/src/lib/diesel.ts).
+D.stations.forEach(s => { const q = s.p.PDL; if (!q) return; delete s.p.PDL; if (q[0] == null) return; if (s.p.DL && s.p.DL[0] != null) s.pdl = q; else { s.p.DL = q; s.pd = 1; } });
+const prem = (s) => state.fuel === "DL" && s.pd === 1;   // the Diesel price shown is premium diesel, the only diesel it lists
 // Station names, brands, suburbs and advice text come from the NSW API (third-party): escape them before any innerHTML
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 const $ = (id) => document.getElementById(id);
@@ -679,7 +684,7 @@ function stationRows(){
 // A chip that only repeats the Sydney headline is left out ("Wait" on every row on a Wait day); a Fill by date, Fill now,
 // Skip for now and Check price always show (echoesSydney() in app/src/lib/copy.ts)
 const echoesSydney = (code, sydney) => sydney !== "act" && code !== "chk" && code !== "hi" && code !== "na" && ADVICE_TONE[code] === sydney;
-const rowLabel = (name, pinned, s) => `${name}${pinned ? ", pinned" : ""}, ${s.price.toFixed(1)} cents, ${s.adv[1]}`;
+const rowLabel = (name, pinned, s) => `${name}${pinned ? ", pinned" : ""}, ${prem(s) ? "premium diesel " : ""}${s.price.toFixed(1)} cents, ${s.adv[1]}`;
 const pinBtn = (i, name, pinned) => `<button type="button" class="chip" data-pin="${+i}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(name)}">${pinned ? "Unpin" : "Pin"}</button>`;
 /** The median a station is compared with, its own market (app/src/lib/market.ts): Sydney's in Sydney, its region's
  *  outside it (D.regions from local_median.py, e.g. Canberra), or null */
@@ -707,10 +712,10 @@ function stationItem(s, med, tone, where = "list"){
   const chips = (quiet ? "" : `<span class="badge t-${ADVICE_TONE[s.adv[0]] || "calm"}">${esc(s.adv[1])}</span>`) + (stale ? `<span class="small up">${updatedText(s.age)}</span>` : held(s, s.age) ? `<span class="small">${sinceText(s.age)}</span>` : "");
   return `<details class="st${pinned ? " is-pinned" : ""}" id="st-${where}-${+s.i}" data-i="${+s.i}"><summary aria-label="${esc(rowLabel(name, pinned, s))}">
     <div class="st-main"><div class="st-name"><span>${esc(name)}</span>${PIN_SVG}</div>
-      <div class="small st-sub">${esc(brandSuburb(name, s.b, s.s))}${s.d != null ? ` · ${s.d.toFixed(1)} km` : ""}${s.m ? " · Members" : ""}</div>
+      <div class="small st-sub">${esc(brandSuburb(name, s.b, s.s))}${s.d != null ? ` · ${s.d.toFixed(1)} km` : ""}${s.m ? " · Members" : ""}${prem(s) ? " · Premium" : ""}</div>
       ${chips ? `<div class="st-chips">${chips}</div>` : ""}</div>
     <div class="st-price"><div class="bignum">${s.price.toFixed(1)}</div>${gap == null ? "" : `<div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}">${gapTxt}</div>`}</div>
-  </summary><div class="st-more"><p>${esc(s.adv[2])}</p><div class="small">${[ageText(s, s.age) + (stale ? " · check before driving" : ""), `${esc(s.s)} ${esc(s.pc)}`].filter(Boolean).join(" · ")}</div>
+  </summary><div class="st-more"><p>${esc(s.adv[2])}</p><div class="small">${[ageText(s, s.age) + (stale ? " · check before driving" : ""), prem(s) ? "Its only diesel is premium diesel" : state.fuel === "DL" && s.pdl ? `Premium diesel ${s.pdl[0].toFixed(1)}c` : "", `${esc(s.s)} ${esc(s.pc)}`].filter(Boolean).join(" · ")}</div>
     <div class="st-actions">${pinBtn(s.i, name, pinned)}
       ${MAP_OK ? `<button type="button" class="link" data-showmap="${+s.i}">Show on map</button>` : ""}
       <a class="link" href="${mapsUrl(s.la, s.lo)}" target="_blank" rel="noopener noreferrer">Directions →</a></div></div></details>`;
@@ -1029,7 +1034,7 @@ function renderInsights(){
 let allBrands = false;
 function brandStats(){
   const f = state.fuel, med = live[f].now, by = Object.create(null);
-  D.stations.forEach(s => { const p = s.p[f]; if (!p || p[0]==null || s.out) return; (by[s.b] = by[s.b] || []).push(p[0]); });   // Sydney stations only (s.out: elsewhere in NSW)
+  D.stations.forEach(s => { const p = s.p[f]; if (!p || p[0]==null || s.out || (f === "DL" && s.pd)) return; (by[s.b] = by[s.b] || []).push(p[0]); });   // not premium diesel (pd) against the regular median   // Sydney stations only (s.out: elsewhere in NSW)
   return Object.entries(by).filter(([b,a]) => a.length >= 3).map(([b,a]) => ({brand:b, n:a.length, prem:+(a.reduce((x,y)=>x+y,0)/a.length - med).toFixed(1)})).sort((x,y)=>x.prem-y.prem);
 }
 function renderBrands(){
@@ -1486,7 +1491,7 @@ function openPop(i, refresh = false){
   const el = $("mapSel"); el.hidden = false;
   el.innerHTML = `<div class="ph"><div style="flex:1;min-width:0"><div class="pn">${esc(name)}</div>
       <div class="small">${esc(brandSuburb(name, r.b, r.s))}${r.d != null ? ` · ${r.d.toFixed(1)} km` : ""}${r.m ? " · Members" : ""}</div></div>
-      <div style="text-align:right"><div class="bignum" style="font-size:22px"><span class="small" style="font-weight:700;color:var(--fg2)">${shortFuel(state.fuel)}</span> ${r.price.toFixed(1)}</div>${gap == null ? "" : `<div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}" style="font-weight:600">${gapTxt}</div>`}</div>
+      <div style="text-align:right"><div class="bignum" style="font-size:22px"><span class="small" style="font-weight:700;color:var(--fg2)">${prem(r) ? "Premium diesel" : shortFuel(state.fuel)}</span> ${r.price.toFixed(1)}</div>${gap == null ? "" : `<div class="small ${gap < -0.05 ? "cheap" : gap > 0.05 ? "dear" : ""}" style="font-weight:600">${gapTxt}</div>`}</div>
       <button type="button" class="x" data-closesel aria-label="Close">✕</button></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${i === bestI ? `<span class="badge" style="background:var(--cheap);color:var(--on-tier)">Cheapest in view</span>` : ""}<span class="badge t-${ADVICE_TONE[r.adv[0]] || "calm"}">${esc(r.adv[1])}</span></div>
     ${r.adv[2] ? `<p class="small" style="color:var(--fg2)">${esc(r.adv[2])}</p>` : ""}

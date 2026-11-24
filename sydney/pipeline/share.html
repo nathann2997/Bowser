@@ -173,13 +173,17 @@
     var st = res[0], fc = res[1];
     var s = (st.stations || []).filter(function (x) { return String(x.id) === id; })[0];
     if (!s) { missing(); return; }
+    // Premium diesel (FuelCheck PDL; fuels.py): where a station lists no regular diesel, its premium diesel is its Diesel
+    // (the same rule as the app's lib/diesel.ts and the dashboard)
+    var pd = s.p && s.p.PDL && num(s.p.PDL[0]) && !(s.p.DL && num(s.p.DL[0]));
+    if (pd) s.p.DL = s.p.PDL;
     var sold = ['U91', 'E10', 'P95', 'P98', 'DL'].filter(function (f) { return s.p && s.p[f] && num(s.p[f][0]); });
     if (!sold.length) { missing('This station has no prices today.'); return; }
     var fuel = sold.indexOf(want) >= 0 ? want : sold[0];
     var p = s.p[fuel];
     var name = title(s.n);
     document.title = name + ' ' + p[0].toFixed(1) + 'c – Bowser';
-    $('fuel-day').textContent = FUELS[fuel] + (st.asof ? ' · ' + nice(st.asof) : '');
+    $('fuel-day').textContent = (pd && fuel === 'DL' ? 'Premium diesel' : FUELS[fuel]) + (st.asof ? ' · ' + nice(st.asof) : '');
     $('name').textContent = name;
     // As brandSuburb() in the app: no brand when the name already says it ("7-Eleven Granville East")
     var esc = String(s.b || '').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');

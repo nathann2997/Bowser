@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { detailWithPremiumDiesel, withPremiumDiesel } from './diesel';
 import type { Forecast, History, Meta, StationDetail, Stations, Track } from './types';
 
 // The API is on checkbowser.app. Up to 1.0.0 the app also carried the host's own address as a fallback; it was taken
@@ -93,7 +94,9 @@ const opts = { staleTime: 15 * 60 * 1000 };
 
 export const useMeta = () => useQuery({ queryKey: ['meta'], queryFn: () => getJson<Meta>('meta'), ...opts });
 export const useForecast = () => useQuery({ queryKey: ['forecast'], queryFn: () => getJson<Forecast>('forecast'), ...opts });
-export const useStations = () => useQuery({ queryKey: ['stations'], queryFn: () => getJson<Stations>('stations'), ...opts });
+// withPremiumDiesel in `select` too: a copy saved on the phone by a build from before it (persisted cache) is raw
+export const useStations = () =>
+  useQuery({ queryKey: ['stations'], queryFn: () => getJson<Stations>('stations').then(withPremiumDiesel), select: withPremiumDiesel, ...opts });
 export const useHistory = () => useQuery({ queryKey: ['history'], queryFn: () => getJson<History>('history'), ...opts });
 /** The track record; a 404 (an API from before 0.7, or a day track.json failed soft) isn't retried */
 export const useTrack = () =>
@@ -103,12 +106,13 @@ export const isStationId = (id: string | undefined): id is string => !!id && /^\
 
 /** One station file, outside React (the background drop check, lib/drops.ts) */
 export const getStationDetail = (id: string) =>
-  isStationId(id) ? getJson<StationDetail>(`station/${id}`) : Promise.reject(new Error('bad station id'));
+  isStationId(id) ? getJson<StationDetail>(`station/${id}`).then(detailWithPremiumDiesel) : Promise.reject(new Error('bad station id'));
 
 export const useStationDetail = (id: string | undefined) =>
   useQuery({
     queryKey: ['station', id],
-    queryFn: () => getJson<StationDetail>(`station/${id}`),
+    queryFn: () => getJson<StationDetail>(`station/${id}`).then(detailWithPremiumDiesel),
+    select: detailWithPremiumDiesel,
     enabled: isStationId(id),
     // A 404 means the per-station export failed soft today (stations.json still lists it): don't retry that
     retry: (n, e) => !isNotFound(e) && n < 2,

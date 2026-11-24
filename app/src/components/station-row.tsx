@@ -17,6 +17,7 @@ import { isHeld, isStale, STALE_DAYS } from '@/lib/filters';
 import { track } from '@/lib/analytics';
 import { isPinned, togglePin, usePins } from '@/lib/pins';
 import { echoesSydney } from '@/lib/copy';
+import { isPremium } from '@/lib/diesel';
 import { brandSuburb, shortFuel, stationName, unchangedText, updatedText } from '@/lib/format';
 import type { StationRow } from '@/lib/geo';
 import type { Tone } from '@/lib/outlook';
@@ -113,6 +114,7 @@ export function StationItem({ r, median, sydney, last }: { r: StationRow; median
   const hasId = !!r.id;   // an old cached stations.json has no ids: no station page and no pin, Map still works
   const pinned = usePins().includes(r.id);
   const quiet = echoesSydney(code, sydney);
+  const prem = isPremium(r, fuel);   // its only diesel is premium diesel (lib/diesel.ts)
 
   return (
     <View style={[styles.outer, { backgroundColor: c.surface }, !last && { borderBottomColor: c.line, borderBottomWidth: StyleSheet.hairlineWidth }]}>
@@ -122,7 +124,7 @@ export function StationItem({ r, median, sydney, last }: { r: StationRow; median
             onPress={hasId ? () => openStation(r.id) : undefined}
             disabled={!hasId}
             accessibilityRole={hasId ? 'button' : undefined}
-            accessibilityLabel={`${name}${pinned ? ', pinned' : ''}, ${r.price.toFixed(1)} cents${r.off ? ` with your ${offText(r.off)} off, pump price ${r.pump.toFixed(1)}` : ''}, ${label}`}
+            accessibilityLabel={`${name}${pinned ? ', pinned' : ''}, ${prem ? 'premium diesel ' : ''}${r.price.toFixed(1)} cents${r.off ? ` with your ${offText(r.off)} off, pump price ${r.pump.toFixed(1)}` : ''}, ${label}`}
             accessibilityHint={hasId ? "Opens the station’s prices and forecast" : undefined}
             {...a11y}
             style={({ pressed }) => [styles.item, { backgroundColor: pressed ? c.sunk : c.surface }]}>
@@ -132,7 +134,7 @@ export function StationItem({ r, median, sydney, last }: { r: StationRow; median
                 {pinned ? <PinIcon filled color={c.muted} size={14} /> : null}
               </View>
               <T kind="small" numberOfLines={1}>
-                {brandSuburb(name, r.b, r.s)}{r.d != null ? ` · ${r.d.toFixed(1)} km` : ''}{r.m ? ' · Members' : ''}
+                {brandSuburb(name, r.b, r.s)}{r.d != null ? ` · ${r.d.toFixed(1)} km` : ''}{r.m ? ' · Members' : ''}{prem ? ' · Premium' : ''}
               </T>
               {!quiet || r.off || stale || held ? (
                 <View style={[styles.row, { gap: Spacing.two, marginTop: 2 }]}>
