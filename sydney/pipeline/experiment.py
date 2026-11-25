@@ -288,7 +288,7 @@ def prep(fs, onehot):
                               ("cat", OneHotEncoder(handle_unknown="ignore"), cat)])
 
 
-FIT_BIAS, BIAS_S = [], [0.0]   # BIAS_S: time spent on the check, left out of the fit time   # mean in-sample residual of each 7-day fit: a loss or base-score mismatch shows up here first
+FIT_BIAS, BIAS_S = [], [0.0]   # mean in-sample residual of each 7-day fit (a loss or base-score mismatch shows up here first); time spent on it
 
 
 def reg(t, fs, y, t0):
