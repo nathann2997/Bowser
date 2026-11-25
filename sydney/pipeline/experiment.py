@@ -45,6 +45,8 @@ since live TGP arrives in weekly batches while the backtest sees it a day after.
 """
 import json, os, sys, time
 
+# The learner comparison's set (2026-11-25, run 45540309359). A push to a `model/` branch reruns whatever is listed
+# here, so swap it for the next experiment's variants (finding 3's set: git show ac573d2:sydney/pipeline/experiment.py).
 # name: (extra features, recency half-life in years or None, huber alpha, TGP lag in days, seed or None, learner).
 # Every learner gets model.py's features, folds, petrol/diesel split and targets; only the estimator changes. Capacity is
 # matched, not parameter names: 400 rounds at 0.03, about 15 leaves, 80% row and column sampling, L2 2 on leaf values.

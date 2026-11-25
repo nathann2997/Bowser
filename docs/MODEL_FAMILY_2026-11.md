@@ -108,29 +108,35 @@ Range coverage (80% target, rolled forward): every learner gets 76–77% overall
 
 - **`xgb`:** gain 0.011c pooled, 0.016c U91, inside its own seed gap (0.025 / 0.020) and with intervals spanning 0. Fails.
 - **`xgb_depth`, `lgbm_linear`, `linear`, `extratrees`:** intervals span 0 or are worse. Fail.
-- **`catboost`:** the pooled gain is significant, but the U91 interval spans 0, its own seed gap is 0.14c pooled and
-  0.17c U91 (35× LightGBM's), 14-day error is worse (U91 +0.45c, interval above 0) and it takes 3.1× LightGBM's fit
-  time. Fails.
+- **`catboost`:** the pooled gain is significant, but the U91 interval spans 0, its own seed gap is 0.14c pooled
+  (35× LightGBM's) and 0.17c U91 (about 10×), and 14-day error is worse (U91 +0.45c, interval above 0). Its fit time
+  (3.1×) is at the edge of what one run can tell. Fails.
 - **`avg3`:** the closest. Significant on both scopes at 7 and 3 days, but the U91 gain (0.138c) is inside CatBoost's
-  seed gap (0.165c), the pooled 2026 saving falls (−0.04c) and it costs 5.2× the fit time. Fails three tests.
+  seed gap (0.165c), the pooled 2026 saving is −0.04c (the rule says it must not fall, though that size is within save
+  noise) and it costs about 5× the fit time. It also averages in the luckier CatBoost seed (−0.21c pooled against the
+  other seed's −0.07c), so its gain is probably overstated. Fails.
 
 ## Decision
 
 **No learner advances; LightGBM stays.** Nothing goes to a shadow trial.
 
-**XGBoost vs LightGBM:** the same model here. With the loss, growth and leaf-size rule matched, XGBoost's 7-day error is
-within 0.02c of LightGBM's at every horizon (as close as two LightGBM seeds), its calls and jump AUC are the same, and
-it fits 8–75% slower. Level-wise growth (`xgb_depth`) doesn't change that. There is no reason to switch, and none to
-add XGBoost as a dependency.
+**XGBoost vs LightGBM:** the same model here. With the loss, growth and leaf-size rule matched, XGBoost's 3-, 7- and
+14-day errors are within 0.02c of LightGBM's, inside both libraries' seed gaps, and its calls and jump AUC are the same.
+The one measurable difference: both XGBoost seeds are worse at 1 day (+0.005c, interval above 0), about 0.5% of the
+error, so trivial. Level-wise growth (`xgb_depth`) doesn't change that. There is no reason to switch, and none to add
+XGBoost as a dependency.
+
+**Fit time:** one run per runner can't separate learners closer than about 2×: identical settings differed by 60–70%
+(`xgb` 343 s vs `xgb_seed2` 552 s; `extratrees` 523 vs 312 s). Only the ensemble's cost (sum of members, ~5×) is clear.
 
 What the run says beyond the rule:
 
 1. **Trees earn their place.** Linear regression is 0.8c (17%) worse at 7 days and makes 70% more Waits before a jump.
    The interactions (margin × wholesale × cycle phase) matter.
-2. **Lower MAE doesn't mean better calls.** `avg3` cuts 7-day error 3% with tight intervals, yet its 2026 calls save
-   less. The verdict depends on crossing thresholds (d3 ±1.5, d7 ±2/−3, jump 35/50%), not on average error. A future
+2. **Lower MAE doesn't mean better calls.** `avg3` cuts 7-day error 3% with tight intervals, yet its calls show no
+   measurable gain (saving within ±0.04c of `base`). The verdict depends on crossing thresholds (d3 ±1.5, d7 ±2/−3, jump 35/50%), not on average error. A future
    model change should be judged on the calls, as this harness does, not on MAE.
-3. **CatBoost is unstable here.** Its two seeds differ by 0.14c at 7 days. Ordered boosting with 80% Bernoulli
+3. **CatBoost is unstable here.** Its two seeds differ by 0.14c at 7 days pooled. Ordered boosting with 80% Bernoulli
    sampling on ~15k rows, and its gains don't survive a seed change. ExtraTrees has the best Brier score and is the only
    learner whose low-band jump chances are calibrated (1.5% predicted, 1.5% actual against LightGBM's 0.9% / 7.1%), but
    its point forecasts and calls are clearly worse. `jump_floor.py` already handles that calibration gap.
@@ -140,8 +146,9 @@ What the run says beyond the rule:
    or high-volatility months), tested in this harness with `cover()`.
 5. **Every Huber model under-predicts by about 1.2c at 7 days in-sample** (+0.8c U91, +1.4c pooled in 2026). Price
    changes are right-skewed (sharp restorations, slow declines) and Huber with alpha 3 lands between the median and the
-   mean. Squared error (ExtraTrees) has no bias but worse error; alpha 8 removed the bias in the 2026-11 experiment but
-   cost 2021–25. This is a loss question, not a learner one, and it's already been tried.
+   mean. Out of sample in 2026, squared-error ExtraTrees is near unbiased (+0.17c pooled, −0.42c U91) but less accurate;
+   alpha 8 removed the bias in the 2026-11 experiment but cost 2021–25. (ExtraTrees' zero in-sample bias proves nothing:
+   a squared-error forest fits leaf means.) This is a loss question, not a learner one, and it's already been tried.
 
 As before, the lever is the inputs (wholesale freshness: 4–7× any model change in the 2026-11 run), not the learner.
 The harness now takes a learner per variant (`VARIANTS`' last field), runs all four horizons, scores range coverage
