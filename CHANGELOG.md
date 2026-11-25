@@ -2,7 +2,7 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
-## 2026-11-25 — Widget and alerts say "premium diesel" (app JS, runtime 1.1.1)
+## 2026-11-25 — Widget and alerts say "premium diesel" (**live**: PR #65, `4cd0dc7`, `app-ci` run 45516676023, OTA at runtime 1.1.1: preview `e66cf46c`, production `7ff2601d`)
 
 Follow-up to the premium diesel change: the widget and notifications showed a premium-only station's price as plain "Diesel".
 - **Widget:**
@@ -18,7 +18,7 @@ Follow-up to the premium diesel change: the widget and notifications showed a pr
   - the raw persisted cache reaching the widget.
 - **Left:** a widget snapshot saved before this change has no `pd` until its next refresh (up to 2 h).
 - **Checks:** tsc and lint clean, jest 500/500 (`diesel.test.ts`: 9).
-## 2026-11-25 — Diesel station forecasts: no mean reversion (data science review of premium diesel)
+## 2026-11-25 — Diesel station forecasts: no mean reversion (data science review of premium diesel; **live** at the next `daily-forecast` run: PR #64, `33894f8`, `pipeline-ci` on main passed)
 
 The owner asked for a review of how the model handles premium diesel (PDL). PDL station forecasts borrow DL's market (`fuels.py` `MARKET`), so the review covered DL too.
 - **Snapshot check (42 days, 13 Oct – 25 Nov; descriptive only, no training):**
