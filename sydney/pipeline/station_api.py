@@ -43,6 +43,7 @@ import glob, gzip, json, os, re
 import numpy as np, pandas as pd
 
 from fuels import FUELS, MARKET, STATION_FUELS
+NO_REVERT = {"DL"}   # markets whose station forecasts get no mean reversion (see build(): by-fuel experiment 2026-11-25)
 import station_revert as SR
 DAYS = 400          # days of history per file, ending at asof
 FFILL = 30          # max days the last known price is carried forward after a station-fuel's last change/observation
@@ -186,7 +187,10 @@ def build(base, G, schema):
             ds = w * d[idx]; los = ds + np.sqrt(w) * (lo[idx] - d[idx]); his = ds + np.sqrt(w) * (hi[idx] - d[idx])
             typ = p.get("typ", {}).get(f)
             x0 = None if typ is None else pr[0] - LIVE[m]["now"] - typ
-            if REV and not steady and x0 is not None and abs(x0) <= SR.SLIP and pr[1] is not None and pr[1] <= SR.FRESH:   # as trained
+            # Not for diesel (DL, and PDL on DL's market): the pooled table follows the petrol cycle and made diesel's
+            # station forecasts worse (station-experiment run 45515505539, by fuel: 7-day MAE 3.92 -> 4.60c, 14-day
+            # 5.47 -> 6.39c; its own table missed the fixed rule). Petrol keeps it (U91 7-day 6.66 -> 5.72c)
+            if REV and m not in NO_REVERT and not steady and x0 is not None and abs(x0) <= SR.SLIP and pr[1] is not None and pr[1] <= SR.FRESH:   # as trained
                 rv = SR.term(x0, REV, hs)
                 ds, los, his = ds + rv, los + rv, his + rv
             row = {"now": pr[0]}
