@@ -80,8 +80,69 @@ Two matching details that would otherwise bias the comparison:
 
 ## Results
 
-_Pending the Actions run._
+Run 45540309359 (data to 2026-11-25; smoke test 45518266106). Full report: the run's `report` artifact.
+
+**The harness reproduces production exactly:** `base` matches the stored production backtest on 42,895 rows (0.0c
+difference), and its rows equal `track_api.replay`'s.
+
+7-day MAE, paired against `base` (Δ, 95% 3-month block-bootstrap interval), and the app's tested figure:
+
+| variant | Δ 7d pooled | Δ 7d U91 | save 2021–25 / 2026, pooled (Δ) | save 2026 U91 (Δ) | jump AUC | fit time |
+|---|---|---|---|---|---|---|
+| `base` (LightGBM) | 4.66c | 4.93c | 2.51 / 1.61 | 1.68 | 0.936 | 317 s |
+| `base_seed2` | −0.004 [−0.027, +0.017] | −0.016 [−0.047, +0.014] | −0.01 / +0.01 | +0.01 | 0.936 | 315 s |
+| `xgb` (matched) | −0.011 [−0.037, +0.012] | −0.016 [−0.053, +0.018] | −0.02 / −0.02 | +0.05 | 0.936 | 343 s |
+| `xgb_seed2` | +0.014 [−0.009, +0.036] | +0.004 [−0.031, +0.037] | −0.01 / −0.00 | +0.02 | 0.935 | 552 s |
+| `xgb_depth` | −0.053 [−0.129, +0.018] | −0.086 [−0.202, +0.020] | −0.02 / +0.01 | +0.00 | 0.938 | 333 s |
+| `catboost` | −0.209 [−0.354, −0.070] | −0.090 [−0.337, +0.138] | +0.01 / +0.04 | +0.13 | 0.933 | 985 s |
+| `catboost_seed2` | −0.067 [−0.211, +0.063] | +0.075 [−0.149, +0.286] | +0.00 / −0.01 | +0.08 | 0.934 | 1,318 s |
+| `lgbm_linear` | +0.052 [−0.038, +0.154] | +0.080 [−0.024, +0.192] | −0.02 / −0.04 | +0.13 | 0.924 | 424 s |
+| `linear` | +0.808 [+0.488, +1.115] | +0.424 [+0.087, +0.779] | −0.18 / +0.06 | +0.06 | 0.909 | 346 s |
+| `extratrees` | +0.310 [+0.121, +0.500] | +0.482 [+0.235, +0.724] | −0.06 / −0.36 | −0.22 | 0.932 | 523 s |
+| `avg3` (LGBM+XGB+Cat) | −0.151 [−0.207, −0.099] | −0.138 [−0.237, −0.050] | −0.00 / −0.04 | +0.03 | 0.937 | 1,644 s (sum) |
+
+Range coverage (80% target, rolled forward): every learner gets 76–77% overall, 70–74% in shock months at 7 days and
+64–71% at 14 days.
+
+### Against the decision rule
+
+- **`xgb`:** gain 0.011c pooled, 0.016c U91, inside its own seed gap (0.025 / 0.020) and with intervals spanning 0. Fails.
+- **`xgb_depth`, `lgbm_linear`, `linear`, `extratrees`:** intervals span 0 or are worse. Fail.
+- **`catboost`:** the pooled gain is significant, but the U91 interval spans 0, its own seed gap is 0.14c pooled and
+  0.17c U91 (35× LightGBM's), 14-day error is worse (U91 +0.45c, interval above 0) and it takes 3.1× LightGBM's fit
+  time. Fails.
+- **`avg3`:** the closest. Significant on both scopes at 7 and 3 days, but the U91 gain (0.138c) is inside CatBoost's
+  seed gap (0.165c), the pooled 2026 saving falls (−0.04c) and it costs 5.2× the fit time. Fails three tests.
 
 ## Decision
 
-_Pending._
+**No learner advances; LightGBM stays.** Nothing goes to a shadow trial.
+
+**XGBoost vs LightGBM:** the same model here. With the loss, growth and leaf-size rule matched, XGBoost's 7-day error is
+within 0.02c of LightGBM's at every horizon (as close as two LightGBM seeds), its calls and jump AUC are the same, and
+it fits 8–75% slower. Level-wise growth (`xgb_depth`) doesn't change that. There is no reason to switch, and none to
+add XGBoost as a dependency.
+
+What the run says beyond the rule:
+
+1. **Trees earn their place.** Linear regression is 0.8c (17%) worse at 7 days and makes 70% more Waits before a jump.
+   The interactions (margin × wholesale × cycle phase) matter.
+2. **Lower MAE doesn't mean better calls.** `avg3` cuts 7-day error 3% with tight intervals, yet its 2026 calls save
+   less. The verdict depends on crossing thresholds (d3 ±1.5, d7 ±2/−3, jump 35/50%), not on average error. A future
+   model change should be judged on the calls, as this harness does, not on MAE.
+3. **CatBoost is unstable here.** Its two seeds differ by 0.14c at 7 days. Ordered boosting with 80% Bernoulli
+   sampling on ~15k rows, and its gains don't survive a seed change. ExtraTrees has the best Brier score and is the only
+   learner whose low-band jump chances are calibrated (1.5% predicted, 1.5% actual against LightGBM's 0.9% / 7.1%), but
+   its point forecasts and calls are clearly worse. `jump_floor.py` already handles that calibration gap.
+4. **No learner fixes the ranges.** Shock-month coverage is 70–74% (7 days) and 64–71% (14 days) whatever the model,
+   so the under-coverage comes from the range layer (a year of errors × volatility ratio), not the learner. That is
+   the next lever if ranges matter: a regime-aware calibration (for example conformal intervals weighted toward recent
+   or high-volatility months), tested in this harness with `cover()`.
+5. **Every Huber model under-predicts by about 1.2c at 7 days in-sample** (+0.8c U91, +1.4c pooled in 2026). Price
+   changes are right-skewed (sharp restorations, slow declines) and Huber with alpha 3 lands between the median and the
+   mean. Squared error (ExtraTrees) has no bias but worse error; alpha 8 removed the bias in the 2026-11 experiment but
+   cost 2021–25. This is a loss question, not a learner one, and it's already been tried.
+
+As before, the lever is the inputs (wholesale freshness: 4–7× any model change in the 2026-11 run), not the learner.
+The harness now takes a learner per variant (`VARIANTS`' last field), runs all four horizons, scores range coverage
+and fit time, averages saved predictions into ensembles, and gives paired block-bootstrap intervals (`--compare`).
