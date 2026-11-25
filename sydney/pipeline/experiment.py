@@ -11,7 +11,7 @@ usage: python experiment.py BASE VARIANT OUTDIR   one variant's walk-forward, sc
        python experiment.py --report OUTDIR       the comparison (markdown) from every OUTDIR/*.json
        python experiment.py --list                the variant names as JSON (the workflow's matrix); --ensembles: the
                                                   ensembles then the selectors, in the order the combine job builds them
-QUICK=1 runs only the folds from 2025-10, to catch install and import errors cheaply. (Smoke test of this run: 45518266106, all jobs green.)
+QUICK=1 runs only the folds from 2025-10, to catch install and import errors cheaply. (Smoke tests: learner run 45518266106, by-fuel run 45547472615; all jobs green.)
 
 Each variant replays model.py's walk-forward backtest (monthly folds from 2021-01; the 1-, 3-, 7- and 14-day forecasts
 and the 7-day jump chance) and scores its calls exactly as the app's tested figure does: the verdict rule
