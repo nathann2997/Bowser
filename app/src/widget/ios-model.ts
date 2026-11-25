@@ -4,7 +4,7 @@
 import { addDays, sydneyToday } from '@/lib/format';
 import type { Tone } from '@/lib/outlook';
 
-import { TODAY_URI, buildModel, type NoteTone, type WidgetModel, type WidgetPrefs, type WidgetSnapshot } from './logic';
+import { TODAY_URI, buildModel, rowSub, type NoteTone, type WidgetModel, type WidgetPrefs, type WidgetSnapshot } from './logic';
 
 /** Rows the large widget can show; the medium shows the first 3 (the layout picks). */
 export const IOS_MAX_ROWS = 6;
@@ -40,7 +40,7 @@ export function iosProps(m: WidgetModel): IosWidgetProps {
     tone: m.tone, fuel: m.fuel, head: m.head, rise: m.rise, riseShort: m.riseShort,
     sydney: m.sydney?.mid ?? null, sydneyTone: m.sydney?.tone ?? 'flat', asOf: m.asOf, caption,
     rows: m.rows.slice(0, IOS_MAX_ROWS).map((r) => ({
-      name: r.name, price: r.price, advice: r.stale ? r.note : r.advice, adviceTone: r.stale ? r.noteTone : r.adviceTone, fc: r.fc, fcTone: r.fcTone, url: r.uri,
+      name: r.name, price: r.price, advice: r.stale ? rowSub({ advice: r.note, dist: null, tag: r.tag }, false) : rowSub(r, false), adviceTone: r.stale ? r.noteTone : r.adviceTone, fc: r.fc, fcTone: r.fcTone, url: r.uri,
     })),
     message: m.message,
     best: m.best ? { price: m.best.price, name: m.best.name, url: m.best.uri } : null,

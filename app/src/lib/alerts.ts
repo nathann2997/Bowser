@@ -71,7 +71,7 @@ export function alertPlan(r: LiveRow | undefined, asof: string, now: Date, soon 
   const pick = age > STALE_PICK_MS ? null : extra.pick;   // over a day old (an offline phone's cache): don't name a price
   const from = dataAt && age > OLD_PRICES_MS ? ` (at ${clock(dataAt, at)})` : '';
   const where = pick
-    ? ` Your cheapest${from}: ${pick.name} ${pick.price.toFixed(1)}${pick.yours ? ' (your price)' : ''}.`
+    ? ` Your cheapest${from}: ${pick.name} ${pick.premium ? 'premium diesel ' : ''}${pick.price.toFixed(1)}${pick.yours ? ' (your price)' : ''}.`
     : ' Open Bowser for the cheapest near you.';
   const save = act && up && tankL ? ` Filling first saves about ${dollars(r.d14, tankL)} on ${tankL} L.` : '';   // as outlook()
   return { at, title: act ? `Fill up before ${when}` : `${fuel} may rise ${when}`, body: what + where + save, stationId: pick?.id ?? null };

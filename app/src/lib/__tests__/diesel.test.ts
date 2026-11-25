@@ -1,7 +1,9 @@
 // Premium diesel (PDL) on load (lib/diesel.ts).
 import { describe, expect, it } from '@jest/globals';
 
+import { cheapestPick, chooseRows, compactStations, rowSub, type WidgetPrefs, type WidgetSnapshot } from '../../widget/logic';
 import { detailWithPremiumDiesel, fuelLabel, isPremium, withPremiumDiesel } from '../diesel';
+import { dropText, type Drop } from '../drops';
 import type { Station, StationDetail, StationPrice, Stations } from '../types';
 
 const price = (c: number): StationPrice => [c, 0, 'ok', 'No rush', 'No rise expected in the next 2 weeks', c - 1];
@@ -71,5 +73,30 @@ describe('premium diesel (PDL) on load', () => {
     expect((d.fc.DL as { now: number }).now).toBe(258.9);
     expect(d.pd).toBeUndefined();
     expect('PDL' in d.hist || 'PDL' in d.fc).toBe(false);
+  });
+
+  it('widget: carries the flag and says premium after the advice, and in the alert pick', () => {
+    // raw, as the app's persisted cache can hand it over: compactStations applies the rule itself
+    const j = list(station('1', { PDL: price(259.9) } as Record<string, StationPrice>), station('2', { DL: price(261.9) }));
+    const ws = compactStations(j);
+    expect(ws.stations.map((x) => x.pd)).toEqual([1, undefined]);
+    const snap: WidgetSnapshot = { forecast: null, stations: ws, fetchedAt: 0 };
+    const prefs: WidgetPrefs = { fuel: 'DL', home: { la: -33.8, lo: 151.1, label: 'Ryde' } as WidgetPrefs['home'], radiusKm: 10, members: false };
+    const rows = chooseRows(snap, prefs, ['1', '2'], 5, 'pinned').rows;
+    const r1 = rows.find((r) => r.id === '1')!, r2 = rows.find((r) => r.id === '2')!;
+    expect(r1.advice).toBe('No rush');
+    expect(r1.tag).toBe('Premium');
+    expect(rowSub(r1, false)).toBe('No rush · Premium');
+    expect(rowSub({ ...r1, dist: '12.3 km' }, true)).toBe('No rush · 12.3 km · Premium');   // the distance outlasts the tag
+    expect(r1.a11y).toBe('S1, premium diesel 259.9 cents, No rush, 258.9 in 7 days');   // "premium" once
+    expect(r2.tag).toBeNull();
+    expect(cheapestPick(ws.stations, prefs, ['1', '2'])).toMatchObject({ id: '1', premium: true });
+    expect(cheapestPick(ws.stations, { ...prefs, fuel: 'U91' }, [])).toBeNull();
+  });
+
+  it('drop alert names premium diesel', () => {
+    const x: Drop = { id: '1', name: 'BP Ryde', price: 255.9, yours: false, why: 'low', size: 4, belowMedian: 0, premium: true };
+    expect(dropText(x, 'DL').body).toBe('Premium diesel at your pinned station: its lowest in 30 days.');
+    expect(dropText({ ...x, premium: undefined }, 'DL').body).toBe('Diesel at your pinned station: its lowest in 30 days.');
   });
 });

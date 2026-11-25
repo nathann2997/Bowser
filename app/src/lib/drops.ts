@@ -18,6 +18,7 @@ import { Platform } from 'react-native';
 
 import { reportError, track } from './analytics';
 import { offFor, yourPrice } from './discounts';
+import { isPremium } from './diesel';
 import { fuelName, stationName } from './format';
 import { readPinsFromStorage } from './pins';
 import { loadSettings, setSettings } from './settings';
@@ -35,7 +36,7 @@ export const WINDOW = 29, MIN_DAYS = 15, LOW_GAP = 3, USUAL_GAP = 5, SLIP = 40, 
 const QUIET_FROM = 21;   // 9 pm
 const MORNING = { h: 7, m: 30 };   // as lib/alerts.ts ALERT_AT (not imported: alerts imports this module)
 
-export type Drop = { id: string; name: string; price: number; yours: boolean; why: 'low' | 'usual'; size: number; belowMedian: number };
+export type Drop = { id: string; name: string; price: number; yours: boolean; why: 'low' | 'usual'; size: number; belowMedian: number; premium?: boolean };   // premium: premium diesel (lib/diesel.ts)
 
 const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
@@ -66,7 +67,8 @@ export function dropOf(s: WStation, d: StationDetail | null, fuel: Fuel, r: Live
   if (!why || size > SLIP) return null;
   const off = s.b ? offFor(discounts, s.b) : 0;
   // outside Sydney the Sydney median says nothing about the station
-  return { id: s.id, name: stationName(s.n), price: off ? yourPrice(price, off) : price, yours: off > 0, why, size, belowMedian: d?.out ? 0 : r.now - price };
+  return { id: s.id, name: stationName(s.n), price: off ? yourPrice(price, off) : price, yours: off > 0, why, size, belowMedian: d?.out ? 0 : r.now - price,
+    ...(isPremium(s, fuel) || isPremium(d, fuel) ? { premium: true } : {}) };
 }
 
 export function dropText(x: Drop, fuel: Fuel): { title: string; body: string } {
@@ -74,7 +76,7 @@ export function dropText(x: Drop, fuel: Fuel): { title: string; body: string } {
   const med = x.belowMedian >= 1 ? `, ${Math.round(x.belowMedian)}c under the Sydney median` : '';
   return {
     title: `${x.name} dropped to ${x.price.toFixed(1)}${x.yours ? ' (your price)' : ''}`,
-    body: `${fuelName(fuel)} at your pinned station: ${why}${med}.`,
+    body: `${x.premium ? 'Premium diesel' : fuelName(fuel)} at your pinned station: ${why}${med}.`,
   };
 }
 
