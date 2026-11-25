@@ -2,6 +2,15 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-25 — Learners by fuel: shared LightGBM stays; diesel-only model is a lead (experiment only)
+
+The owner asked whether different fuels do better with different models (`docs/MODEL_FAMILY_2026-11.md` → "By fuel"; branch `model/gbm-by-fuel`, run 45548659385).
+- **Harness:** per-fuel scoring of every learner (paired error with intervals, app saving), per-fuel seed gaps, models fit on one fuel's rows (`lgbm_pf`, `catboost_pf`, `linear_pf`), and `pick_by_fuel`: each fuel's model chosen on pre-2025 rows and judged on 2025-on. The rule was fixed before any by-fuel result. QA audit (subagent): no blockers. Fixed before the run: an honest holdout statement, a 3-day check, no pick without seed runs, a stable bootstrap seed per scope, outcome-dated choice cut.
+- **`pick_by_fuel` fails.** It chose CatBoost for every fuel (6–10% better before 2025 on petrol, 17% on diesel), but on 2025 on its pooled 7-day error was −0.02c [−0.26, +0.24], U91 was +0.33c worse, and the saving fell 0.07c pooled and 0.13c on U91. Choosing on every year would have shown −0.12c: the selection bias.
+- **Petrol LightGBM is better pooled.** LightGBM fit on one petrol fuel is worse (P95 +0.29c, P98 +0.33c).
+- **One per-fuel finding:** the LightGBM+XGBoost+CatBoost average holds on P95 in 2025 on (−0.18c), but P95's calls don't gain (−0.04c) and it costs about 5× the fit time.
+- **Diesel is the lead.** All three diesel-only models beat the shared model on diesel in 2021–26 (−0.20 to −0.30c, 8–12%), and point the same way in 2025 on, though the intervals include 0. The effect on diesel calls is mixed (−0.09 to +0.14c) and too small to judge.
+
 ## 2026-11-25 — Which learner: LightGBM stays (experiment only, nothing published changes)
 
 A senior-DS comparison of LightGBM with XGBoost and other model families (`docs/MODEL_FAMILY_2026-11.md`; branch `model/gbm-compare`).

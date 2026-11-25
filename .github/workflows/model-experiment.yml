@@ -101,7 +101,7 @@ jobs:
     needs: variant
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45   # three replays, ~70 bootstrap scopes per variant
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
         with:

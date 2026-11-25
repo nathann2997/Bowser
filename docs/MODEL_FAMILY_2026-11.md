@@ -157,3 +157,75 @@ What the run says beyond the rule:
 As before, the lever is the inputs (wholesale freshness: 4–7× any model change in the 2026-11 run), not the learner.
 The harness now takes a learner per variant (`VARIANTS`' last field), runs all four horizons, scores range coverage
 and fit time, averages saved predictions into ensembles, and gives paired block-bootstrap intervals (`--compare`).
+
+## By fuel (2026-11-25, branch `model/gbm-by-fuel`)
+
+The owner asked whether different fuels are better served by different models. Run 45548659385 (smoke test
+45547472615) scores every learner on each fuel and adds three models fitted on one fuel's rows only (`lgbm_pf` plus a
+seed copy, `catboost_pf`, `linear_pf`; diesel's with the crack features). The decision rule, fixed before any by-fuel
+result, is in `experiment.py`'s docstring: a single fuel × model cell is only a lead (about 4 of ~80 cells clear a 95%
+interval by chance). A per-fuel choice counts only if `pick_by_fuel` holds up on 2025-01 on. `pick_by_fuel` picks
+each fuel's model on rows known before 2025 and keeps LightGBM unless the gain beats seed noise. The 2025-on holdout
+is fresh for E10, P95, P98 and diesel. Pooled and U91 2025 results were seen in the learner run.
+
+### Per fuel, 7-day error against LightGBM (Δ c/L, 95% interval; ▼ better, ▲ worse)
+
+| | U91 | E10 | P95 | P98 | DL |
+|---|---|---|---|---|---|
+| LightGBM MAE 2021–26 | 4.93 | 5.40 | 5.46 | 4.95 | 2.58 |
+| `catboost`, 2021–26 | −0.09 | −0.32 ▼ | −0.31 ▼ | −0.18 ▼ | −0.14 ▼ |
+| `catboost`, 2025 on | +0.18 | −0.04 | −0.31 | +0.04 | −0.11 |
+| `lgbm_pf` (one fuel's rows), 2021–26 | +0.12 | −0.02 | +0.29 ▲ | +0.33 ▲ | **−0.20 ▼** |
+| `lgbm_pf`, 2025 on | +0.23 ▲ | +0.26 ▲ | +0.28 | +0.24 | −0.20 |
+| `catboost_pf`, 2021–26 | −0.07 | −0.29 ▼ | −0.09 | +0.09 | **−0.30 ▼** |
+| `catboost_pf`, 2025 on | +0.33 | +0.12 | +0.00 | +0.23 | −0.27 |
+| `linear_pf`, 2021–26 | +0.52 ▲ | +0.50 ▲ | +0.60 ▲ | +0.67 ▲ | **−0.28 ▼** |
+| `xgb`, 2021–26 | −0.02 | −0.03 ▼ | −0.00 | +0.00 | −0.01 |
+
+The `xgb` E10 cell (−0.033, interval just below 0, just beyond XGBoost's E10 seed gap of 0.030) is a lead under
+rule (a) that doesn't hold in 2025 on (−0.011, interval spans 0): the kind of chance hit the rule warns about.
+
+**`avg3` (LightGBM + XGBoost + CatBoost averaged)** is ▼ on every fuel over 2021–26 and beats its seed gap (CatBoost's)
+on P95, P98 and diesel. On **P95 it holds in 2025 on: −0.18c [−0.32, −0.04]**, so by rule (a) it is the one per-fuel
+finding. It doesn't reach the calls: P95's saving 2025–26 is −0.04c, its 3-day error interval spans 0 there, and the
+average costs about 5× the fit time. Worth knowing, not worth switching for.
+
+### `pick_by_fuel` against the rule: fails
+
+| fuel | chosen on pre-2025 rows | gain there (needed) | 7-day Δ, 2025 on | saving Δ 2025–26 |
+|---|---|---|---|---|
+| U91 | `catboost_pf` | 0.26 (0.19) | +0.33 [−0.06, +0.79] | −0.13 |
+| E10 | `catboost_pf` | 0.49 (0.28) | +0.12 [−0.34, +0.61] | −0.13 |
+| P95 | `catboost` | 0.32 (0.20) | −0.31 [−0.71, +0.06] | −0.00 |
+| P98 | `catboost` | 0.29 (0.15) | +0.04 [−0.20, +0.30] | +0.01 |
+| DL | `catboost_pf` | 0.31 (0.11) | −0.27 [−0.78, +0.14] | −0.09 |
+| pooled | | | −0.02 [−0.26, +0.24] | −0.07 |
+
+It fails on the pooled interval; on 7-day error for U91 (+0.33), E10 (+0.12) and P98 (+0.04), each worse than
+`base` by more than LightGBM's seed gap there; on 3-day error for U91 (+0.014 vs gap 0.006) and P98 (+0.033 vs 0.007);
+and on the saving (pooled and U91 both lower). Jump AUC 2025–26 is 0.878 against 0.885, which is within the 0.01 allowed. Choosing
+on every year instead (`pick_by_fuel_oracle`) would have reported −0.12c pooled on the same 2025-on rows, against −0.02c for the honest pick: about 0.10c
+of flattery from choosing on the test years.
+
+### What it means
+
+1. **Nothing advances. LightGBM, shared across fuels, stays.** Every fuel's best pre-2025 learner was a CatBoost, by
+   6–10% on petrol and 17% on diesel, well beyond seed noise, and the advantage didn't carry into 2025–26 (except
+   perhaps P95). A model picked per fuel on the past would have made the app's calls worse.
+2. **Petrol LightGBM is better pooled.** LightGBM fitted on one petrol fuel alone is worse (P95 +0.29c, P98 +0.33c
+   over 2021–26; pooled +0.16c and E10/U91 ▲ in 2025 on). A plausible reason (not tested): the petrol fuels move
+   together through the same price cycle, and pooling gives each fuel more examples of it. Not every learner agrees:
+   CatBoost fitted on E10 alone beat the shared model over 2021–26 (−0.29 ▼), though not in 2025 on.
+3. **Diesel is different, and the one real lead.** All three diesel-only models beat the shared model on diesel over
+   2021–26: LightGBM −0.20c, CatBoost −0.30c, linear −0.28c (about 8–12% of diesel's 2.58c error). It is the only fuel
+   where a linear model wins. They point the same way in 2025 on (−0.20, −0.27, −0.37), but those intervals span 0, so
+   by the rule it is a lead, not a finding. A plausible reason (not tested): diesel doesn't follow petrol's price
+   cycle, and a shared model trained mostly on petrol rows carries that cycle into diesel (the station experiment saw
+   something similar: the pooled reversion table hurt diesel). The effect on diesel calls is mixed and too small to
+   judge: saving Δ 2025–26 is −0.09 (CatBoost), −0.05/+0.01 (LightGBM), +0.14 (linear) on a base of 0.58c.
+4. **Per-fuel results are noisy, so treat single cells with suspicion.** Some cells clear 95% by chance (the `xgb` E10
+   cell). The pre-2025 choice did worse than LightGBM out of sample on U91, E10 and P98; only P95 kept its gain.
+
+**Next, if wanted:** a diesel-only model as its own experiment. It would be a LightGBM fitted on diesel rows (or a
+linear model, which costs nothing and wins on diesel), run in the shadow log beside the live diesel forecast, and judged
+on diesel calls and 7-day error from late November 2026. Petrol keeps the shared model.
