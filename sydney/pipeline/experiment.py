@@ -1,13 +1,16 @@
 """Model experiments on GitHub Actions (model-experiment.yml), on a read-only copy of the `data` branch; it changes
 nothing that is published. First run: 2026's sustained wholesale swings (finding 3, 2026-11-21, run 44744791846; its
-variants are in git history at ac573d2). Current run: which learner, LightGBM or another (docs/MODEL_FAMILY_2026-11.md).
+variants are in git history at ac573d2). Then: which learner, LightGBM or another (docs/MODEL_FAMILY_2026-11.md, run
+45540309359). Current run: does the best learner differ by fuel (same doc, "By fuel")?
 
 usage: python experiment.py BASE VARIANT OUTDIR   one variant's walk-forward, scored -> OUTDIR/VARIANT.json, and its
                                                   predictions -> OUTDIR/VARIANT_base/store/backtest_{preds,cls}.parquet
        python experiment.py BASE ENSEMBLE OUTDIR  an average of saved variants' predictions (PREDS=dir of preds-<name>/)
+       python experiment.py BASE SELECTOR OUTDIR  one saved variant per fuel, chosen by select() (PREDS as above)
        python experiment.py --compare PREDSDIR OUTDIR   paired month-block bootstrap of every variant against `base`
        python experiment.py --report OUTDIR       the comparison (markdown) from every OUTDIR/*.json
-       python experiment.py --list                the variant names as JSON (the workflow's matrix); --ensembles: theirs
+       python experiment.py --list                the variant names as JSON (the workflow's matrix); --ensembles: the
+                                                  ensembles then the selectors, in the order the combine job builds them
 QUICK=1 runs only the folds from 2025-10, to catch install and import errors cheaply. (Smoke test of this run: 45518266106, all jobs green.)
 
 Each variant replays model.py's walk-forward backtest (monthly folds from 2021-01; the 1-, 3-, 7- and 14-day forecasts
@@ -30,6 +33,24 @@ calls from late November 2026 with shadow_score.py's six-week standard) only if,
     ensemble's fit time is the sum of its members'.
 If none passes, LightGBM stays. XGBoost against LightGBM is read from the capacity-matched pair (`xgb` vs `base`):
 inside the seed gaps they are the same model, and LightGBM keeps the place for being already there and faster.
+
+By-fuel decision rule, fixed 2026-11-25 before any by-fuel result was seen (the pooled and U91 results of run
+45540309359 were known; nothing per fuel for E10, P95, P98 or DL was). Two questions:
+  (a) Is another learner, or a model trained on one fuel's rows only (`*_pf`), better for a given fuel? A cell counts
+      as a lead when that fuel's paired 7-day interval is below zero and the gain beats the seed gaps for that fuel (as
+      above; `catboost_pf` borrows `catboost`'s gap, `linear_pf` has none). With ~80 variant x fuel cells, about 4 clear
+      a 95% interval by chance, so a lead is a finding only if it also holds in (b)'s holdout.
+  (b) `pick_by_fuel`: for each fuel, the candidate (every non-seed variant and ensemble) with the lowest 7-day MAE on
+      rows whose 7-day outcome is known before 2025, kept only if its gain over `base` there beats the seed gaps there
+      (if a seed copy's run is missing, LightGBM is kept); otherwise LightGBM. It is ADVANCED TO A SHADOW TRIAL only if,
+      on 2025-01 on: the pooled 7-day paired interval is below zero; no fuel's 7-day or 3-day MAE (the verdict reads
+      both) is worse than `base`'s by more than LightGBM's seed gap for that fuel and horizon, measured on the same
+      2025-on rows; the pooled 3-day MAE is not worse by more than that gap; the app saving 2025-26, pooled and U91, is
+      not lower; and pooled jump AUC 2025-26 is no more than 0.01 lower. How clean that holdout is: run 45540309359's
+      pooled and U91 results (2021-26) were seen, so for those 2025-26 is not fresh; per fuel for E10, P95, P98 and DL
+      nothing was seen. 2026 was used in earlier runs too, so the shadow trial stays the real test. A pick that is LightGBM for every fuel is the answer
+      "no fuel needs its own learner". `pick_by_fuel_oracle` chooses on every year and is shown only to measure how
+      much choosing on the test years flatters a result.
 
 Finding-3 decision rule, fixed before any result was seen (2026-11-21). A variant replaces the production model only if, for U91
 and for all fuels pooled:
@@ -62,8 +83,19 @@ VARIANTS = {
     "linear": (False, None, 3.0, 1, None, "linear"),      # Huber / logistic regression: what do the trees add?
     "extratrees": (False, None, 3.0, 1, None, "et"),      # bagged randomised trees (squared error): variance, not bias
     "extratrees_seed2": (False, None, 3.0, 1, 2, "et"),
+    "lgbm_pf": (False, None, 3.0, 1, None, "lgbm"),       # *_pf: one model per fuel, fit on that fuel's rows only
+    "lgbm_pf_seed2": (False, None, 3.0, 1, 2, "lgbm"),
+    "catboost_pf": (False, None, 3.0, 1, None, "cat"),    # CatBoost's design targets small tables: ~3k rows a fuel
+    "linear_pf": (False, None, 3.0, 1, None, "linear"),   # a fuel's own linear model: fewer interactions to need
 }   # `linear` ignores the alpha column: HuberRegressor's epsilon 1.35 is on its own scale of the residuals
 ENSEMBLES = {"avg3": ["base", "xgb", "catboost"]}         # plain average of saved predictions and jump chances
+SELECTORS = {"pick_by_fuel": "2025-01-01", "pick_by_fuel_oracle": None}   # choose on folds before this date (None: all)
+PER_FUEL = {n for n in VARIANTS if n.endswith("_pf") or n.endswith("_pf_seed2")}
+SEED_OF = {"base": ("base", "base_seed2"), "lgbm_linear": ("base", "base_seed2"), "xgb": ("xgb", "xgb_seed2"),   # whose
+           "xgb_depth": ("xgb", "xgb_seed2"), "catboost": ("catboost", "catboost_seed2"),                         # seed gap
+           "catboost_pf": ("catboost", "catboost_seed2"), "extratrees": ("extratrees", "extratrees_seed2"),        # a
+           "lgbm_pf": ("lgbm_pf", "lgbm_pf_seed2"), "avg3": None}   # variant answers to; linear* none, avg3 its members'
+FUEL_ORDER = ["U91", "E10", "P95", "P98", "DL"]   # fuels.FUELS, without importing it into the report
 TREND = ["tgp_chg56", "tgp_vs90", "tgp_trend28", "tgp_up_weeks", "brent_pct56", "margin_vs90", "unpassed28"]
 PROD = "+cycle memory"
 H_RUN = (1, 3, 7, 14)
@@ -85,9 +117,9 @@ def report(out):
         if fn.endswith(".json"):
             for k, v in json.load(open(f"{out}/{fn}")).items(): R[k] = v
     CMP = R.pop("compare", None)
-    order = [x for v in [*VARIANTS, *ENSEMBLES] for x in (v, *(["guard" + v[4:]] if v.startswith("base") and v != "base_seed2" else []))]
+    order = [x for v in [*VARIANTS, *ENSEMBLES, *SELECTORS] for x in (v, *(["guard" + v[4:]] if v.startswith("base") and v != "base_seed2" else []))]
     names = [n for n in order if n in R] + [n for n in R if n not in order]
-    missing = [v for v in [*VARIANTS, *ENSEMBLES] if v not in R]
+    missing = [v for v in [*VARIANTS, *ENSEMBLES, *SELECTORS] if v not in R]
     base = R.get("base")
     num = lambda x, f="{:.2f}": "–" if x is None else f.format(x)
     for n, ms in ENSEMBLES.items():   # an ensemble refits nothing here, but live it would fit every member
@@ -95,7 +127,8 @@ def report(out):
             R[n]["extra"]["fit_s"] = sum(R[v]["extra"]["fit_s"] for v in ms)
     L = ["# Model experiment: which learner", "",
          "Walk-forward from 2021-01, scored like the app's tested figure. `save`: c/L saved per call against filling the "
-         "day you check. `W→J`: Wait calls followed by a 5c+ rise within 7 days. Decision rule: experiment.py's docstring.", ""]
+         "day you check. `W→J`: Wait calls followed by a 5c+ rise within 7 days. Decision rule: experiment.py's docstring. "
+         "`pick_by_fuel` was chosen on rows before 2025: judge it on the 2025-on tables only; its 2021–24 figures are in-sample.", ""]
     if any((R[n].get("extra") or {}).get("quick") for n in R):
         L += ["> **QUICK RUN: folds from 2025-10 only. A smoke test, not a result; the decision rule does not apply.**", ""]
     if CMP:
@@ -112,6 +145,51 @@ def report(out):
                     cells += ["–", "–"] if not c else [f"{c['mae']:.2f}", "" if n == "base" else f"{c['d']:+.3f} [{c['lo']:+.3f}, {c['hi']:+.3f}]"]
                 L.append(f"| {n} | " + " | ".join(cells) + " |")
             L.append("")
+    if CMP:
+        fuels = [f for f in FUEL_ORDER if any(f in CMP[n] for n in CMP)]
+        cell = lambda c: "–" if not c else f"{c['d']:+.3f} [{c['lo']:+.3f}, {c['hi']:+.3f}]" + (" ▼" if c["hi"] < 0 else " ▲" if c["lo"] > 0 else "")
+        for per, title in [("", "2021–26"), ("since2025|", "2025-01 on: the holdout `pick_by_fuel` was not chosen on")]:
+            for h in ("7", "3"):
+                L += [f"## By fuel: {h}-day error against LightGBM, {title}", "",
+                      "Δ c/L (95% interval). ▼: interval below 0 (better than `base`), ▲: above 0 (worse). About 1 cell in 20 "
+                      "clears an interval by chance.", "",
+                      "| variant | " + " | ".join(["pooled", *fuels]) + " |", "|---|" + "---|" * (len(fuels) + 1),
+                      "| base MAE | " + " | ".join(num((CMP["base"].get(per + sc) or {}).get(h, {}).get("mae")) for sc in ["all", *fuels]) + " |"]
+                for n in [n for n in names if n in CMP and n != "base"]:
+                    L.append(f"| {n} | " + " | ".join(cell((CMP[n].get(per + sc) or {}).get(h)) for sc in ["all", *fuels]) + " |")
+                L.append("")
+        fam = {"LightGBM": ("base", "base_seed2"), "LightGBM per fuel": ("lgbm_pf", "lgbm_pf_seed2"), "XGBoost": ("xgb", "xgb_seed2"),
+               "CatBoost": ("catboost", "catboost_seed2"), "ExtraTrees": ("extratrees", "extratrees_seed2")}
+        for per, title in [("", "2021–26"), ("since2025|", "2025-01 on")]:
+            for h in ("7", "3"):
+                L += [f"## By fuel: seed gaps, {h}-day, {title} (|MAE of the seed copy − the original|)", "",
+                      "| family | " + " | ".join(["pooled", *fuels]) + " |", "|---|" + "---|" * (len(fuels) + 1)]
+                for k, (a_, b_) in fam.items():
+                    if a_ in CMP and b_ in CMP:
+                        g_ = lambda n_, sc: (CMP[n_].get(per + sc) or {}).get(h)
+                        L.append(f"| {k} | " + " | ".join(num(abs(g_(a_, sc)["mae"] - g_(b_, sc)["mae"]), "{:.3f}")
+                                                          if g_(a_, sc) and g_(b_, sc) else "–" for sc in ["all", *fuels]) + " |")
+                L.append("")
+    sc_f = [f for f in FUEL_ORDER if base and f in base["score"]]
+    if sc_f:
+        L += ["## By fuel: the app's saving, 2025–26 (c/L; Δ against `base`)", "",
+              "| variant | " + " | ".join(["pooled", *sc_f]) + " |", "|---|" + "---|" * (len(sc_f) + 1)]
+        for n in names:
+            sc = R[n]["score"]
+            def sv(k):
+                t, t0 = (sc.get(k) or {}).get("2025-26"), (base["score"].get(k) or {}).get("2025-26")
+                return "–" if not t else f"{t['save']:.2f}" + ("" if n == "base" or not t0 else f" ({t['save'] - t0['save']:+.2f})")
+            L.append(f"| {n} | " + " | ".join(sv(k) for k in ["all", *sc_f]) + " |")
+        L.append("")
+    for n in [n for n in names if (R[n].get("extra") or {}).get("select")]:
+        x = R[n]["extra"]; sel = x["select"]
+        L += [f"## `{n}`: chosen on {sel['chosen_on']} (jump AUC 2025–26: {num(x.get('auc_2025_26'), '{:.3f}')}, `base` "
+              f"{num((base or {}).get('extra', {}).get('auc_2025_26'), '{:.3f}')})", "",
+              "| fuel | chosen | lowest-MAE candidate | its 7-day MAE | `base` | gain needed (seed gap) |", "|---|---|---|---|---|---|"]
+        for f, w in sel["why"].items():
+            L.append(f"| {f} | {sel['choice'][f]} | {w['best']} | {w['mae_best']:.3f} | {w['mae_base']:.3f} | "
+                     f"{'seed run missing: kept base' if w['gap'] is None else format(w['gap'], '.3f')} |")
+        L.append("")
     L += ["## Jump chance, ranges and cost", "",
           "`AUC`/`Brier`: the 7-day 5c+ jump classifier, all fuels, 2021–26. `cover`: share of actual 7-day moves inside an 80% "
           "range set from the variant's own errors over the year before each month (×today's wholesale volatility, as live); "
@@ -182,17 +260,21 @@ def compare(preds, out, draws=2000, block=3):
         j["eb"], j["ev"] = (j.actual - j.pb).abs(), (j.actual - j[PROD]).abs()
         j["m"] = j.date.dt.to_period("M")
         res[n] = {}
-        for si, scope in enumerate(["all", "U91"]):
-            res[n][scope] = {}
-            for h, g in j[(j.fuel == "U91") if scope == "U91" else slice(None)].groupby("h"):
+        # every fuel, and the 2025-on holdout `pick_by_fuel` was not chosen on (keys "since2025|<scope>")
+        scopes = [(sc, per) for per in ("", "since2025|") for sc in ["all", *[f for f in FUEL_ORDER if f in set(j.fuel)]]]
+        for scope, per in scopes:   # a fixed seed per scope, so every variant gets the same draws (pooled 0, U91 1 as before)
+            si = (10 if per else 0) + (0 if scope == "all" else 1 + FUEL_ORDER.index(scope))
+            res[n][per + scope] = {}
+            jj = j[j.date >= "2025-01-01"] if per else j
+            for h, g in jj[(jj.fuel == scope) if scope != "all" else slice(None)].groupby("h"):
                 s = g.assign(d=g.ev - g.eb).groupby("m").agg(d=("d", "sum"), n=("d", "size"))
                 k = len(s); nb = -(-k // block)
                 start = np.random.default_rng([si, int(h), k]).integers(0, k, size=(draws, nb))
                 idx = ((start[:, :, None] + np.arange(block)) % k).reshape(draws, -1)[:, :k]
                 boot = s.d.values[idx].sum(1) / s.n.values[idx].sum(1)
-                res[n][scope][str(int(h))] = {"mae": round(float(g.ev.mean()), 3), "d": round(float(g.ev.mean() - g.eb.mean()), 4),
-                                              "lo": round(float(np.quantile(boot, 0.025)), 4), "hi": round(float(np.quantile(boot, 0.975)), 4),
-                                              "rows": int(len(g)), "months": int(len(s))}
+                res[n][per + scope][str(int(h))] = {"mae": round(float(g.ev.mean()), 3), "d": round(float(g.ev.mean() - g.eb.mean()), 4),
+                                                    "lo": round(float(np.quantile(boot, 0.025)), 4), "hi": round(float(np.quantile(boot, 0.975)), 4),
+                                                    "rows": int(len(g)), "months": int(len(s))}
     json.dump({"compare": res}, open(f"{out}/compare.json", "w"), indent=1)
     print(json.dumps({n: {s: r[s].get("7") for s in r} for n, r in res.items()}, indent=1))
 
@@ -202,13 +284,13 @@ if len(sys.argv) > 1 and sys.argv[1] == "--report":
 if len(sys.argv) > 1 and sys.argv[1] == "--list":
     print(json.dumps(list(VARIANTS))); sys.exit(0)
 if len(sys.argv) > 1 and sys.argv[1] == "--ensembles":
-    print(" ".join(ENSEMBLES)); sys.exit(0)
+    print(" ".join([*ENSEMBLES, *SELECTORS])); sys.exit(0)
 if len(sys.argv) > 1 and sys.argv[1] == "--compare":
     compare(sys.argv[2], sys.argv[3]); sys.exit(0)
 
 # ---------------------------------------------------------------- one variant (or an ensemble of saved ones)
 BASE, NAME, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
-EXTRA, HALF_LIFE, ALPHA, TGP_LAG, SEED, LEARNER = VARIANTS["base" if NAME in ENSEMBLES else NAME]
+EXTRA, HALF_LIFE, ALPHA, TGP_LAG, SEED, LEARNER = VARIANTS["base" if NAME in ENSEMBLES or NAME in SELECTORS else NAME]
 QUICK = os.environ.get("QUICK") == "1"
 sys.argv = [sys.argv[0], BASE]                       # model.py reads BASE from argv at import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -326,7 +408,7 @@ def clf(t, fs, t0):
         return _fit(lgb.LGBMClassifier(**lin, **PARAMS), t[fs], t.y_jump7, w)
     if LEARNER in ("xgb", "xgb_depth"):
         import xgboost as xgb
-        pb = float(t.y_jump7.mean())
+        pb = float(np.clip(t.y_jump7.mean(), 0.01, 0.99))   # one fuel's rows (*_pf) could in principle have no jumps
         # logistic hessians are p(1-p): 40 rows at the base rate, so the leaf-size limit means what LightGBM's does
         return _fit(xgb.XGBClassifier(objective="binary:logistic", base_score=pb, min_child_weight=40 * pb * (1 - pb),
                                       **xgb_kw(t)), t[fs], t.y_jump7, w)
@@ -342,8 +424,52 @@ def clf(t, fs, t0):
                                                                random_state=0 if SEED is None else SEED)).fit(t[fs], t.y_jump7)
 
 
+def predict(make, tr, te, feats, proba=False):
+    """model.py's predict (petrol model + diesel model with CRACK, both fit on every fuel), or for a *_pf variant one
+    model per fuel fit on that fuel's rows only (diesel's with CRACK)."""
+    if NAME not in PER_FUEL: return M.predict(make, tr, te, feats, proba)
+    out = pd.Series(np.nan, index=te.index)
+    for f in te.fuel.unique():
+        rows, fs = te.fuel == f, feats + (M.CRACK if f == "DL" else [])
+        m = make(tr[tr.fuel == f], fs); x = te.loc[rows, fs]
+        out[rows] = m.predict_proba(x)[:, 1] if proba else m.predict(x)
+    return out.values
+
+
+def select(cut):
+    """For each fuel, the saved candidate with the lowest 7-day MAE on rows before `cut` (every row if None), on the rows
+    it shares with `base`, kept only if it beats `base` there by more than the seed gaps there; else `base`."""
+    pre = os.environ["PREDS"]
+    have = lambda v: os.path.exists(f"{pre}/preds-{v}/backtest_preds.parquet")
+    load = lambda v, k: pd.read_parquet(f"{pre}/preds-{v}/backtest_{k}.parquet")
+    names = [v for v in [*VARIANTS, *ENSEMBLES] if have(v)]
+    p7 = {v: load(v, "preds").query("h == 7").set_index(["date", "fuel"]) for v in names}
+    b = p7["base"] if cut is None else p7["base"][p7["base"].index.get_level_values("date") + pd.Timedelta(days=7) < pd.Timestamp(cut)]
+    def mae(v, f):
+        g = p7[v].reindex(b.index[b.index.get_level_values("fuel") == f]).dropna(subset=[PROD])
+        return float((g.actual - g[PROD]).abs().mean()) if len(g) else np.inf
+    def gap(v, f):
+        fam = [SEED_OF[m] for m in ENSEMBLES[v] if m in SEED_OF] if v in ENSEMBLES else ([SEED_OF[v]] if v in SEED_OF else [])
+        pairs = [SEED_OF["base"], *fam]
+        if not all(have(a) and have(s) for a, s in pairs): return None    # a seed copy's run is missing: no basis
+        return max(abs(mae(a, f) - mae(s, f)) for a, s in pairs)
+    choice, why = {}, {}
+    for f in FUELS:
+        cands = {v: mae(v, f) for v in names if "seed2" not in v}
+        best = min(cands, key=cands.get)
+        g = gap(best, f); keep = g is not None and cands["base"] - cands[best] > g
+        choice[f] = best if keep else "base"
+        why[f] = {"best": best, "mae_best": round(cands[best], 3), "mae_base": round(cands["base"], 3), "gap": None if g is None else round(g, 3)}
+    P = pd.concat([d[d.fuel == f] for f, v in choice.items() for d in [load(v, "preds")]], ignore_index=True)
+    C = pd.concat([d[d.fuel == f] for f, v in choice.items() for d in [load(v, "cls")]], ignore_index=True)
+    return P, C, {"choice": choice, "why": why, "chosen_on": f"before {cut}" if cut else "every year"}
+
+
+SEL = None
 t_start = time.time()
-if NAME in ENSEMBLES:   # average the members' saved walk-forward predictions; nothing is refitted
+if NAME in SELECTORS:
+    P, C, SEL = select(SELECTORS[NAME])
+elif NAME in ENSEMBLES:   # average the members' saved walk-forward predictions; nothing is refitted
     pre = os.environ["PREDS"]
     Ps = [pd.read_parquet(f"{pre}/preds-{v}/backtest_preds.parquet").set_index(["date", "fuel", "h"]) for v in ENSEMBLES[NAME]]
     Cs = [pd.read_parquet(f"{pre}/preds-{v}/backtest_cls.parquet").set_index(["date", "fuel"]) for v in ENSEMBLES[NAME]]
@@ -365,12 +491,12 @@ else:
             te = te_all[te_all[y].notna()]
             if te.empty: continue
             rec = te[["date", "fuel", y]].rename(columns={y: "actual"}).assign(h=h)
-            rec[PROD] = M.predict(lambda t, fs: reg(t, fs, y, t0), tr, te, FEATS)
+            rec[PROD] = predict(lambda t, fs: reg(t, fs, y, t0), tr, te, FEATS)
             preds.append(rec)
         tr = F[(F.date + pd.Timedelta(days=7) < t0) & F.y_jump7.notna()]
         te = te_all[te_all.y_jump7.notna()]
         if len(te):
-            cls.append(te[["date", "fuel", "y_jump7"]].assign(p=M.predict(lambda t, fs: clf(t, fs, t0), tr, te, FEATS, proba=True)))
+            cls.append(te[["date", "fuel", "y_jump7"]].assign(p=predict(lambda t, fs: clf(t, fs, t0), tr, te, FEATS, proba=True)))
         print(m, f"{time.time() - t_start:.0f}s", flush=True)
     P = pd.concat(preds, ignore_index=True); C = pd.concat(cls, ignore_index=True)
 FIT_S = time.time() - t_start - BIAS_S[0]
@@ -416,10 +542,11 @@ def tally(rs):
 def scored(rows):
     cut = (pd.Timestamp(max(r["date"] for r in rows)) - pd.Timedelta(days=TA.RECENT_DAYS)).date().isoformat()
     out = {}
-    for scope in ["U91", "all"]:
+    for scope in ["U91", "all", *[f for f in FUELS if f != "U91"]]:
         rs = [r for r in rows if scope == "all" or r["fuel"] == scope]
         out[scope] = {"2021-25": tally([r for r in rs if r["date"] < "2026"]), "2026": tally([r for r in rs if r["date"] >= "2026"]),
-                      "recent": tally([r for r in rs if r["date"] > cut])}
+                      "recent": tally([r for r in rs if r["date"] > cut]),
+                      "2021-24": tally([r for r in rs if r["date"] < "2025"]), "2025-26": tally([r for r in rs if r["date"] >= "2025"])}
     months = {}
     for r in rows:
         if r["fuel"] == "U91" and r["date"] >= "2026": months.setdefault(r["date"][:7], []).append(r)
@@ -475,7 +602,10 @@ def extra():
     return {"auc": round(float(roc_auc_score(C.y_jump7, C.p)), 4) if ok else None,
             "brier": round(float(((C.p - C.y_jump7) ** 2).mean()), 5), "cover": cover(),
             "fit_s": round(FIT_S, 1), "fit_bias7": round(float(np.median(FIT_BIAS)), 4) if FIT_BIAS else None,
-            "learner": "ensemble:" + "+".join(ENSEMBLES[NAME]) if NAME in ENSEMBLES else LEARNER, "quick": QUICK}
+            "learner": ("ensemble:" + "+".join(ENSEMBLES[NAME]) if NAME in ENSEMBLES else "selector" if NAME in SELECTORS
+                        else LEARNER + (" per fuel" if NAME in PER_FUEL else "")), "quick": QUICK,
+            "auc_2025_26": (round(float(roc_auc_score(C[C.date >= "2025"].y_jump7, C[C.date >= "2025"].p)), 4)
+                            if C[C.date >= "2025"].y_jump7.nunique() > 1 else None), "select": SEL}
 
 
 res = {}
