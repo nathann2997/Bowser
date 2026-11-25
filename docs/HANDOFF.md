@@ -43,6 +43,11 @@ Working notes so a fresh session can resume. Update before ending a session (or 
 - **Search pages** (live 2026-11-17, PR #11, `daily.yml` run 44011072183; `docs/SEO.md`). `seo_pages.py` writes about 3,500 static pages, the sitemap and robots file inside `export_api.py`. The hub says NSW, with 23 region pages, `llms.txt` and named AI crawlers in `robots.txt` (2026-11-17 review). **Next:** watch Search Console for "Crawled, currently not indexed" on station pages. AdSense is not set up; the list of what it needs is in `docs/SEO.md`.
 Newest first. Each item has its CHANGELOG entry of the same name for details.
 
+- **Diesel follow-ups** (2026-11-25):
+  - **Widget and alerts say "premium diesel"** (**live**: PR #65 `4cd0dc7`, OTA preview `e66cf46c` / production `7ff2601d`). **Next:** on a phone with Diesel, check that the widget's Nearest rows show the distance before "Premium".
+  - **Diesel station forecasts: no mean reversion** (PR #64 `33894f8`, live at the next `daily-forecast` run). The by-fuel `station_experiment` showed the pooled table hurt DL (7-day 3.92 → 4.60c). **Next:** in about four weeks, check DL station accuracy, or rerun `station-experiment.yml`.
+  - Open: the Sydney DL forecast under-called the Nov fall (−2.8 vs −4.9c a week), for roadmap item 5.
+
 - **Premium diesel (PDL): the missing diesel stations** (2026-11-25; **live**: PR #62 `5602a93`, OTA preview `56911fde` / production `bd514a5f`, runtime 1.1.1; the site and API follow at the next `daily-forecast` run). 586 of 846 Sydney diesel stations list only PDL and were hidden. PDL is now a station-level fuel (`fuels.py` `STATION_FUELS`): never in medians, the model or health; it shows under Diesel, marked premium. **Next:**
   - After the next daily run, check that `/api/v1/stations.json` has `PDL` and that a 7-Eleven or BP shows under Diesel on the site and in the app.
   - Check that `lacks_fuel` re-pulled the last three monthly extracts, with PDL rows in `store/events/syd_events_2026*.csv`.
