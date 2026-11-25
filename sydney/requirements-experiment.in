@@ -1,0 +1,7 @@
+# Model-family experiment only (experiment.py, model-experiment.yml): the pipeline's dependencies plus the extra learners.
+# Never installed by daily.yml or the app. Compiled with the production lock as a constraint, so every shared package
+# (pandas, numpy, lightgbm, scikit-learn...) is the exact version production runs and `base` reproduces the stored backtest:
+#   uv pip compile requirements-experiment.in -c requirements.txt --python-version 3.11 --python-platform linux --generate-hashes -o requirements-experiment.txt
+-r requirements.in
+xgboost-cpu>=3.0   # the CPU-only wheel: `xgboost` on Linux pulls ~200 MB of NVIDIA NCCL
+catboost>=1.2
