@@ -8,7 +8,7 @@ usage: python experiment.py BASE VARIANT OUTDIR   one variant's walk-forward, sc
        python experiment.py --compare PREDSDIR OUTDIR   paired month-block bootstrap of every variant against `base`
        python experiment.py --report OUTDIR       the comparison (markdown) from every OUTDIR/*.json
        python experiment.py --list                the variant names as JSON (the workflow's matrix); --ensembles: theirs
-QUICK=1 runs only the folds from 2025-10, to catch install and import errors cheaply.
+QUICK=1 runs only the folds from 2025-10, to catch install and import errors cheaply. (Smoke test of this run: 45518266106, all jobs green.)
 
 Each variant replays model.py's walk-forward backtest (monthly folds from 2021-01; the 1-, 3-, 7- and 14-day forecasts
 and the 7-day jump chance) and scores its calls exactly as the app's tested figure does: the verdict rule
