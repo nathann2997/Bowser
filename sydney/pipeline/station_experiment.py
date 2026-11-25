@@ -144,4 +144,32 @@ for h in H:
     L.append(f"| {h} | " + " | ".join(cell) + " |")
 keep = all(sv[h] <= 0 for h in (7, 14))
 L += ["", f"**Steady pricers: {'keep the term' if keep else 'exclude them'}** (MAE change 7 / 14 days: {sv[7]:+.2f} / {sv[14]:+.2f})."]
+# ---- By fuel (2026-11-25). Diesel doesn't follow Sydney's petrol cycle, and the table is pooled across fuels. A
+# six-week check on the snapshots (premium diesel work) found the pooled term made diesel station forecasts worse.
+# Fixed before the run: for each fuel, the pooled table (as live) and the fuel's own table, judged by the rule above
+# (x0 >= 8 and x0 <= -6 improve by 0.1c+, overall no worse than +0.02c, at 7 and 14 days). If DL fails with the pooled
+# table, it gets its own table when that passes, and no reversion when neither does.
+L += ["", "## By fuel", "", "Test MAE, zero → pooled table (live) → the fuel's own table. Cells: overall; x0 ≥ 8; x0 ≤ −6.", "",
+      "| fuel | h | rows | overall | x0 ≥ 8 | x0 ≤ −6 |", "|---|---|---|---|---|---|"]
+pooled = {h: train[train.h == h].groupby(pd.cut(train[train.h == h].x0, BINS), observed=False).y.median() for h in H}
+fuel_ok = {}
+for f in sorted(S.fuel.unique()):
+    vf = {"pooled": {}, "own": {}}
+    for h in H:
+        tr, te = train[(train.h == h) & (train.fuel == f)], test[(test.h == h) & (test.fuel == f)]
+        if len(tr) < 200 or len(te) < 200: continue
+        own = tr.groupby(pd.cut(tr.x0, BINS), observed=False).y.median()
+        te = te.assign(pooled=pd.cut(te.x0, BINS).map(pooled[h]).astype(float).fillna(0.0),
+                       own=pd.cut(te.x0, BINS).map(own).astype(float).fillna(0.0))
+        m = lambda g, c: float((g.y - (0 if c == "zero" else g[c])).abs().mean()) if len(g) else np.nan
+        cells = []
+        for g in (te, te[te.x0 >= 8], te[te.x0 <= -6]):
+            cells.append(f"{m(g, 'zero'):.2f} → {m(g, 'pooled'):.2f} → {m(g, 'own'):.2f}" if len(g) else "–")
+        for c in ("pooled", "own"):
+            hi, lo = te[te.x0 >= 8], te[te.x0 <= -6]
+            vf[c][h] = (m(te, c) - m(te, "zero"), m(hi, c) - m(hi, "zero") if len(hi) else np.nan, m(lo, c) - m(lo, "zero") if len(lo) else np.nan)
+        L.append(f"| {f} | {h} | {len(te)} | " + " | ".join(cells) + " |")
+    passes = lambda c: all(h in vf[c] and vf[c][h][0] <= 0.02 and vf[c][h][1] <= -0.1 and vf[c][h][2] <= -0.1 for h in (7, 14))
+    fuel_ok[f] = "pooled" if passes("pooled") else "own" if passes("own") else "none"
+L += ["", "**By fuel, per the rule:** " + ", ".join(f"{f}: {v}" for f, v in fuel_ok.items()) + " (pooled: keep as live; own: its own table; none: no reversion)."]
 print("\n".join(L))

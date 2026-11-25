@@ -18,6 +18,23 @@ Follow-up to the premium diesel change: the widget and notifications showed a pr
   - the raw persisted cache reaching the widget.
 - **Left:** a widget snapshot saved before this change has no `pd` until its next refresh (up to 2 h).
 - **Checks:** tsc and lint clean, jest 500/500 (`diesel.test.ts`: 9).
+## 2026-11-25 — Diesel station forecasts: no mean reversion (data science review of premium diesel)
+
+The owner asked for a review of how the model handles premium diesel (PDL). PDL station forecasts borrow DL's market (`fuels.py` `MARKET`), so the review covered DL too.
+- **Snapshot check (42 days, 13 Oct – 25 Nov; descriptive only, no training):**
+  - The PDL-only median sits a steady 5.1c ± 1.2c above DL's.
+  - The DL forecast transfers well. At station level, 7-day error is 4.90c for PDL-only stations against 6.03c for "no change" (−19%); DL stations get 4.71 vs 5.89 (−20%). Direction agrees as often (0.71 for both).
+  - Mean reversion with an approximate typical gap made both worse: PDL +9.7%, DL +6.1%.
+- **Experiment on Actions** (`station_experiment.py` gains a by-fuel table; run 45515505539, years of history, trained on the first half, tested on the second). The decision rule was fixed before the run:
+  - **Petrol keeps the pooled table.** U91 7-day error 6.66 → 5.72c, 14-day 8.09 → 6.59c. E10, P95 and P98 are alike, and a per-fuel table adds nothing.
+  - **Diesel: the pooled table does harm.** 7-day error 3.92 → 4.60c, 14-day 5.47 → 6.39c. For stations 8c+ above their usual price, 7-day error goes 5.91 → 8.69c. It is fitted mostly on petrol's weekly cycle, which diesel doesn't have.
+  - DL's own table helps only a little (7-day 3.84, 14-day 5.24). It misses the rule on one cell: 7-day x0 ≤ −6 improves by only 0.05c.
+  - **Per the rule, diesel gets no reversion.**
+- **Change:** `station_api.py` `NO_REVERT = {"DL"}`. DL and PDL station forecasts are the Sydney DL path, damped and lag-shifted, with no reversion term. Expected effect, from the experiment's test half: DL station 7-day error about 4.60 → 3.92c (−15%) and 14-day 6.39 → 5.47c (−14%).
+- **Not changed:**
+  - PDL's typical premium. `station_profile.py` would need PDL history to compute it, and with no reversion for diesel it would only feed the "above its usual" advice.
+  - The advice's "above its usual" for DL. That is a separate rule and wasn't tested here.
+- **Side note:** over the 6 weeks, the Sydney DL forecast under-called the fall (forecast −2.8c vs actual −4.9c per 7 days, in a falling market). That is roadmap item 5's territory (`model/wholesale-trend`), not changed here.
 
 ## 2026-11-25 — Premium diesel (PDL): the diesel stations that were missing (**live**: PR #62, `5602a93`, `app-ci` run 45513418524, OTA at runtime 1.1.1: preview `56911fde`, production `bd514a5f`; site and API at the next `daily-forecast` run)
 
