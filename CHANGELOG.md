@@ -2,6 +2,22 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-25 — Widget and alerts say "premium diesel" (app JS, runtime 1.1.1)
+
+Follow-up to the premium diesel change: the widget and notifications showed a premium-only station's price as plain "Diesel".
+- **Widget:**
+  - `WStation` carries `pd`, and `compactStations` applies `withPremiumDiesel` itself. A raw copy read with `getQueryData` (the app's persisted cache, which skips the query's `select`) gets the same rule.
+  - A widget row has a `tag` ("Premium"). `rowSub()` builds line 2 as advice, then distance (Nearest), then tag, so a narrow row cuts the tag first and never the distance. The same applies on iOS, including stale rows.
+  - The screen-reader label says "premium diesel" once, before the price.
+  - The small widget's one line ("259.9 · BP Ryde") is unchanged: no room, and its fuel chip already says Diesel.
+- **Rise alert:** "Your cheapest: BP Ryde premium diesel 259.9." (`cheapestPick` → `premium`).
+- **Drop alert:** "Premium diesel at your pinned station: …" (`dropOf` from the row's or the station file's `pd`).
+- **QA audit (subagent):** no blocking bugs. Fixed from it:
+  - the distance cut off in Nearest mode;
+  - "premium" read twice;
+  - the raw persisted cache reaching the widget.
+- **Left:** a widget snapshot saved before this change has no `pd` until its next refresh (up to 2 h).
+- **Checks:** tsc and lint clean, jest 500/500 (`diesel.test.ts`: 9).
 ## 2026-11-25 — Diesel station forecasts: no mean reversion (data science review of premium diesel)
 
 The owner asked for a review of how the model handles premium diesel (PDL). PDL station forecasts borrow DL's market (`fuels.py` `MARKET`), so the review covered DL too.

@@ -1,5 +1,6 @@
 // Pure logic for the Android home-screen widget: what the small and medium widgets say and which stations they list.
 // No React Native or widget-library imports here, so it runs under jest and on every platform.
+import { isPremium, withPremiumDiesel } from '@/lib/diesel';
 import { offFor, offText, yourPrice, type Discounts } from '@/lib/discounts';
 import { km, type Place } from '@/lib/geo';
 import { addDays, nice, stationName } from '@/lib/format';
@@ -27,7 +28,7 @@ const FUEL_SHORT: Record<Fuel, string> = { U91: 'U91', E10: 'E10', P95: 'P95', P
  *  long reason text. The forecast is stations.json index 5, which older files (and fail-soft days) don't have. */
 export type WPrice = [number, number | null, AdviceCode, string, number | null];
 /** `b` (brand, for your discounts) since 0.7; a cache written before it has none, so those rows show pump prices */
-export type WStation = { id: string; n: string; b?: string; la: number; lo: number; m: 0 | 1; out?: 1; p: Partial<Record<Fuel, WPrice>> };   // out: outside Sydney (absent in snapshots saved before 2026-11-24)
+export type WStation = { id: string; n: string; b?: string; la: number; lo: number; m: 0 | 1; out?: 1; pd?: 1; p: Partial<Record<Fuel, WPrice>> };   // out: outside Sydney (absent in snapshots saved before 2026-11-24); pd: its Diesel is premium diesel (lib/diesel.ts; absent before 2026-11-25)
 export type WidgetSnapshot = {
   forecast: { asof: string; live: LiveRow[] } | null;
   stations: { asof: string; stations: WStation[] } | null;
@@ -39,6 +40,7 @@ export function compactForecast(f: Forecast): NonNullable<WidgetSnapshot['foreca
 }
 
 export function compactStations(s: Stations): NonNullable<WidgetSnapshot['stations']> {
+  withPremiumDiesel(s);   // idempotent: a raw copy (getQueryData skips the query's `select`) gets the same rule
   return {
     asof: s.asof,
     stations: s.stations
@@ -52,7 +54,7 @@ export function compactStations(s: Stations): NonNullable<WidgetSnapshot['statio
           const fc = (v as readonly unknown[])[5];
           p[f] = [v[0], v[1], v[2], v[3], typeof fc === 'number' && Number.isFinite(fc) ? fc : null];
         }
-        return { id: String(x.id), n: x.n, b: typeof x.b === 'string' ? x.b : undefined, la: x.la, lo: x.lo, m: x.m, ...(x.out ? { out: 1 as const } : {}), p };
+        return { id: String(x.id), n: x.n, b: typeof x.b === 'string' ? x.b : undefined, la: x.la, lo: x.lo, m: x.m, ...(x.out ? { out: 1 as const } : {}), ...(x.pd === 1 ? { pd: 1 as const } : {}), p };
       }),
   };
 }
@@ -122,11 +124,16 @@ export const appDataUsable = (todays: boolean, at: number, now: number) => today
 export type WidgetPrefs = { fuel: Fuel; home: Place | null; radiusKm: number; members: boolean; discounts?: Discounts };
 
 export type NoteTone = 'cheap' | 'dear' | 'flat' | Tone;
+/** A row's second line as shown: the advice, the distance (two-line rows in Nearest mode), then the tag, so a
+ *  narrow row cuts the tag before the distance */
+export const rowSub = (r: Pick<WidgetRow, 'advice' | 'dist' | 'tag'>, withDist: boolean) =>
+  [r.advice, withDist ? r.dist : null, r.tag].filter(Boolean).join(' · ');
 export type WidgetRow = {
   id: string; name: string; price: string; uri: string; a11y: string;
   advice: string;               // line 2 left: "Fill by Fri"
   adviceTone: Tone;
   dist: string | null;          // "1.2 km" in Nearest mode, after the advice on two-line rows only
+  tag: string | null;           // "Premium": its diesel is premium diesel (lib/diesel.ts); last on line 2, so it is cut first
   note: string;                 // the mode's note (gap, distance or age): line 2 right when there's no forecast
   noteTone: NoteTone;
   fc: string | null;            // line 2 right: "→ 237.4", the station's 7-day forecast (null when the data has none)
@@ -219,14 +226,15 @@ function toRow(s: WStation, fuel: Fuel, median: number | undefined, discounts?: 
   const f7 = typeof adv[4] === 'number' && Number.isFinite(adv[4]) ? (off ? yourPrice(adv[4], off) : adv[4]) : null;
   // A stale price's age matters more than its forecast, so it keeps the "N days old" note
   const fc = f7 != null && !stale ? `→ ${f7.toFixed(1)}` : null;
+  const prem = isPremium(s, fuel);   // premium diesel, the only diesel it lists (lib/diesel.ts): the row's tag
   const advice = shortAdvice(adv[3]);
   return {
     id: s.id, name, price: price.toFixed(1), uri: stationUri(s.id),
-    advice, adviceTone: ADVICE_TONE[adv[2]] ?? 'calm', dist: null,
+    advice, adviceTone: ADVICE_TONE[adv[2]] ?? 'calm', dist: null, tag: prem ? 'Premium' : null,
     note, noteTone,
     fc, fcTone: fc ? fcTone(price, f7!) : 'flat',
     stale,
-    a11y: `${name}, ${price.toFixed(1)} cents${off ? ` with your ${offText(off)} off` : ''}, ${advice}${fc ? `, ${f7!.toFixed(1)} in 7 days` : note ? `, ${note === 'at median' ? 'at the median' : note}` : ''}`,
+    a11y: `${name}, ${prem ? 'premium diesel ' : ''}${price.toFixed(1)} cents${off ? ` with your ${offText(off)} off` : ''}, ${advice}${fc ? `, ${f7!.toFixed(1)} in 7 days` : note ? `, ${note === 'at median' ? 'at the median' : note}` : ''}`,
   };
 }
 
@@ -320,7 +328,7 @@ export function chooseRows(
 
 /** The station a notification names: the cheapest fresh pinned station for the fuel, else the cheapest fresh one within
  *  the radius of home (members respected), at the price you pay (`yours`: a discount applies). Null with neither. */
-export type AlertStation = { id: string; name: string; price: number; yours: boolean };
+export type AlertStation = { id: string; name: string; price: number; yours: boolean; premium?: boolean };   // premium: its diesel is premium diesel
 export function cheapestPick(list: WStation[] | undefined, prefs: WidgetPrefs, pins: string[]): AlertStation | null {
   if (!list?.length) return null;
   const snap: WidgetSnapshot = { forecast: null, stations: { asof: '', stations: list }, fetchedAt: 0 };
@@ -329,7 +337,7 @@ export function cheapestPick(list: WStation[] | undefined, prefs: WidgetPrefs, p
     ?? best(chooseRows(snap, prefs, pins, MAX_ROWS, 'cheapest').rows);
   if (!r) return null;
   const s = list.find((x) => x.id === r.id);
-  return { id: r.id, name: r.name, price: Number(r.price), yours: !!(s?.b && offFor(prefs.discounts, s.b) > 0) };
+  return { id: r.id, name: r.name, price: Number(r.price), yours: !!(s?.b && offFor(prefs.discounts, s.b) > 0), ...(isPremium(s, prefs.fuel) ? { premium: true } : {}) };
 }
 
 /** The Sydney median now and in 7 days for the widget's fuel (forecast.live now, now + d7). */

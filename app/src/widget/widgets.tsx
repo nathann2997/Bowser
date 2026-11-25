@@ -12,7 +12,7 @@ import type { Tone } from '@/lib/outlook';
 
 import {
   FUEL_ACTION, FUEL_CYCLE, FUEL_DOTS, MED, MODE_ACTION, ROW, SMALL_STYLE, STATION_MODES, TODAY_URI, compactHeadline, fuelLabel, mediumForecastLine, mediumLayout,
-  compactRowWidths, fuelDotsW, smallCompact, smallBottomLine, smallRiseLine, type NoteTone, type WidgetModel, type WidgetRow,
+  compactRowWidths, fuelDotsW, rowSub, smallCompact, smallBottomLine, smallRiseLine, type NoteTone, type WidgetModel, type WidgetRow,
 } from './logic';
 
 export const SMALL = 'BowserSmall';
@@ -134,12 +134,13 @@ function StationLine({ r, c, compact, width }: { r: WidgetRow; c: Pal; compact: 
   const name = <TextWidget text={r.name} maxLines={1} truncate="END" allowFontScaling={false} style={{ fontSize: ROW.name, color: hex(c.fg) }} />;
   const row = { width: 'match_parent', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: ROW.padV } as const;
   if (compact) {
-    const { adviceW } = compactRowWidths(width, r.advice);
+    const line = rowSub(r, false);
+    const { adviceW } = compactRowWidths(width, line);
     return (
       <FlexWidget clickAction="OPEN_URI" clickActionData={{ uri: r.uri }} accessibilityLabel={r.a11y} style={row}>
         <FlexWidget style={{ flex: 1 }}>{name}</FlexWidget>
         <FlexWidget style={{ width: adviceW, marginLeft: 8, alignItems: 'flex-end' }}>
-          <TextWidget text={r.advice} maxLines={1} truncate="END" allowFontScaling={false} style={{ ...sub, color: hex(noteColor(c, r.adviceTone)) }} />
+          <TextWidget text={line} maxLines={1} truncate="END" allowFontScaling={false} style={{ ...sub, color: hex(noteColor(c, r.adviceTone)) }} />
         </FlexWidget>
         <FlexWidget style={{ marginLeft: 8 }}>{price}</FlexWidget>
       </FlexWidget>
@@ -154,7 +155,7 @@ function StationLine({ r, c, compact, width }: { r: WidgetRow; c: Pal; compact: 
     <FlexWidget clickAction="OPEN_URI" clickActionData={{ uri: r.uri }} accessibilityLabel={r.a11y} style={row}>
       <FlexWidget style={{ flex: 1, flexDirection: 'column' }}>
         {name}
-        <TextWidget text={r.dist ? `${r.advice} · ${r.dist}` : r.advice} maxLines={1} truncate="END" allowFontScaling={false} style={{ ...sub, color: hex(noteColor(c, r.adviceTone)) }} />
+        <TextWidget text={rowSub(r, true)} maxLines={1} truncate="END" allowFontScaling={false} style={{ ...sub, color: hex(noteColor(c, r.adviceTone)) }} />
       </FlexWidget>
       <FlexWidget style={{ flexDirection: 'column', alignItems: 'flex-end', marginLeft: 8 }}>
         {price}
