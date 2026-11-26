@@ -73,7 +73,7 @@ class Page(unittest.TestCase):
             self.assertIn('href="https://checkbowser.app/petrol-price-cycle/"', code)
             self.assertNotIn("<img src=\"https://checkbowser.app/badge", p.split("<pre>")[1].split("</pre>")[0])   # shown as text
             self.assertNotIn("style=", p)                                                  # the CSP allows no inline style
-            with open(os.path.join(o, "sitemap.xml")) as fh: self.assertIn("/badge/</loc>", fh.read())
+            with open(os.path.join(o, "sitemap-pages.xml")) as fh: self.assertIn("/badge/</loc>", fh.read())
             with open(os.path.join(o, "llms.txt")) as fh: self.assertIn("/badge/", fh.read())
             with open(os.path.join(o, "petrol-price-cycle", "index.html"), encoding="utf-8") as fh: self.assertIn('href="../badge/"', fh.read())
             # export_api writes the image after the pages; a later clear() removes the page (and the image with it)

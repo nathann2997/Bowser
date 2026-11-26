@@ -16,7 +16,7 @@ One page per search intent, so pages don't compete with each other. Volumes are 
 | Searches | Page | Why Bowser can rank |
 |---|---|---|
 | bowser, check bowser, bowser fuel app; should I fill up today, fill up now or wait | `/` (dashboard) | Brand, and the question the dashboard answers. Title since 2026-11-20: "Should you fill up today? Sydney fuel prices \| Bowser" (PetrolPulse builds its title on the same phrase). |
-| nsw fuel prices, sydney petrol prices, fuel prices sydney today, cheapest petrol sydney, petrol prices near me | `/fuel-prices/` | Today's median, the 15 cheapest, every suburb linked. |
+| nsw fuel prices, sydney petrol prices, fuel price sydney, nsw fuel price check, cheapest petrol sydney, petrol prices near me | `/fuel-prices/` | Today's median, the 15 cheapest, every suburb linked. Title since 2026-11-26: "Sydney, NSW & ACT fuel price check: cheapest petrol today", because "fuel price sydney" (the top query) was going to `/brands/`. |
 | petrol prices {suburb}, cheapest fuel {suburb}, {suburb} fuel prices | `/fuel-prices/{suburb}-{postcode}/` (384 today) | Long tail. Low competition per suburb, large in total. The main traffic source. |
 | {station name} fuel price, 7-eleven parramatta petrol price | `/station/{name}-{id}/` (864 today) | Very long tail; price history and a per-station forecast nobody else has. |
 | newcastle fuel prices, central coast petrol prices, wollongong fuel prices, canberra petrol prices | `/fuel-prices/{region}/` (23) | Median, 20 cheapest, the gap to Sydney, every suburb in the region. |
@@ -47,7 +47,7 @@ Never lead a page title with "FuelCheck" or call the site "FuelCheck": it risks 
 - **1,283 pages** of plain HTML, rebuilt on every run: readable without running any script (the only script is the small visit counter), about 20 KB each, one inline style block.
 - **On every page:** a unique title and description with today's price in them, a canonical address on checkbowser.app, Open Graph and Twitter tags with a share image, breadcrumbs (visible and as structured data), FuelCheck attribution, and links to its neighbours (suburb to its stations and nearby suburbs, station to its suburb, brand and nearby stations).
 - **Structured data:** `WebSite`, `Organization` and `WebApplication` on the dashboard; `GasStation` with address and coordinates on station pages; `ItemList` on suburb pages; `Article` on guides; `Dataset` on the hub; `BreadcrumbList` everywhere.
-- **`sitemap.xml`** (every page, dated today) and **`robots.txt`** (allows everything except the app's per-station JSON files).
+- **`sitemap.xml`** and **`robots.txt`**. Since 2026-11-26, `sitemap.xml` is an index of `sitemap-pages.xml` (the dashboard, hubs, regions, fuels, brands, guides), `sitemap-suburbs.xml` and `sitemap-stations.xml`, so Search Console's Sitemaps report shows indexing for each group. It stays at the address already submitted: nothing to resubmit. `indexnow.py` follows the index. (allows everything except the app's per-station JSON files).
 - **Dashboard:** a real title and description, canonical, share tags, `lang="en-AU"`, a favicon, and footer links into the new pages. The app's share page (`/s/`) is marked `noindex`.
 - **`/about/` and `/privacy/`:** needed for trust, and AdSense requires a privacy policy.
 - **Safety:** stale prices (over 7 days) and members-only sites never count as "cheapest"; wholesale (AIP) figures are left out of these pages, since their licence is unresolved (`DATA-LICENSE.md`); station names from the feed are escaped.
@@ -170,6 +170,32 @@ Desk research with a US-based search tool. These are the pages that kept coming 
 - A seniors fuel discount page.
 - Costco site pages (Auburn, Casula, Marsden Park): only if `/brands/costco/` doesn't rank, since they would compete with it.
 
+### Keyword research, 2026-11-26: new clusters and new competitors
+**Method.** Same as 22 Nov: Google Autocomplete for Australia (30 new seeds), a US-based search tool for who shows up, and a fetch of the live site. Autocomplete shows that a phrase is searched, not how often. Rank these against Search Console positions before building anything.
+
+**The constraint.** The domain is nine days old, with about 1,500 pages "crawled, currently not indexed". The bottleneck is authority (links) and indexing, not page count. So: a few high-value pages, no new programmatic sets.
+
+| Cluster | Phrases seen (en-AU) | What exists | Call |
+|---|---|---|---|
+| Price history | petrol price history sydney, petrol price trend / chart sydney, historical fuel prices nsw, petrol prices 2026 graph, petrol price data last 10 years | Nothing dedicated; the data is in `history.json` (the Christmas page already goes back to 2019) | **Build.** One `/petrol-price-history/` page (long chart, yearly medians, biggest jumps). Plus a "Sydney petrol in 2026" data story in early January: the Middle East shock, the April–August excise cut, cycles that stopped. It's a press and link asset for the January news lull. |
+| E10 / octane | e10 vs 91 (price, australia, fuel efficiency), is e10 bad for my car, 95 vs 98 (petrol price) | On the "More guides" list | **Build** two guides. Bowser's angle is today's live price gap and the break-even point (E10 uses about 3% more fuel), which no explainer has. |
+| Fuel excise | fuel excise increase (2026, australia, date) | Nothing | **Build before 1 Feb 2027** (next CPI indexation day). Rate and factor from the ATO page on the day; don't quote a number from memory. Secondary sources say 53.7c/L since 3 Aug 2026, after the temporary cut ended: unverified. |
+| Fuel shortage | is there a fuel shortage in australia today, fuel shortage nsw today, fuel crisis nsw update, australia petrol days left | Not doing (no reliable signal) | **Check the signal, not the page.** Find out whether FuelCheck shows out-of-stock or withdrawn prices dependably. If it does, a "stations without fuel today" count fits the hub. If not, leave the topic alone. |
+| Diesel forecast | diesel price forecast sydney / nsw / next week / australia 2026 | `/fuel-prices/diesel/` has prices; the forecast page is U91-led | Only once diesel calls are scored in `track.json`. Say plainly that the Sydney DL forecast under-called the November fall. |
+| Highway / trip | fuel prices hume highway (today), fuel stations on the hume highway, fuel prices pacific highway, sydney to canberra fuel cost | Region pages (Goulburn, Albury, Port Macquarie, Coffs, Tweed) | **Don't build corridor pages:** they overlap the region pages and spread crawl. Link region pages to each other along each highway instead, with prices only (no forecast wording). Route planner stays in "Not doing". |
+| App | fuel price app nsw, best fuel price app nsw, best fuel app australia | `/` (WebApplication) | Once Play is public: Play link in the Organization `sameAs` and the About page. Get listed in the review articles below (outreach). Don't build a "best app" page. |
+| Noise | m1 servo (car parts), foreign "petrol prices january", costco fuel casula * (covered by the Costco rule above) | | Skip. |
+
+**New competitors** (seen 2026-11-26, not measured Google AU positions)
+- **FuelRadar:** now publishes a dated "Australia's cheapest fuel prices" post every day (`/blog/cheapest-fuel-prices-YYYY-MM-DD`). It competes on news cadence; Bowser's dated equivalent is the weekly outlook.
+- **FuelNow** (`fuelnow.com.au/petrol-prices/sydney`): city price pages with medians and the cheapest station.
+- **Petrolmate** (`petrolmate.com.au/city/nsw/sydney`): web-only map with a "cheapest in view" highlight and wholesale-cycle tracking; CyberShack recommends it for SA and QLD. Its Sydney page showed a 1 Nov average on 26 Nov (stale).
+- Government: `fuelplan.gov.au/fuel-statistics` (ACCC weekly figures) now shows up for Sydney price searches.
+
+**Outreach targets** (for `docs/OUTREACH.md`, once the Play listing is public): CHOICE "best apps for finding cheap fuel", CyberShack "best fuel price app in Australia, state by state", carsales editorial on fuel apps, NRMA "how to find the cheapest fuel prices Sydney". Each lists apps by state; Bowser's pitch is the only tested forecast. The owner sends these.
+
+**Search, from secondary sources (unverified, check Search Central):** the November 2026 core update has finished and a December one is preannounced; sponsored ads are now in AI Mode in Australia; Google says structured data isn't required for AI features. Googlebot reads only the first 2 MB of HTML (uncompressed; Google's March 2026 crawler post). The dashboard is 1.19 MB, but its footer text and links come within the first 40 KB, before the inline station data, so nothing indexable is past the cut. If `stations.json` keeps growing, keep the data after the footer.
+
 ### Features competitors have that Bowser doesn't (not built)
 In rough order of value:
 1. **Web alerts** ("a jump is coming"): email or browser push from the site. PetrolSpy and FuelWatch have them; Bowser's alerts live only in the app.
@@ -194,3 +220,14 @@ In rough order of value:
 
 ## Search Console readings
 - **2026-11-21 (four days of data).** 75 queries, 2–5 impressions each, no clicks: normal for a domain this new. Station-name searches came first, many for country stations, and their pages were the thinnest (no forecast, no chart yet). Those pages now say more, the hub title leads with "Check" for "nsw fuel price check", and "cheapest petrol deals sydney" got its own guide. **Next reading:** turn on the Average position and CTR columns. Position says whether a query needs authority (links) or a better snippet (title and description).
+- **2026-11-26 (first technical review, 15–26 Nov; read through the Search Console API, PostHog and PageSpeed).**
+  - **Totals:** 366 queries, 391 pages with impressions, about 1,000 impressions, 3 clicks. Average position 18 on mobile, 44 on desktop. Almost all from Australia. Daily impressions went from 4 to about 190 by 22 Nov.
+  - **Where impressions land:** station pages are 763 of them, across 346 pages, at an average position of 30. They come from station-name searches ("budget fairfield", "eg kingswood"), and a dozen are already at positions 2–12. Brands had 157 impressions (position 46), region and fuel pages 64 (24), suburb pages 12 (51).
+  - **Index sample (24 URLs):** 13 indexed, 5 "crawled, currently not indexed", 6 "unknown to Google".
+    - **`/fuel-price-forecast/` is crawled, currently not indexed** (crawled 24 Nov), even though it has 1,250 words, no noindex and links from every page. Request indexing by hand.
+    - Most suburb pages sampled are unknown to Google: not yet discovered.
+  - **Head terms go to the wrong page:** "fuel price sydney", "nsw fuel price check" and "petrol prices sydney" show `/brands/` (positions 48–80) instead of `/fuel-prices/`, whose title doesn't say Sydney.
+  - **Visits (PostHog, 14 days):** 434 pageviews from about 300 people, 289 of them on the dashboard. Google sent 7; the rest came from direct, Reddit, Instagram and Facebook. Station pages had 2 visits.
+  - **Speed:** the lab score is 97–100 on every page type; the dashboard's mobile LCP is 2.0 s and everything else is 0.8–1.1 s. There aren't enough Chrome users yet for field data.
+  - **Checked and fine:** http→https and www redirect with a 301; canonicals match what Google chose; Speedway Auburn and Speedway Auburn Road are two real stations.
+  - **Note:** the sitemap's "indexed 0" in the API is a figure Google no longer fills in; read the Pages report instead.

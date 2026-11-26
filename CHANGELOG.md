@@ -2,6 +2,19 @@
 
 All notable changes to Bowser: the pipeline, the web dashboard and the app. Newest first.
 
+## 2026-11-26 — Search: hub title says Sydney, a sitemap per page group (branch `seo/research-1126`)
+
+The first technical review of the launch, read through the Search Console API, PostHog and PageSpeed. Findings are in `docs/SEO.md` → "Search Console readings", and new keyword research in "Keyword research, 2026-11-26".
+- **Hub title:** "Sydney, NSW & ACT fuel price check: cheapest petrol today | Bowser". The description now starts "Sydney, NSW and ACT…", and the H1 is unchanged.
+  - Why: "fuel price sydney", the top query, and "nsw fuel price check" were landing on `/brands/` (positions 48–80), whose title says Sydney.
+- **Sitemap split:**
+  - `sitemap.xml` is now a sitemap index of `sitemap-pages.xml`, `sitemap-suburbs.xml` and `sitemap-stations.xml` (`sitemap_group()`, `SITEMAP_GROUPS`). Each child's `lastmod` in the index is its newest page.
+  - Search Console reads the children from the address already submitted, and reports indexing per group. That answers whether station pages are judged thin.
+  - `clear()` removes the child files too.
+- **IndexNow:** `indexnow.load()` reads either a sitemap or an index. A local index's children are read from beside it; a live one's are fetched. On the first run after the switch, the live sitemap is still a single file, and that is read as before (checked against the live 3,554-URL sitemap).
+- **Owner, done 2026-11-26:** asked Google by hand to index 10 priority pages, including `/fuel-price-forecast/`, which was "crawled, currently not indexed".
+- **Checks:** `python -m unittest discover -s sydney/pipeline` 129 OK (3 skipped). Tests cover the index, each URL's group, and IndexNow on both formats.
+
 ## 2026-11-25 — Widget and alerts say "premium diesel" (**live**: PR #65, `4cd0dc7`, `app-ci` run 45516676023, OTA at runtime 1.1.1: preview `e66cf46c`, production `7ff2601d`)
 
 Follow-up to the premium diesel change: the widget and notifications showed a premium-only station's price as plain "Diesel".

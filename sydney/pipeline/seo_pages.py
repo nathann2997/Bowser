@@ -21,7 +21,7 @@ tests (test_seo_pages.py) run it on small made-up dicts. docs/SEO.md has the key
   OUT/woolworths-fuel-discount/, OUT/coles-fuel-docket/   a supermarket docket each: where it works, today's prices before and after
   OUT/nsw-fuelcheck/                  guide: what NSW FuelCheck is and how Bowser uses it
   OUT/about/, OUT/privacy/            who runs the site, what is counted
-  OUT/404.html, OUT/robots.txt, OUT/sitemap.xml, OUT/llms.txt (a plain summary for AI assistants)
+  OUT/404.html, OUT/robots.txt, OUT/sitemap.xml (an index of sitemap-{pages,suburbs,stations}.xml), OUT/llms.txt (a plain summary for AI assistants)
 
 Links between pages are relative (../), so the site also works under a sub-path; canonical, Open Graph and sitemap
 addresses use SITE. Each page carries a hash Content-Security-Policy for its one style block and one script (the
@@ -1186,11 +1186,12 @@ class Site:
         r = self.live.get("U91") or next(iter(self.live.values()))
         f0 = r["fuel"]; v = (r.get("verdict") or {}).get("head", ""); nsw = self.any_out
         place = "NSW and ACT" if nsw else "Sydney"
-        # "Check" leads: people search "nsw fuel price check" (Search Console, Nov 2026), and the brand is Check Bowser.
+        # "fuel price check" stays: people search "nsw fuel price check" (Search Console, Nov 2026), and the brand is Check Bowser.
         # Never "FuelCheck" first: that is the government's service (docs/SEO.md)
-        # "today" gives way to "and ACT" so the title stays at 65 (docs/MARKETING_NSW_ACT.md A1); the median and call stay Sydney's
-        title = f"Check NSW and ACT fuel prices: cheapest petrol by suburb | Bowser" if nsw else "Check Sydney fuel prices today: cheapest petrol by suburb | Bowser"
-        desc = (f"{place} petrol prices for {self.sday}: Sydney {NAME[f0]} median {c1(r['now'])}c/L, Bowser’s Sydney call: {(v or 'no call today').lower()}. "
+        # "Sydney" leads since 2026-11-26: "fuel price sydney" was the top query and went to /brands/, whose title says Sydney
+        # and this one didn't (docs/SEO.md, Search Console readings). 66 characters, keeping "& ACT" (docs/MARKETING_NSW_ACT.md A1)
+        title = "Sydney, NSW & ACT fuel price check: cheapest petrol today | Bowser" if nsw else "Sydney fuel price check: cheapest petrol today | Bowser"
+        desc = (f"{'Sydney, NSW and ACT' if nsw else place} petrol prices for {self.sday}: Sydney {NAME[f0]} median {c1(r['now'])}c/L, Bowser’s Sydney call: {(v or 'no call today').lower()}. "
                 f"Cheapest fuel in {len(self.subs):,} suburbs.")
         desc = desc + " From NSW FuelCheck." if len(desc) <= 135 else clip(desc, 155)
         body = [f"<h1>{place} fuel prices today</h1>",
@@ -2361,11 +2362,21 @@ class Site:
         with open(os.path.join(self.out, "robots.txt"), "w", encoding="utf-8") as fh:
             fh.write("# Everyone is welcome, search engines and AI assistants alike. Prices are CC BY-SA 3.0 AU: credit NSW FuelCheck and Bowser.\n"
                      f"User-agent: *\n{rules}\n" + "".join(f"User-agent: {b}\n" for b in AI_BOTS) + f"{rules}\nSitemap: {self.site}/sitemap.xml\n")
+        # sitemap.xml is an index of one sitemap per page group, so Search Console reports indexing for each group
+        # (docs/SEO.md); the dashboard's address comes first in sitemap-pages.xml
         rows = [("", 1.0, self.asof)] + self.urls
+        head = '<?xml version="1.0" encoding="UTF-8"?>\n'
+        index = []
+        for g in SITEMAP_GROUPS:
+            part = [r for r in rows if sitemap_group(r[0]) == g]
+            if not part: continue
+            with open(os.path.join(self.out, f"sitemap-{g}.xml"), "w", encoding="utf-8") as fh:
+                fh.write(head + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                         + "".join(f"<url><loc>{esc(self.site + '/' + p)}</loc><lastmod>{lm}</lastmod><priority>{pr:.1f}</priority></url>\n" for p, pr, lm in part)
+                         + "</urlset>\n")
+            index.append(f"<sitemap><loc>{esc(self.site)}/sitemap-{g}.xml</loc><lastmod>{max(lm for _, _, lm in part)}</lastmod></sitemap>\n")
         with open(os.path.join(self.out, "sitemap.xml"), "w", encoding="utf-8") as fh:
-            fh.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-                     + "".join(f"<url><loc>{esc(self.site + '/' + p)}</loc><lastmod>{lm}</lastmod><priority>{pr:.1f}</priority></url>\n" for p, pr, lm in rows)
-                     + "</urlset>\n")
+            fh.write(head + '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + "".join(index) + "</sitemapindex>\n")
         u = self.site; md = lambda s: re.sub(r"\S+://\S+|[\[\]\n\r<>()]", " ", str(s))[:80]   # feed text can't add a link or break one
         syd = [s for s in self.st if not s.get("out")]
         lines = ["# Bowser", "",
@@ -2492,10 +2503,20 @@ def home_links(stations, forecast):
             + ("<div>Popular suburbs: " + " · ".join(a(S.sub_url[k], S.sub_label[k]) for k in top) + "</div>" if top else ""))
 
 
+SITEMAP_GROUPS = ("pages", "suburbs", "stations")
+
+
+def sitemap_group(path):
+    """Which sitemap a page's path ("" for the dashboard) belongs in: stations, suburbs (name-postcode), or the rest."""
+    if path.startswith("station/"): return "stations"
+    if re.fullmatch(r"fuel-prices/[a-z0-9-]+-\d{4}/", path): return "suburbs"
+    return "pages"
+
+
 def clear(out):
     """Remove everything this module writes, so a failed run leaves no half-built pages to publish."""
     for d in OWN: shutil.rmtree(os.path.join(out, d), ignore_errors=True)
-    for f in ["404.html", "robots.txt", "sitemap.xml", "llms.txt", f"{INDEXNOW_KEY}.txt"]:
+    for f in ["404.html", "robots.txt", "sitemap.xml", "llms.txt", f"{INDEXNOW_KEY}.txt"] + [f"sitemap-{g}.xml" for g in SITEMAP_GROUPS]:
         if os.path.exists(os.path.join(out, f)): os.remove(os.path.join(out, f))
 
 
