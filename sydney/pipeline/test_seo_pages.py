@@ -145,14 +145,26 @@ class Built(unittest.TestCase):
                 self.assertIn(os.path.join(target, "index.html"), self.pages, f"{path}: {href}")
 
     def test_sitemap_and_robots(self):
-        root = ET.parse(os.path.join(self.out, "sitemap.xml")).getroot()
         ns = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-        locs = [u.find("s:loc", ns).text for u in root.findall("s:url", ns)]
+        index = ET.parse(os.path.join(self.out, "sitemap.xml")).getroot()
+        self.assertTrue(index.tag.endswith("sitemapindex"))
+        kids = [s.find("s:loc", ns).text for s in index.findall("s:sitemap", ns)]
+        self.assertEqual(kids, [f"https://checkbowser.app/sitemap-{g}.xml" for g in sp.SITEMAP_GROUPS])   # the sample has all three
+        self.assertTrue(all(s.find("s:lastmod", ns).text == ASOF for s in index.findall("s:sitemap", ns)))
+        locs, urls = [], []
+        for g in sp.SITEMAP_GROUPS:
+            part = ET.parse(os.path.join(self.out, f"sitemap-{g}.xml")).getroot().findall("s:url", ns)
+            for u in part:
+                loc = u.find("s:loc", ns).text; locs.append(loc); urls.append(u)
+                self.assertEqual(sp.sitemap_group(loc[len("https://checkbowser.app/"):]), g, loc)
         self.assertEqual(locs[0], "https://checkbowser.app/")
         self.assertEqual(len(locs), len(set(locs))); self.assertEqual(len(locs), self.report["pages"] + 1)
         for loc in locs[1:]:
             self.assertIn(os.path.join(loc[len("https://checkbowser.app/"):].replace("/", os.sep), "index.html"), self.pages, loc)
-        self.assertTrue(all(u.find("s:lastmod", ns).text == ASOF for u in root.findall("s:url", ns)))   # all Sydney here
+        self.assertTrue(all(u.find("s:lastmod", ns).text == ASOF for u in urls))   # all Sydney here
+        self.assertEqual([sp.sitemap_group(p) for p in ("", "fuel-prices/", "fuel-prices/newcastle/", "fuel-prices/parramatta-2150/",
+                                                         "fuel-price-forecast/2026-11-23/", "station/7-eleven-parramatta-1/")],
+                         ["pages", "pages", "pages", "suburbs", "pages", "stations"])
         with open(os.path.join(self.out, "robots.txt")) as fh: robots = fh.read()
         self.assertIn("Sitemap: https://checkbowser.app/sitemap.xml", robots); self.assertNotIn("Disallow: /\n", robots)
 
@@ -374,17 +386,20 @@ class Pieces(unittest.TestCase):
         with tempfile.TemporaryDirectory() as out:
             report = sp.build(out, *sample())
             rd = lambda p: open(os.path.join(out, p), encoding="utf-8").read()
-            self.assertIn("<title>Check NSW and ACT fuel prices: cheapest petrol by suburb | Bowser</title>", rd("fuel-prices/index.html"))
+            self.assertIn("<title>Sydney, NSW &amp; ACT fuel price check: cheapest petrol today | Bowser</title>", rd("fuel-prices/index.html"))
             self.assertEqual(rd(f"{sp.INDEXNOW_KEY}.txt"), sp.INDEXNOW_KEY)
-            with open(os.path.join(out, "sitemap.xml"), "rb") as fh: sitemap = fh.read()
-        import indexnow
+            import indexnow
+            parsed = indexnow.load(os.path.join(out, "sitemap.xml"))          # the index, with its children read from beside it
+            with open(os.path.join(out, "sitemap-pages.xml"), "rb") as fh: pages_xml = fh.read()
+            flat = os.path.join(out, "flat.xml")                                # a one-file sitemap (the live one before the split)
+            with open(flat, "wb") as fh: fh.write(pages_xml)
+            self.assertEqual(indexnow.load(flat), indexnow.parse(pages_xml))
         old = {"https://checkbowser.app/": "2026-11-16", "https://checkbowser.app/a/": "2026-11-17", "https://checkbowser.app/gone/": "2026-11-10"}
         new = {"https://checkbowser.app/": "2026-11-17", "https://checkbowser.app/a/": "2026-11-17", "https://checkbowser.app/b/": "2026-11-17",
                "https://elsewhere.example/": "2026-11-17"}
         self.assertEqual(indexnow.changed(old, new), ["https://checkbowser.app/", "https://checkbowser.app/b/", "https://checkbowser.app/gone/"])
         b = indexnow.body(["https://checkbowser.app/"])
         self.assertEqual((b["host"], b["keyLocation"]), ("checkbowser.app", f"https://checkbowser.app/{sp.INDEXNOW_KEY}.txt"))
-        parsed = indexnow.parse(sitemap)
         self.assertEqual(parsed["https://checkbowser.app/"], ASOF); self.assertEqual(len(parsed), report["pages"] + 1)
 
     def test_act_and_outside_sydney_wording_and_freshness(self):
@@ -454,7 +469,7 @@ class Pieces(unittest.TestCase):
             self.assertIn("Does Bowser forecast Canberra prices?", cbr); self.assertIn("covers Sydney only", cbr)
             self.assertIn('"@type":"FAQPage"', cbr); self.assertIn('"@type":"ItemList"', cbr)
             self.assertNotIn('class="verdict', cbr); self.assertNotIn("Fill up today", cbr)
-            self.assertIn("<loc>https://checkbowser.app/fuel-prices/canberra-and-queanbeyan/</loc><lastmod>2026-11-17</lastmod><priority>0.9</priority>", rd("sitemap.xml"))
+            self.assertIn("<loc>https://checkbowser.app/fuel-prices/canberra-and-queanbeyan/</loc><lastmod>2026-11-17</lastmod><priority>0.9</priority>", rd("sitemap-pages.xml"))
             self.assertFalse(os.path.exists(os.path.join(out, "fuel-prices", "canberra"))); self.assertFalse(os.path.exists(os.path.join(out, "fuel-prices", "act")))
             # hub: both states served, the Canberra block and its link, no Canberra forecast
             hub = rd("fuel-prices/index.html")
@@ -464,7 +479,7 @@ class Pieces(unittest.TestCase):
             self.assertIn('<h2 id="canberra">', hub); self.assertIn('href="../fuel-prices/canberra-and-queanbeyan/"', hub)
             self.assertIn("<h2>Fuel prices outside Sydney (NSW and ACT)</h2>", hub); self.assertIn("Does Bowser forecast Canberra prices?", hub)
             hub_desc = html.unescape(re.search(r'<meta name="description" content="(.*?)">', hub).group(1))
-            self.assertTrue(hub_desc.startswith("NSW and ACT petrol prices for 17 Nov: Sydney Unleaded 91 median 213.6c/L"), hub_desc); self.assertLessEqual(len(hub_desc), 155)
+            self.assertTrue(hub_desc.startswith("Sydney, NSW and ACT petrol prices for 17 Nov: Sydney Unleaded 91 median 213.6c/L"), hub_desc); self.assertLessEqual(len(hub_desc), 155)
             # ACT and Queanbeyan stations: "cheapest" goes to the Canberra page, never Sydney's; a Sydney station keeps Sydney's
             for p in ("station/ampol-belconnen-601/index.html", "station/metro-queanbeyan-607/index.html"):
                 page = rd(p)
@@ -542,7 +557,7 @@ class Pieces(unittest.TestCase):
             self.assertIn("the Newcastle median of 223.0c", rd("station/servo-newcastle-0-100/index.html"))
             self.assertIn('href="../../fuel-prices/newcastle/"', rd("fuel-prices/unleaded-91/index.html"))
             # a station silent for over a month keeps its page, but out of search and out of the sitemap
-            dead, sm = rd("station/closed-servo-200/index.html"), rd("sitemap.xml")
+            dead, sm = rd("station/closed-servo-200/index.html"), "".join(rd(f"sitemap-{g}.xml") for g in sp.SITEMAP_GROUPS if os.path.exists(os.path.join(out, f"sitemap-{g}.xml")))
             self.assertIn('<meta name="robots" content="noindex">', dead); self.assertNotIn('rel="canonical"', dead)
             self.assertNotIn("closed-servo-200", sm); self.assertNotIn("tibooburra-2880", sm); self.assertIn("fuel-prices/newcastle/", sm)
             # outside Sydney a page's lastmod is the day its newest price was reported; region and Sydney pages change daily

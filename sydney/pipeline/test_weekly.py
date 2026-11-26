@@ -131,7 +131,7 @@ class Pages(unittest.TestCase):
                 self.assertTrue(os.path.exists(os.path.join(self.out, href, "index.html")), href)
 
     def test_sitemap_and_forecast_page(self):
-        with open(os.path.join(self.out, "sitemap.xml")) as fh: sm = fh.read()
+        with open(os.path.join(self.out, "sitemap-pages.xml")) as fh: sm = fh.read()
         self.assertIn("fuel-price-forecast/2026-11-02/</loc><lastmod>2026-11-09</lastmod>", sm)
         self.assertNotIn("2026-11-09/</loc>", sm)
         fc = self.read("fuel-price-forecast")
